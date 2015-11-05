@@ -408,7 +408,7 @@ def validate_tablenames(table_list):
 
 class RestoreDatabase(Operation):
     def __init__(self, restore_timestamp, no_analyze, drop_db, restore_global, master_datadir, backup_dir,
-                 master_port, dump_dir, dump_prefix, no_plan, restore_tables, batch_default, no_ao_stats,
+                 master_port, dump_dir, dump_prefix, no_plan, force_error_scan, restore_tables, batch_default, no_ao_stats,
                  redirected_restore_db, report_status_dir, ddboost, netbackup_service_host, netbackup_block_size, change_schema):
         self.restore_timestamp = restore_timestamp
         self.no_analyze = no_analyze
@@ -420,6 +420,7 @@ class RestoreDatabase(Operation):
         self.dump_dir = dump_dir
         self.dump_prefix = dump_prefix
         self.no_plan = no_plan
+        self.force_error_scan = force_error_scan
         self.restore_tables = restore_tables
         self.batch_default = batch_default
         self.no_ao_stats = no_ao_stats
@@ -498,9 +499,8 @@ class RestoreDatabase(Operation):
             restore_line = self._build_restore_line(restore_timestamp,
                                                     restore_db, compress,
                                                     self.master_port,
-                                                    self.no_plan, table_filter_file,
-                                                    self.no_ao_stats, full_restore_with_filter,
-                                                    self.change_schema)
+                                                    self.no_plan, self.force_error_scan, table_filter_file,
+                                                    self.no_ao_stats, full_restore_with_filter, self.change_schema)
             logger.info('gp_restore commandline: %s: ' % restore_line)
             Command('Invoking gp_restore', restore_line).run(validateAfter=True)
 
@@ -749,7 +749,7 @@ class RestoreDatabase(Operation):
         return True
 
     def _build_restore_line(self, restore_timestamp, restore_db, compress, master_port, no_plan,
-                            table_filter_file, no_stats, full_restore_with_filter, change_schema):
+                            force_error_scan, table_filter_file, no_stats, full_restore_with_filter, change_schema):
 
         user = getpass.getuser()
         hostname = socket.gethostname()    # TODO: can this just be localhost? bash was using `hostname`
@@ -782,6 +782,8 @@ class RestoreDatabase(Operation):
         # Restore only data if no_plan or full_restore_with_filter is True
         if no_plan or full_restore_with_filter:
             restore_line += " -a"
+        if force_error_scan:
+            restore_line += " --error-scan"
         if no_stats:
             restore_line += " --gp-nostats"
         if self.ddboost:
