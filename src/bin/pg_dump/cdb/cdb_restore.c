@@ -70,7 +70,7 @@ static const char *logFatal = "FATAL";
 const char *progname;
 static char * addPassThroughLongParm(const char *Parm, const char *pszValue, char *pszPassThroughParmString);
 static char *dump_prefix = NULL;
-static char *status_file = NULL;
+static char *status_file_dir = NULL;
 
 /* NetBackup related variable */
 static char *netbackup_service_host = NULL;
@@ -92,6 +92,15 @@ main(int argc, char **argv)
 	SegmentDatabase *sourceSegDB = NULL;
 	SegmentDatabase *targetSegDB = NULL;
 
+	progname = get_progname(argv[0]);
+
+	if(getenv("MASTER_DATA_DIRECTORY") == NULL);
+	{
+		/* Do not proceed if "MASTER_DATA_DIRECTORY" is not set */
+		mpp_err_msg(logError, progname, "Environment Variable MASTER_DATA_DIRECTORY not set!\n");
+		exit(1);
+	}
+
 	/* This struct holds the values of the command line parameters */
 	InputOptions inputOpts;
 
@@ -109,8 +118,6 @@ main(int argc, char **argv)
 	memset(&restorePairAr, 0, sizeof(restorePairAr));
 	memset(&parmAr, 0, sizeof(parmAr));
 	memset(&masterParm, 0, sizeof(masterParm));
-
-	progname = get_progname(argv[0]);
 
 #ifdef USE_DDBOOST
 	dd_boost_enabled = 0;
@@ -738,8 +745,8 @@ fillInputOptions(int argc, char **argv, InputOptions * pInputOpts)
 				pInputOpts->pszPassThroughParms = addPassThroughLongParm("prefix", DUMP_PREFIX, pInputOpts->pszPassThroughParms);
 				break;
 			case 14:
-				status_file = Safe_strdup(optarg);
-				pInputOpts->pszPassThroughParms = addPassThroughLongParm("status", status_file, pInputOpts->pszPassThroughParms);
+				status_file_dir = Safe_strdup(optarg);
+				pInputOpts->pszPassThroughParms = addPassThroughLongParm("status", status_file_dir, pInputOpts->pszPassThroughParms);
 				break;
 			case 15:
 				netbackup_service_host = Safe_strdup(optarg);
@@ -984,6 +991,7 @@ threadProc(void *arg)
 	char	   *pszPassThroughCredentials;
 	char	   *pszPassThroughTargetInfo;
 	PQExpBuffer Qry;
+	PQExpBuffer pqBuffer;
 	PGresult   *pRes;
 	int			sock;
 	bool		bSentCancelMessage;
@@ -1020,7 +1028,7 @@ threadProc(void *arg)
 		sSegDB->pszDBName = Safe_strdup(pInputOpts->pszDBName);
 	}
 
-	/* connect to the source segDB to start gp_dump_agent there */
+	/* connect to the source segDB to start gp_restore_agent there */
 	pConn = MakeDBConnection(sSegDB, false);
 	if (PQstatus(pConn) == CONNECTION_BAD)
 	{
@@ -1178,8 +1186,10 @@ threadProc(void *arg)
 					g_b_SendCancelMessage = true;
 					bIsFinished = true;
 					pParm->bSuccess = false;
+					pqBuffer = createPQExpBuffer();
 					/* Make call to get error message from file on server */
-					pParm->pszErrorMsg = ReadBackendBackupFile(pConn, pInputOpts->pszBackupDirectory, pszKey, BFT_RESTORE_STATUS, progname);
+					ReadBackendBackupFileError(pConn, status_file_dir, pszKey, BFT_RESTORE_STATUS, progname, pqBuffer);
+					pParm->pszErrorMsg = pqBuffer->data;
 
 					mpp_err_msg(logError, progname, "restore failed for source dbid %d, target dbid %d on host %s\n",
 								sSegDB->dbid, tSegDB->dbid, StringNotNull(sSegDB->pszHost, "localhost"));
@@ -1205,6 +1215,23 @@ threadProc(void *arg)
 					bSentCancelMessage = true;
 				}
 			}
+		}
+	}
+
+
+	/* We want a force scan of the restore status file for ERRORS, even if
+	 * segment returns success, because psql client does not report the correct
+	 * error code upon SQL failure.
+	 */
+	if (pParm->bSuccess)
+	{
+		pqBuffer = createPQExpBuffer();
+		int status = ReadBackendBackupFileError(pConn, status_file_dir, pszKey, BFT_RESTORE_STATUS, progname, pqBuffer);
+		if (status != 0)
+		{
+			pParm->pszErrorMsg = pqBuffer->data;
+			pParm->bSuccess = false;
+			g_b_SendCancelMessage = true;
 		}
 	}
 
@@ -1299,7 +1326,7 @@ restoreMaster(InputOptions * pInputOpts,
 	pParm->pTargetSegDBData = tSegDB;
 	pParm->pSourceSegDBData = sSegDB;
 	pParm->pOptionsData = pInputOpts;
-	pParm->bSuccess = false;
+	pParm->bSuccess = true;
 	pParm->pszErrorMsg = NULL;
 	pParm->pszRemoteBackupPath = NULL;
 
@@ -1477,7 +1504,7 @@ spinOffThreads(PGconn *pConn, InputOptions * pInputOpts, const RestorePairArray 
 		pParm->pSourceSegDBData = &restorePairAr->pData[i].segdb_source;
 		pParm->pTargetSegDBData = &restorePairAr->pData[i].segdb_target;
 		pParm->pOptionsData = pInputOpts;
-		pParm->bSuccess = false;
+		pParm->bSuccess = true;
 
 		/* exclude master node */
 		if (pParm->pTargetSegDBData->role == ROLE_MASTER)
