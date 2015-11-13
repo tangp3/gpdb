@@ -275,22 +275,6 @@ RestoreArchive(Archive *AHX, RestoreOptions *ropt)
 				ahprintf(AH, "%s", te->dropStmt);
 			}
 		}
-
-		/*
-		 * _selectOutputSchema may have set currSchema to reflect the effect
-		 * of a "SET search_path" command it emitted.  However, by now we may
-		 * have dropped that schema; or it might not have existed in the first
-		 * place.  In either case the effective value of search_path will not
-		 * be what we think.  Forcibly reset currSchema so that we will
-		 * re-establish the search_path setting when needed (after creating
-		 * the schema).
-		 *
-		 * If we treated users as pg_dump'able objects then we'd need to reset
-		 * currUser here too.
-		 */
-		if (AH->currSchema)
-			free(AH->currSchema);
-		AH->currSchema = NULL;
 	}
 
 	/*
@@ -2102,43 +2086,6 @@ _tocEntryRequired(TocEntry *te, RestoreOptions *ropt, bool include_acls)
 		if (!te->namespace)
 			return 0;
 		if (strcmp(ropt->schemaNames, te->namespace) != 0)
-			return 0;
-	}
-
-	if (ropt->selTypes)
-	{
-		if (strcmp(te->desc, "TABLE") == 0 ||
-			strcmp(te->desc, "EXTNRNAL TABLE") == 0 ||
-			strcmp(te->desc, "FOREIGN TABLE") == 0 ||
-			strcmp(te->desc, "TABLE DATA") == 0)
-		{
-			if (!ropt->selTable)
-				return 0;
-			if (ropt->tableNames && strcmp(ropt->tableNames, te->tag) != 0)
-				return 0;
-		}
-		else if (strcmp(te->desc, "INDEX") == 0)
-		{
-			if (!ropt->selIndex)
-				return 0;
-			if (ropt->indexNames && strcmp(ropt->indexNames, te->tag) != 0)
-				return 0;
-		}
-		else if (strcmp(te->desc, "FUNCTION") == 0)
-		{
-			if (!ropt->selFunction)
-				return 0;
-			if (ropt->functionNames && strcmp(ropt->functionNames, te->tag) != 0)
-				return 0;
-		}
-		else if (strcmp(te->desc, "TRIGGER") == 0)
-		{
-			if (!ropt->selTrigger)
-				return 0;
-			if (ropt->triggerNames && strcmp(ropt->triggerNames, te->tag) != 0)
-				return 0;
-		}
-		else
 			return 0;
 	}
 
