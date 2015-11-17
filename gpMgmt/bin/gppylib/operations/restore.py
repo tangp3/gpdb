@@ -97,7 +97,7 @@ def get_incremental_restore_timestamps(master_datadir, backup_dir, dump_dir, dum
 def get_partition_list(master_datadir, backup_dir, dump_dir, dump_prefix, timestamp_key):
     partition_list_file = generate_partition_list_filename(master_datadir, backup_dir, dump_dir, dump_prefix, timestamp_key)
     partition_list = get_lines_from_file(partition_list_file)
-    partition_list = [(p.split('.')[0].strip(), p.split('.')[1].strip()) for p in partition_list]
+    partition_list = [smart_split(p) for p in partition_list]
     return partition_list
 
 def get_dirty_table_file_contents(master_datadir, backup_dir, dump_dir, dump_prefix, timestamp_key):
@@ -401,7 +401,7 @@ def truncate_restore_tables(restore_tables, master_port, dbname):
         conn = dbconn.connect(dburl)
         truncate_list = []
         for restore_table in restore_tables:
-            schema, table = restore_table.split('.')
+            schema, table = smart_split(restore_table)
 
             if table == '*':
                 get_all_tables_qry = 'select schemaname || \'.\' || tablename from pg_tables where schemaname = \'%s\';' % schema
@@ -579,7 +579,7 @@ class RestoreDatabase(Operation):
                 for restore_table in restore_tables:
 
                     analyze_list = []
-                    schemaname, tablename = restore_table.split('.')
+                    schemaname, tablename = smart_split(restore_table)
                     schema = pg.escape_string(schemaname)
                     table = pg.escape_string(tablename)
                     if change_schema:
@@ -1075,7 +1075,7 @@ def validate_tablenames(table_list):
     table_set = wildcard_tables
     for restore_table in table_list:
         if restore_table not in table_set:
-            schema, _ = restore_table.split('.')
+            schema, _ = smart_split(restore_table)
             if schema + '.*' not in table_set:
                 table_set.append(restore_table)
 
@@ -1095,7 +1095,7 @@ class ValidateRestoreTables(Operation):
             dburl = dbconn.DbURL(port=self.master_port, dbname=self.restore_db)
             conn = dbconn.connect(dburl)
             for restore_table in self.restore_tables:
-                schema, table = restore_table.split('.')
+                schema, table = smart_split(restore_table)
                 count = execSQLForSingleton(conn, "select count(*) from pg_class, pg_namespace where pg_class.relname = '%s' and pg_class.relnamespace = pg_namespace.oid and pg_namespace.nspname = '%s'" % (table, schema))
                 if count == 0:
                     logger.warn("Table %s does not exist in database %s, removing from list of tables to restore" % (table, self.restore_db))

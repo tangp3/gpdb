@@ -2,6 +2,7 @@ import fnmatch
 import glob
 import os
 import tempfile
+import shutil
 from gppylib import gplog
 from gppylib.commands.base import WorkerPool, Command, REMOTE
 from gppylib.commands.unix import Scp
@@ -182,11 +183,18 @@ def check_cdatabase_exists(dbname, report_file, dump_prefix, ddboost=False, netb
     else:
         cdatabase_contents = get_lines_from_file(filename, ddboost)
 
+    dbname = escapeDoubleQuoteInSQLString(dbname, forceDoubleQuote=False)
+    ff = open("/tmp/dbnames", "w")
     for line in cdatabase_contents:
         if 'CREATE DATABASE' in line:
             parts = line.split()
             if len(parts) < 3:
                 continue
+            if parts[2] is not None:
+                ff.write("before strip: %s\n" % parts[2])
+                ff.write("after strip: %s\n" % parts[2].strip('"'))
+                ff.write("dbname: %s\n" % dbname)
+                ff.close()
             if parts[2] is not None and dbname == parts[2].strip('"'):
                 return True
     return False
@@ -458,7 +466,10 @@ def get_latest_full_dump_timestamp(dbname, backup_dir, dump_dir, dump_prefix, dd
         raise Exception('Invalid None param to get_latest_full_dump_timestamp')
 
     dump_dirs = get_dump_dirs(backup_dir, dump_dir)
+    with open("/tmp/dir", "w") as ff:
+        ff.write(', '.join(dump_dirs))
 
+    fs = open("/tmp/report_file", "w")
     for dump_dir in dump_dirs:
         files = sorted(os.listdir(dump_dir))
 
@@ -474,6 +485,7 @@ def get_latest_full_dump_timestamp(dbname, backup_dir, dump_dir, dump_prefix, dd
 
         dump_report_files = sorted(dump_report_files, key=lambda x: int(x.split('_')[-1].split('.')[0]), reverse=True)
         for dump_report_file in dump_report_files:
+            fs.write(os.path.join(dump_dir, dump_report_file) + '\n')
             logger.debug('Checking for latest timestamp in report file %s' % os.path.join(dump_dir, dump_report_file))
             timestamp = get_full_ts_from_report_file(dbname, os.path.join(dump_dir, dump_report_file), dump_prefix, ddboost)
             logger.debug('Timestamp = %s' % timestamp)
@@ -518,9 +530,15 @@ def run_pool_command(host_list, cmd_str, batch_default, check_results=True):
         pool.check_results()
 
 def check_funny_chars_in_tablenames(tablenames):
+    """
+    '\n' inside table name makes it hard to specify the object name in shell command line,
+    this may be worked around by using table file, but currently we read input line by line.
+    '!' inside table name will mess up with the shell history expansion.     
+    """
+
     for tablename in tablenames:
-        if '\n' in tablename or ',' in tablename or ':' in tablename:
-            raise Exception('Tablename has an invalid character "\\n", ":", "," : "%s"' % tablename)
+        if '\n' in tablename or '!' in tablename:
+            raise Exception('Tablename has an invalid character "\\n": "!": "%s"' % tablename)
 
 #Form and run command line to backup individual file with NBU
 def backup_file_with_nbu(netbackup_service_host, netbackup_policy, netbackup_schedule, netbackup_block_size, netbackup_keyword, netbackup_filepath, hostname=None):
@@ -639,3 +657,113 @@ def check_schema_exists(schema_name, dbname):
     if len(getRows(dbname, schema_check_sql)) < 1:
         return False
     return True
+
+def isDoubleQuoted(string):
+    if len(string) > 2 and string[0] == '"' and string[-1] == '"':
+        return True
+    return False
+
+def checkAndRemoveEnclosingDoubleQuote(string):
+    if isDoubleQuoted(string):
+        string = string[1 : len(string) - 1]
+    return string
+
+def checkAndAddEnclosingDoubleQuote(string):
+    if not isDoubleQuoted(string):
+        string = '"' + string + '"'
+    return string
+
+def escapeDoubleQuoteInSQLString(string, forceDoubleQuote=True):
+    """
+    Add enclosing double quote after escaping the double quote 
+    inside the table or schema name
+    """
+    string = checkAndRemoveEnclosingDoubleQuote(string)
+    string = string.replace('"', '""')
+
+    if forceDoubleQuote:
+        string = '"' + string + '"'
+    return string
+
+def formatSQLString(rel_file, isTableName=False):
+    """
+    Read the full qualified schema or table name, do a split 
+    if each item is a table name into schema and table,
+    escape the double quote inside the name properly.
+    """
+    relnames = []
+    print rel_file
+    if rel_file and os.path.exists(rel_file):
+        with open(rel_file, 'r') as fr:
+            line = fr.readline().strip('\n')
+            if isTableName:
+                schema, table = smart_split(line)
+                schema = escapeDoubleQuoteInSQLString(schema)
+                table = escapeDoubleQuoteInSQLString(table)
+                relnames.append(schema + '.' + table)
+            else:
+                schema = escapeDoubleQuoteInSQLString(line)
+                relnames.append(schema)
+        if len(relnames) > 0:
+            tmp_file = create_temp_file_from_list(relnames, os.path.basename(rel_file))
+            shutil.move(tmp_file, rel_file)
+
+def shellEscape(string):
+    """
+    shellEscape: Returns a string in which the shell-significant quoted-string characters are
+    escaped.
+    This function escapes the following characters: '"', '$', '`', '\', '!'
+    """
+    res = []
+    for ch in string:
+        if ch in ['\\', '`', '$', '!', '"']:
+            res.append('\\')
+        res.append(ch)
+    return ''.join(res)
+
+def smart_split(string):
+    """
+    Split full qualified table name into schema and table by separator '.',
+    figure out the correct split option and return the (schema, table) tuple.
+
+    The right format:                  schema.table = '"A".B"."C"D"'
+                                       schema.table = 'ab.cd'
+    Format with multiple valid split:  schema.table = '"A"."B"."C"'
+    Format with none valid split:      schema.table = '"A".B".C"'
+    """
+    valid_cases = 0
+    valid_schema = None
+    valid_table = None
+    for i in range(len(string)):
+        if string[i] == '.':
+            schema, table = string[:i], string[i+1:]
+            if validate_relname(schema) and validate_relname(table):
+                valid_cases += 1
+                if valid_cases == 1:
+                    valid_schema = schema
+                    valid_table = table
+                if valid_cases >= 2:
+                    raise Exception("Found multiple valid split options, %s" % string)
+
+    if valid_cases != 1:
+        raise Exception("Found no valid split options, %s" % string)
+
+    return valid_schema, valid_table
+
+
+def validate_relname(relname):
+    """
+    A schema/table name can only be valid if it is double quoted, or not double quoted. 
+    If a beginning and/or ending double quote is part of schema/table name, the whole
+    string must be double quoted.
+    Beginning or endding with stand alone double quote is treated as invalid relname.
+
+    valid table names:   '"test"': test, 'test': test, '""test"': "test, '"test""': test"
+                         'test"1': test"1
+    invalid table names: '"test', 'test"'
+    """
+
+    if (relname[0] == '"' and relname[-1] == '"') or (relname[0] != '"' and relname[-1] != '"'):
+        return True
+    else:
+        return False
