@@ -183,6 +183,9 @@ def connect(dburl, utility=False, verbose=False,
     timeout  = dburl.timeout
     cnx      = None
 
+    # need to escape backslashes in db name
+    dbbase = dbbase.replace('\\', '\\\\')
+
     # MPP-14121, use specified connection timeout
     #
     if timeout is not None:
@@ -199,6 +202,13 @@ def connect(dburl, utility=False, verbose=False,
 
     for i in range(retries):
         try:
+            print 'cstr = ', cstr
+            print 'dbhost = ', dbhost
+            print 'dbport = ', dbport
+            print 'dbopt = ', dbopt
+            print 'dbtty = ', dbtty
+            print 'dbuser = ', dbuser
+            print 'dbpasswd = ', dbpasswd
             cnx  = pgdb._connect_(cstr, dbhost, dbport, dbopt, dbtty, dbuser, dbpasswd)
             break
 
@@ -213,6 +223,7 @@ def connect(dburl, utility=False, verbose=False,
 
     conn = pgdb.pgdbCnx(cnx)
     
+    print conn
     #by default, libpq will print WARNINGS to stdout
     if not verbose:
         cursor=conn.cursor()

@@ -20,6 +20,7 @@
 #include <fcntl.h>
 
 #include "pqexpbuffer.h"
+#include "dumputils.h"
 #include "cdb_dump_util.h"
 
 #define DDP_CL_DDP 1
@@ -318,6 +319,7 @@ MakeDBConnection(const SegmentDatabase *pSegDB, bool bDispatch)
 	char	   *pszOptions;
 	char	   *pszHost;
 	char	   *pszDBName;
+	char	   *tmpDBName;
 	char	   *pszUser;
 	char	   *pszDBPswd;
 	char	   *pszConnInfo;
@@ -335,7 +337,10 @@ MakeDBConnection(const SegmentDatabase *pSegDB, bool bDispatch)
 		pszHost = MakeString("host=%s", pSegDB->pszHost);
 
 	if (pSegDB->pszDBName != NULL && *pSegDB->pszDBName != '\0')
-		pszDBName = MakeString("dbname=%s", pSegDB->pszDBName);
+	{
+		tmpDBName = escape_backslashes(pSegDB->pszDBName, true);
+		pszDBName = MakeString("dbname='%s'", tmpDBName);
+	}
 	else
 		pszDBName = NULL;
 
@@ -349,13 +354,19 @@ MakeDBConnection(const SegmentDatabase *pSegDB, bool bDispatch)
 	else
 		pszDBPswd = NULL;
 
+	//char *database = "dbname='SCHEMA\\\'\\\'\"/\\\\1'";
 	pszConnInfo = MakeString("%s %s port=%u %s %s %s",
 							 StringNotNull(pszOptions, ""),
 							 pszHost,
 							 pSegDB->port,
 							 StringNotNull(pszDBName, ""),
+							 //database,
 							 StringNotNull(pszUser, ""),
 							 StringNotNull(pszDBPswd, ""));
+
+	FILE *ft = fopen("/tmp/connStr", "w");
+	fprintf(ft, "%s", pszConnInfo);
+	fclose(ft);
 
 	pConn = PQconnectdb(pszConnInfo);
 
@@ -363,6 +374,8 @@ MakeDBConnection(const SegmentDatabase *pSegDB, bool bDispatch)
 		free(pszOptions);
 	if (pszHost != NULL)
 		free(pszHost);
+	if (tmpDBName != NULL)
+		free(tmpDBName);
 	if (pszDBName != NULL)
 		free(pszDBName);
 	if (pszUser != NULL)

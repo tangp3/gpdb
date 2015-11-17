@@ -156,6 +156,7 @@ int
 main(int argc, char **argv)
 {
 	PQExpBuffer valueBuf = NULL;
+	PQExpBuffer escapeBuf = NULL;
 	RestoreOptions *opts;
 	int			c;
 	int			exit_code = 0;
@@ -830,7 +831,15 @@ main(int argc, char **argv)
 			strcat(pszCmdLine, g_targetPort);
 			strcat(pszCmdLine, " -U ");
 			strcat(pszCmdLine, SegDB.pszDBUser);
+
 			strcat(pszCmdLine, " -d ");
+
+			// Shell escape DBName for command line
+			SegDB.pszDBName = shellEscape(escapeBuf, SegDB.pszDBName);
+			// quote the DBName in case of any funy chars
+			char *quotedDBName = MakeString("\"%s\"", SegDB.pszDBName);
+			free(SegDB.pszDBName);
+			SegDB.pszDBName = quotedDBName;
 			strcat(pszCmdLine, SegDB.pszDBName);
 			strcat(pszCmdLine, " -a ");
 
@@ -1017,6 +1026,8 @@ main(int argc, char **argv)
 		free(SegDB.pszDBPswd);
 	if (valueBuf)
 		destroyPQExpBuffer(valueBuf);
+	if (escapeBuf)
+		destroyPQExpBuffer(escapeBuf);
 
 	PQfinish(g_conn);
 	if (exit_code == 0)

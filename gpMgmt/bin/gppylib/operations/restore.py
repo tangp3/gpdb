@@ -10,6 +10,7 @@ from gppylib import gplog
 from gppylib.commands.base import WorkerPool, Command, ExecutionError
 from gppylib.commands.gp import Psql
 from gppylib.commands.unix import Scp
+from gppylib.utils import shellEscape
 from gppylib.db import dbconn
 from gppylib.db.dbconn import execSQL, execSQLForSingleton
 from gppylib.gparray import GpArray
@@ -23,7 +24,8 @@ from gppylib.operations.backup_utils import check_backup_type, check_dir_writabl
                                             generate_partition_list_filename, generate_pgstatlastoperation_filename, generate_plan_filename, generate_report_filename, \
                                             generate_segment_config_filename, get_all_segment_addresses, get_backup_directory, get_full_timestamp_for_incremental, \
                                             get_full_timestamp_for_incremental_with_nbu, get_lines_from_file, restore_file_with_nbu, run_pool_command, scp_file_to_hosts, \
-                                            verify_lines_in_file, write_lines_to_file
+                                            verify_lines_in_file, write_lines_to_file, smart_split, escapeDoubleQuoteInSQLString, get_dbname_from_cdatabaseline, \
+                                            checkAndRemoveEnclosingDoubleQuote, checkAndAddEnclosingDoubleQuote, removeEscapingDoubleQuoteInSQLString
 from gppylib.operations.unix import CheckFile, CheckRemoteDir, MakeRemoteDir, CheckRemotePath
 from re import compile, search, sub
 
@@ -97,7 +99,7 @@ def get_incremental_restore_timestamps(master_datadir, backup_dir, dump_dir, dum
 def get_partition_list(master_datadir, backup_dir, dump_dir, dump_prefix, timestamp_key):
     partition_list_file = generate_partition_list_filename(master_datadir, backup_dir, dump_dir, dump_prefix, timestamp_key)
     partition_list = get_lines_from_file(partition_list_file)
-    partition_list = [(p.split('.')[0].strip(), p.split('.')[1].strip()) for p in partition_list]
+    partition_list = [smart_split(p) for p in partition_list]
     return partition_list
 
 def get_dirty_table_file_contents(master_datadir, backup_dir, dump_dir, dump_prefix, timestamp_key):
@@ -377,7 +379,7 @@ def _build_gpdbrestore_cmd_line(ts, table_file, backup_dir, redirected_restore_d
     if dump_prefix:
         cmd += " --prefix=%s" % dump_prefix.strip('_')
     if redirected_restore_db:
-        cmd += " --redirect=%s" % redirected_restore_db
+        cmd += " --redirect=%s" % checkAndAddEnclosingDoubleQuote(shellEscape(redirected_restore_db))
     if report_status_dir:
         cmd += " --report-status-dir=%s" % report_status_dir
     if ddboost:
@@ -401,15 +403,22 @@ def truncate_restore_tables(restore_tables, master_port, dbname):
         conn = dbconn.connect(dburl)
         truncate_list = []
         for restore_table in restore_tables:
-            schema, table = restore_table.split('.')
+            schemaname, tablename = smart_split(restore_table)
 
             if table == '*':
-                get_all_tables_qry = 'select schemaname || \'.\' || tablename from pg_tables where schemaname = \'%s\';' % schema
+                get_all_tables_qry = 'select \'"\' || schemaname || \'"\', \'"\' || tablename || \'"\' from pg_tables where schemaname = \'%s\';' % pg.escape_string(schemaname)
                 relations = execSQL(conn, get_all_tables_qry)
                 for relation in relations:
-                    truncate_list.append(relation[0])
+                    schema, table = relation[0], relation[1]
+                    schema = escapeDoubleQuoteInSQLString(schema)
+                    table = escapeDoubleQuoteInSQLString(table)
+                    truncate_table = '%s.%s' % (schema, table)
+                    truncate_list.append(truncate_table)
             else:
-                truncate_list.append(restore_table)
+                schema = escapeDoubleQuoteInSQLString(schemaname)
+                table = escapeDoubleQuoteInSQLString(tablename)
+                truncate_table = '%s.%s' % (schema, table)
+                truncate_list.append(truncate_table)
 
         for t in truncate_list:
             try:
@@ -498,7 +507,7 @@ class RestoreDatabase(Operation):
         full_restore = is_full_restore(self.master_datadir, self.backup_dir, self.dump_dir, self.dump_prefix, self.restore_timestamp, self.ddboost)
         begin_incremental = is_begin_incremental_run(self.master_datadir, self.backup_dir, self.dump_dir, self.dump_prefix, self.restore_timestamp, self.no_plan, self.ddboost)
 
-        if (full_restore and self.restore_tables is not None and not self.no_plan) or begin_incremental or self.metadata_only:
+        if (full_restore and len(self.restore_tables) > 0 and not self.no_plan) or begin_incremental or self.metadata_only:
             if full_restore and not self.no_plan:
                 full_restore_with_filter = True
 
@@ -547,9 +556,9 @@ class RestoreDatabase(Operation):
                 self.remove_filter_file(table_filter_file)
 
         if not self.metadata_only:
-            if (not self.no_analyze) and (self.restore_tables is None):
+            if (not self.no_analyze) and (len(self.restore_tables) == 0):
                 self._analyze(restore_db, self.master_port)
-            elif (not self.no_analyze) and self.restore_tables:
+            elif (not self.no_analyze) and len(self.restore_tables) > 0:
                 self._analyze_restore_tables(restore_db, self.restore_tables, self.change_schema)
         if self.restore_stats:
             self._restore_stats(restore_timestamp, self.master_datadir, self.backup_dir, self.master_port, restore_db, self.restore_tables)
@@ -577,21 +586,25 @@ class RestoreDatabase(Operation):
             with dbconn.connect(dbconn.DbURL(dbname=restore_db, port=self.master_port)) as conn:
                 num_sqls = 0
                 for restore_table in restore_tables:
-
                     analyze_list = []
-                    schemaname, tablename = restore_table.split('.')
-                    schema = pg.escape_string(schemaname)
-                    table = pg.escape_string(tablename)
-                    if change_schema:
-                        schema = pg.escape_string(change_schema)
-                        restore_table = "%s.%s" % (schema, table)
+                    schemaname, tablename = smart_split(restore_table)
 
-                    if table == '*':
-                        get_all_tables_qry = 'select schemaname || \'.\' || tablename from pg_tables where schemaname = \'%s\';' % schema
+                    if change_schema:
+                        schemaname = change_schema
+
+                    if tablename == '*':
+                        get_all_tables_qry = 'select \'"\' || schemaname || \'"\', \'"\' || tablename || \'"\'from pg_tables where schemaname = \'%s\';' % pg.escape_string(schemaname)
                         relations = execSQL(conn, get_all_tables_qry)
                         for relation in relations:
-                            analyze_list.append(relation[0])
+                            schema, table = relation[0], relation[1]
+                            schema = escapeDoubleQuoteInSQLString(schema)
+                            table = escapeDoubleQuoteInSQLString(table)
+                            restore_table = '%s.%s' % (schema, table)
+                            analyze_list.append(restore_table)
                     else:
+                        schema = escapeDoubleQuoteInSQLString(schemaname)
+                        table = escapeDoubleQuoteInSQLString(tablename)
+                        restore_table = '%s.%s' % (schema, table)
                         analyze_list.append(restore_table)
 
                     for tbl in analyze_list:
@@ -616,7 +629,7 @@ class RestoreDatabase(Operation):
         return batch_count
 
     def create_filter_file(self):
-        if self.restore_tables is None:
+        if len(self.restore_tables) == 0:
             return None
 
         table_filter_file = create_temp_file_with_tables(self.restore_tables)
@@ -694,7 +707,7 @@ class RestoreDatabase(Operation):
 
         # We need to replace existing starelid's in file to match starelid of tables in database in case they're different
         # First, map each schemaname.tablename to its corresponding starelid
-        query = """SELECT t.schemaname || '.' || t.tablename, c.oid FROM pg_class c join pg_tables t ON c.relname = t.tablename
+        query = """SELECT '"' || t.schemaname || '"' || '.' || '"' || t.tablename || '"', c.oid FROM pg_class c join pg_tables t ON c.relname = t.tablename
                          WHERE t.schemaname NOT IN ('pg_toast', 'pg_bitmapindex', 'pg_temp_1', 'pg_catalog', 'information_schema', 'gp_toolkit')"""
         relids = {}
         rows = execute_sql(query, master_port, restore_db)
@@ -715,8 +728,8 @@ class RestoreDatabase(Operation):
                 for line in infile:
                     matches = search(table_pattern, line)
                     if matches:
-                        tablename = "%s.%s" % (matches.group(1), matches.group(2))
-                        if not restore_tables or tablename in restore_tables:
+                        tablename = '"%s"."%s"' % (matches.group(1), matches.group(2))
+                        if len(restore_tables) == 0 or tablename in restore_tables:
                             try:
                                 new_oid = relids[tablename]
                                 print_toggle = True
@@ -756,8 +769,8 @@ class RestoreDatabase(Operation):
 
             logger.info("Dropping Database %s" % restore_db)
             if count == 1:
-                cmd = Command(name='drop database %s' % restore_db, cmdStr='dropdb %s -p %s' % (restore_db, master_port))
-                cmd.run(validateAfter=True)
+                dropdb_qry = 'drop database %s' % escapeDoubleQuoteInSQLString(restore_db)
+                execSQL(conn, dropdb_qry)
             logger.info("Dropped Database %s" % restore_db)
         except ExecutionError, e:
             logger.exception("Could not drop database %s" % restore_db)
@@ -766,16 +779,19 @@ class RestoreDatabase(Operation):
             conn.close()
 
     def create_database_if_not_exists(self, master_port, restore_db):
+        """
+        restore_db: true database name (non escaped or quoted)
+        """
         conn = None
         try:
             dburl = dbconn.DbURL(port=master_port)
             conn = dbconn.connect(dburl)
-            count = execSQLForSingleton(conn, "select count(*) from pg_database where datname='%s';" % restore_db)
+            count = execSQLForSingleton(conn, "select count(*) from pg_database where datname='%s';" % pg.escape_string(restore_db))
 
             logger.info("Creating Database %s" % restore_db)
             if count == 0:
-                cmd = Command(name='create database %s' % restore_db, cmdStr='createdb %s -p %s -T template0' % (restore_db, master_port))
-                cmd.run(validateAfter=True)
+                createdb_qry = 'create database %s ;' % escapeDoubleQuoteInSQLString(restore_db)
+                execSQL(conn, createdb_qry)
             logger.info("Created Database %s" % restore_db)
         except ExecutionError, e:
             logger.exception("Could not create database %s" % restore_db)
@@ -860,7 +876,7 @@ class RestoreDatabase(Operation):
             restore_line += " --gp-f=%s" % table_filter_file
         if compress:
             restore_line += " --gp-c"
-        restore_line += " -d %s" % restore_db
+        restore_line += " -d %s" % checkAndAddEnclosingDoubleQuote(shellEscape(restore_db))
 
         # Restore only data if no_plan or full_restore_with_filter is True
         if no_plan or full_restore_with_filter:
@@ -907,7 +923,7 @@ class RestoreDatabase(Operation):
             restore_line += " --gp-f=%s" % table_filter_file
         if compress:
             restore_line += " --gp-c"
-        restore_line += " -d %s" % restore_db
+        restore_line += " -d %s" % checkAndAddEnclosingDoubleQuote(shellEscape(restore_db))
 
         if self.ddboost:
             restore_line += " --ddboost"
@@ -945,7 +961,7 @@ class RestoreDatabase(Operation):
             restore_line += " --gp-f=%s" % table_filter_file
         if compress:
             restore_line += " --gp-c"
-        restore_line += " -d %s" % restore_db
+        restore_line += " -d %s" % checkAndAddEnclosingDoubleQuote(shellEscape(restore_db))
 
         if self.ddboost:
             restore_line += " --ddboost"
@@ -1075,7 +1091,7 @@ def validate_tablenames(table_list):
     table_set = wildcard_tables
     for restore_table in table_list:
         if restore_table not in table_set:
-            schema, _ = restore_table.split('.')
+            schema, _ = smart_split(restore_table)
             if schema + '.*' not in table_set:
                 table_set.append(restore_table)
 
@@ -1095,7 +1111,7 @@ class ValidateRestoreTables(Operation):
             dburl = dbconn.DbURL(port=self.master_port, dbname=self.restore_db)
             conn = dbconn.connect(dburl)
             for restore_table in self.restore_tables:
-                schema, table = restore_table.split('.')
+                schema, table = smart_split(restore_table)
                 count = execSQLForSingleton(conn, "select count(*) from pg_class, pg_namespace where pg_class.relname = '%s' and pg_class.relnamespace = pg_namespace.oid and pg_namespace.nspname = '%s'" % (table, schema))
                 if count == 0:
                     logger.warn("Table %s does not exist in database %s, removing from list of tables to restore" % (table, self.restore_db))
@@ -1151,10 +1167,10 @@ class GetDbName(Operation):
             if not line:
                 break
             if line.startswith("CREATE DATABASE"):
-                restore_db = line.split()[2]
+                restore_db = get_dbname_from_cdatabaseline(line)
                 if restore_db is None:
                     raise Exception('Expected database name after CREATE DATABASE in line "%s" of file "%s"' % (line, self.createdb_file))
-                return restore_db.strip().strip('"')
+                return removeEscapingDoubleQuoteInSQLString(checkAndRemoveEnclosingDoubleQuote(restore_db), forceDoubleQuote=False)
         else:
             raise GetDbName.DbNameGiveUp()
         raise GetDbName.DbNameNotFound()
