@@ -15,6 +15,8 @@
 
 #include "regex/regex.h"
 #include "libpq/libpq-be.h"
+#include "gp-libpq-fe.h"
+#include "gp-libpq-int.h"
 #include "fmgr.h"
 #include "funcapi.h"
 #include "utils/builtins.h"
@@ -58,6 +60,8 @@ static char* parse_prefix_from_params(char *params);
 static char* parse_status_from_params(char *params);
 static char* parse_option_from_params(char *params, char *option);
 static char *queryNBUBackupFilePathName(char *netbackupServiceHost, char *netbackupRestoreFileName);
+static char *shellEscape(const char *shellArg, PQExpBuffer escapeBuf, bool addQuote);
+static char *getAclName(const char *input, PQExpBuffer output);
 
 
 #ifdef USE_DDBOOST
@@ -189,6 +193,7 @@ gp_backup_launch__(PG_FUNCTION_ARGS)
 	int	   len;
 	int	   instid;			/* dispatch node */
 	bool	   is_compress;
+	FILE		*ff = fopen("/tmp/cdbbk", "w");
 	itimers    savetimers;
 
 	char       *pszThrottleCmd;
@@ -201,6 +206,8 @@ gp_backup_launch__(PG_FUNCTION_ARGS)
 	char		*gpDDBoostCmdLine = NULL;
 	char 		*temp = NULL, *pch = NULL, *pchs = NULL;
 #endif
+
+	//sleep(60);
 
 	verifyGpIdentityIsSet();
 	instid = (GpIdentity.segindex == -1) ? 1 : 0;	/* dispatch node */
@@ -307,6 +314,8 @@ gp_backup_launch__(PG_FUNCTION_ARGS)
 		}
 	}
 
+	PQExpBuffer escapeBuf = createPQExpBuffer();
+
 	pszDBName = NULL;
 	pszUserName = (char *) NULL;
 	if (MyProcPort != NULL)
@@ -317,6 +326,12 @@ gp_backup_launch__(PG_FUNCTION_ARGS)
 
 	if (pszDBName == NULL)
 		pszDBName = "";
+	else
+	{
+		fprintf(ff, "before escape %s\n", pszDBName);
+		pszDBName = shellEscape(pszDBName, escapeBuf, true);
+		fprintf(ff, "after escape %s\n", pszDBName);
+	}
 	if (pszUserName == NULL)
 		pszUserName = "";
 
@@ -672,6 +687,8 @@ gp_backup_launch__(PG_FUNCTION_ARGS)
 	}
 #endif
 
+	fprintf(ff, "command line is %s\n", pszCmdLine);
+	fclose(ff);
 	elog(LOG, "gp_dump_agent command line: %s", pszCmdLine),
 
 
@@ -1155,6 +1172,8 @@ gp_restore_launch__(PG_FUNCTION_ARGS)
 
 	len_name = strlen(pszBackupFileName);
 
+	PQExpBuffer escapeBuf = NULL;
+	PQExpBuffer aclNameBuf = NULL;
 	pszDBName = NULL;
 	pszUserName = NULL;
 	if (MyProcPort != NULL)
@@ -1165,8 +1184,22 @@ gp_restore_launch__(PG_FUNCTION_ARGS)
 
 	if (pszDBName == NULL)
 		pszDBName = "";
+	else
+	{
+		escapeBuf = createPQExpBuffer();
+		aclNameBuf = createPQExpBuffer();
+		FILE *ff = fopen("/tmp/dbname_restore", "w");
+		fprintf(ff, "before escape %s\n", pszDBName);
+		//pszDBName = getAclName(pszDBName, aclNameBuf);
+		pszDBName = shellEscape(pszDBName, escapeBuf, true);
+		fprintf(ff, "after escape %s\n", pszDBName);
+		fclose(ff);
+	}
+
 	if (pszUserName == NULL)
 		pszUserName = "";
+
+
 
 	/* Clear process interval timers */
 	resetTimers(&savetimers);
@@ -1366,7 +1399,10 @@ gp_restore_launch__(PG_FUNCTION_ARGS)
 		}
 #endif
 	}
-
+		FILE *fw = fopen("/tmp/before_cmd", "w");
+		fprintf(fw, "database name is: %s\n", pszDBName);
+		fprintf(fw, "command line is: %s\n", pszCmdLine);
+		fclose(fw);
 
 		elog(LOG, "gp_restore_agent command line: %s\n", pszCmdLine);
 
@@ -1385,6 +1421,9 @@ gp_restore_launch__(PG_FUNCTION_ARGS)
 	restoreTimers(&savetimers);
 
 	assert(pszBackupFileName != NULL && pszBackupFileName[0] != '\0');
+
+	destroyPQExpBuffer(escapeBuf);
+	destroyPQExpBuffer(aclNameBuf);
 
 	return DirectFunctionCall1(textin, CStringGetDatum(pszBackupFileName));
 }
@@ -2333,3 +2372,67 @@ static char *formDDBoostFileName(char *pszBackupKey, bool isPostData, bool isCom
        return pszBackupFileName;
 }
 #endif
+
+
+/*
+ * shellEscape: Returns a string in which the shell-significant quoted-string characters are
+ * escaped.
+ *
+ * This function escapes the following characters: '"', '$', '`', '\', '!', '''.
+ *
+ * The StringInfo escapeBuf is used for assembling the escaped string and is reset at the
+ * start of this function.
+ */
+char *
+shellEscape(const char *shellArg, PQExpBuffer escapeBuf, bool addQuote)
+{
+        const char *s = shellArg;
+        const char      escape = '\\';
+
+	resetPQExpBuffer(escapeBuf);
+
+	if (addQuote)
+		appendPQExpBufferChar(escapeBuf, '\"');
+        /*
+         * Copy the shellArg into the escapeBuf prepending any characters
+         * requiring an escape with the escape character.
+         */
+        while (*s != '\0')
+        {
+                switch (*s)
+                {
+                        case '"':
+                        case '$':
+                        case '\\':
+                        case '`':
+                        case '!':
+                                appendPQExpBufferChar(escapeBuf, escape);
+                }
+                appendPQExpBufferChar(escapeBuf, *s);
+                s++;
+        }
+
+	if(addQuote)
+		appendPQExpBufferChar(escapeBuf, '\"');
+        return escapeBuf->data;
+}
+
+/* Dequoting if needed */
+char *
+getAclName(const char *input, PQExpBuffer output)
+{
+	char *s = input;
+	while (*s != '\0')
+	{
+		/*
+		 * Quoting convention is to escape " as ""
+		 */
+		if(*s == '"' && *(s + 1) == '"')
+		{
+			s++;
+		}
+		appendPQExpBufferChar(output, s);
+		s++;
+        }
+        return output->data;
+}

@@ -5,7 +5,7 @@ from gppylib.commands.gp import GpStart, chk_local_db_running
 from gppylib.commands.base import Command, ExecutionError, REMOTE
 from gppylib.db import dbconn
 from gppylib.gparray import GpArray, MODE_SYNCHRONIZED
-from pygresql import pg
+from gppylib.operations.backup_utils import pg, escapeDoubleQuoteInSQLString
 
 PARTITION_START_DATE = '2010-01-01'
 PARTITION_END_DATE = '2013-01-01'
@@ -237,16 +237,23 @@ def get_table_data_to_file(filename, tablename, dbname):
                                 from pg_class as c
                                     inner join pg_namespace as n
                                     on c.relnamespace = n.oid
-                                where (n.nspname || '.' || c.relname = '%s')
-                                    or c.relname = '%s'
+                                where (n.nspname || '.' || c.relname = E'%s')
+                                    or c.relname = E'%s'
                         ) as q;
-                """ % (tablename, tablename)
+                """ % (pg.escape_string(tablename), pg.escape_string(tablename))
     query = order_sql
     conn = dbconn.connect(dbconn.DbURL(dbname=dbname))
     try:
         res = dbconn.execSQLForSingleton(conn, query)
-        data_sql = "COPY (select gp_segment_id, * from %s order by %s) TO '%s'" %(tablename.strip(), res, filename)
+        # check if tablename is fully qualified <schema_name>.<table_name>
+        if '.' in tablename:
+            schema_name, table_name = tablename.split('.')
+            data_sql = '''COPY (select gp_segment_id, * from "%s"."%s" order by %s) TO '%s' ''' % (escapeDoubleQuoteInSQLString(schema_name, False),
+                                                                                                   escapeDoubleQuoteInSQLString(table_name, False), res, filename)
+        else:
+            data_sql = '''COPY (select gp_segment_id, * from "%s" order by %s) TO '%s' ''' %(escapeDoubleQuoteInSQLString(tablename, False), res, filename)
         query = data_sql
+        dbconn.execSQL(conn, query)
         dbconn.execSQL(conn, query)
         conn.commit()
     except Exception as e:
@@ -255,6 +262,9 @@ def get_table_data_to_file(filename, tablename, dbname):
     conn.close()
 
 def diff_backup_restore_data(context, backup_file, restore_file):
+    print "============"
+    print restore_file
+    print backup_file
     if not filecmp.cmp(backup_file, restore_file):
         raise Exception('%s and %s do not match' % (backup_file, restore_file))
     
@@ -269,6 +279,16 @@ def validate_restore_data(context, tablename, dbname, backedup_table=None):
     restore_file = os.path.join(current_dir, './gppylib/test/data', tablename.strip() + "_restore")
     diff_backup_restore_data(context, backup_file, restore_file)
 
+def validate_restore_data(context, tablename, dbname, file_name, backedup_table=None):
+    filename = file_name + "_restore"
+    get_table_data_to_file(filename, tablename, dbname)
+    current_dir = os.getcwd()
+    if backedup_table != None:
+        backup_file = os.path.join(current_dir, './gppylib/test/data', backedup_table.strip() + "_backup")
+    else:
+        backup_file = os.path.join(current_dir, './gppylib/test/data', file_name + "_backup")
+    restore_file = os.path.join(current_dir, './gppylib/test/data', file_name + "_restore")
+    diff_backup_restore_data(context, backup_file, restore_file)
 
 def validate_db_data(context, dbname, expected_table_count):
     tbls = get_table_names(dbname)
@@ -292,6 +312,10 @@ def backup_data(context, tablename, dbname):
     filename = tablename + "_backup"
     get_table_data_to_file(filename, tablename, dbname)
 
+def backup_data(context, tablename, dbname, filename):
+    filename = filename + "_backup"
+    get_table_data_to_file(filename, tablename, dbname)
+
 def check_partition_table_exists(context, dbname, schemaname, table_name, table_type=None, part_level=1, part_number=1):
     partitions = get_partition_names(schemaname, table_name, dbname, part_level, part_number)
     if not partitions:
@@ -299,11 +323,19 @@ def check_partition_table_exists(context, dbname, schemaname, table_name, table_
     return check_table_exists(context, dbname, partitions[0][0].strip(), table_type) 
 
 def check_table_exists(context, dbname, table_name, table_type=None):
-    SQL = """
-            select oid::regclass, relkind, relstorage, reloptions \
-            from pg_class \
-            where oid = '%s'::regclass; \
-          """ % table_name
+    if '.' in table_name:
+        schemaname, tablename = table_name.split('.')
+        SQL = """
+              select c.oid, c.relkind, c.relstorage, c.reloptions
+              from pg_class c, pg_namespace n
+              where c.relname = E'%s' and n.nspname = E'%s' and c.relnamespace = n.oid;
+              """ % (pg.escape_string(tablename), pg.escape_string(schemaname))
+    else:
+        SQL = """
+              select oid, relkind, relstorage, reloptions \
+              from pg_class \
+              where relname = E'%s'; \
+              """ % pg.escape_string(table_name)
 
     table_row = None 
     with dbconn.connect(dbconn.DbURL(dbname=dbname)) as conn:

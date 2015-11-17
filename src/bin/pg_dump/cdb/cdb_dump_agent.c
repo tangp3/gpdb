@@ -84,6 +84,7 @@ int			optreset;
 #include <limits.h>
 #include <regex.h>
 #include <sys/wait.h>
+#include "lib/stringinfo.h"
 
 #define DUMP_PREFIX (dump_prefix==NULL?"":dump_prefix)
 
@@ -464,6 +465,9 @@ main(int argc, char **argv)
 	};
 	int			optindex;
 
+	FILE *xx = fopen("/tmp/Hello", "w");
+	fclose(xx);
+
 	set_pglocale_pgservice(argv[0], "pg_dump");
 
 	g_verbose = false;
@@ -771,8 +775,15 @@ main(int argc, char **argv)
 
 	/* Get database name from command line */
 	if (optind < argc)
+	{
+		FILE *fy = fopen("/tmp/get_db", "w");
 		dbname = argv[optind];
+		fprintf(fy, "%s", dbname);
+		fclose(fy);
 
+	}
+
+	//sleep(30);
 	/* --column-inserts implies --inserts */
 	if (column_inserts)
 		dump_inserts = 1;
@@ -915,19 +926,26 @@ main(int argc, char **argv)
 	}
 #endif
 
+	FILE *fseg = fopen("/tmp/agents", "w");
+	fclose(fseg);
 	if (g_CDBDumpKey != NULL)
 	{
 		/*
 		 * Open the database again, for writing status info
 		 */
+		FILE *seg = fopen("/tmp/agent", "w");
+		fprintf(seg, "%s", g_SegDB.pszDBName);	
 		g_conn_status = MakeDBConnection(&g_SegDB, false);
 
 		if (PQstatus(g_conn_status) == CONNECTION_BAD)
 		{
+			fprintf(seg, "failed segment connect");
+			fclose(seg);
 			exit_horribly(g_fout, NULL, "Connection on host %s failed: %s",
 						  StringNotNull(g_SegDB.pszHost, "localhost"),
 						  PQerrorMessage(g_conn_status));
 		}
+		fclose(seg);
 
 		PQclear(res);
 
@@ -1783,7 +1801,7 @@ dumpDatabase(Archive *AH)
 					  "FROM pg_database "
 					  "WHERE datname = ",
 					  username_subquery);
-	appendStringLiteralAH(dbQry, datname, AH);
+	appendStringLiteralConn(dbQry, datname, g_conn);
 
 	res = PQexec(g_conn, dbQry->data);
 	check_sql_result(res, g_conn, dbQry->data, PGRES_TUPLES_OK);
@@ -5810,7 +5828,8 @@ dumpTableSchema(Archive *fout, TableInfo *tbinfo)
 				relname = strdup(PQgetvalue(res, i, i_relname));
 				parname = strdup(PQgetvalue(res, i, i_parname));
 				snprintf(tmpExtTable, sizeof(tmpExtTable), "%s%s", relname, EXT_PARTITION_NAME_POSTFIX);
-				appendPQExpBuffer(q, "ALTER TABLE %s ", fmtId(tbinfo->dobj.name));
+				appendPQExpBuffer(q, "ALTER TABLE %s.", fmtId(tbinfo->dobj.namespace->dobj.name));
+				appendPQExpBuffer(q, "%s ", fmtId(tbinfo->dobj.name));
 				appendPQExpBuffer(q, "EXCHANGE PARTITION %s ", fmtId(parname));
 				appendPQExpBuffer(q, "WITH TABLE %s WITHOUT VALIDATION; ", fmtId(tmpExtTable));
 

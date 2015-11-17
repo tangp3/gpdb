@@ -1,7 +1,11 @@
 import os
+import sys
 import shutil
 import tempfile
+from pygresql import pg
 from datetime import datetime
+from time import sleep
+from pygresql import pg
 from gppylib import gplog
 from gppylib.commands.base import Command, REMOTE, ExecutionError
 from gppylib.commands.gp import Psql
@@ -10,6 +14,7 @@ from gppylib.db import dbconn
 from gppylib.db.dbconn import execSQL, execSQLForSingleton
 from gppylib.gparray import GpArray
 from gppylib.mainUtils import ExceptionNoStackTraceNeeded
+from gppylib.utils import shellEscape
 from gppylib.operations import Operation
 from gppylib.operations.unix import CheckDir, CheckFile, ListFiles, ListFilesByPattern, MakeDir, RemoveFile, RemoveTree, RemoveRemoteTree
 from gppylib.operations.utils import RemoteOperation, ParallelOperation
@@ -21,8 +26,7 @@ from gppylib.operations.backup_utils import backup_file_with_nbu, check_file_dum
                                             generate_pgstatlastoperation_filename, generate_report_filename, generate_schema_filename, generate_seg_dbdump_prefix, \
                                             generate_seg_status_prefix, generate_segment_config_filename, get_incremental_ts_from_report_file, \
                                             get_latest_full_dump_timestamp, get_latest_full_ts_with_nbu, get_latest_report_timestamp, get_lines_from_file, \
-                                            restore_file_with_nbu, validate_timestamp, verify_lines_in_file, write_lines_to_file
-from pygresql import pg
+                                            restore_file_with_nbu, validate_timestamp, verify_lines_in_file, write_lines_to_file, isDoubleQuoted, formatSQLString, checkAndAddEnclosingDoubleQuote, smart_split
 
 logger = gplog.get_default_logger()
 
@@ -107,10 +111,15 @@ GET_LAST_OPERATION_SQL = """
 GET_ALL_SCHEMAS_SQL = "SELECT nspname from pg_namespace;"
 
 def get_include_schema_list_from_exclude_schema(exclude_schema_list, catalog_schema_list, master_port, dbname):
+    """
+    If schema name is already double quoted, remove it so comparing with
+    schemas returned by database will be correct.
+    Don't do strip, that will remove white space inside schema name
+    """
     include_schema_list = []
     schema_list = execute_sql(GET_ALL_SCHEMAS_SQL, master_port, dbname)
     for schema in schema_list:
-        if schema[0].strip() not in exclude_schema_list and schema[0].strip() not in catalog_schema_list:
+        if schema[0] not in exclude_schema_list and schema[0] not in catalog_schema_list:
             include_schema_list.append(schema[0])
 
     return include_schema_list
@@ -207,7 +216,9 @@ def get_partition_state(master_port, dbname, catalog_schema, partition_info):
             if modcount:
                 modcount = modcount.strip()
             validate_modcount(schemaname, partition_name, modcount)
-            partition_list.append('%s, %s, %s' %(schemaname, partition_name, modcount))
+
+            #Don't put space after comma, which can mess up with the space in schema and table name
+            partition_list.append('%s,%s,%s' %(schemaname, partition_name, modcount))
 
     return partition_list
 
@@ -290,7 +301,8 @@ def create_partition_dict(partition_list):
         fields = partition.split(',')
         if len(fields) != 3:
             raise Exception('Invalid state file format %s' % partition)
-        key = '%s.%s' % (fields[0].strip(), fields[1].strip())
+        # retain the space in schema name: filed[0] and table name: filed[1]
+        key = '%s.%s' % (fields[0], fields[1])
         table_dict[key] = fields[2].strip()
 
     return table_dict
@@ -340,6 +352,9 @@ def get_dirty_tables(master_port, dbname, master_datadir, backup_dir, dump_dir, 
     dirty_metadata_set = get_tables_with_dirty_metadata(master_datadir, backup_dir, dump_dir, dump_prefix, fulldump_ts, last_operation_data,
                                                         netbackup_service_host, netbackup_block_size)
 
+    logger.info('-----------dirty_co_tables-------- %s' % dirty_co_tables)
+
+
     return list(dirty_heap_tables | dirty_ao_tables | dirty_co_tables | dirty_metadata_set)
 
 def get_dirty_heap_tables(master_port, dbname):
@@ -361,6 +376,8 @@ def write_dirty_file(mdd, dirty_tables, backup_dir, dump_dir, dump_prefix, times
 
     if dirty_tables is None:
         return None
+
+    logger.info('==========dirty tables are %s ==========' % dirty_tables)
 
     dirty_list_file = generate_dirtytable_filename(mdd, backup_dir, dump_dir, dump_prefix, timestamp_key, ddboost)
     write_lines_to_file(dirty_list_file, dirty_tables)
@@ -397,7 +414,7 @@ def get_user_table_list(master_port, dbname):
     return execute_sql(GET_ALL_USER_TABLES_SQL, master_port, dbname)
 
 def get_user_table_list_for_schema(master_port, dbname, schema):
-    sql = GET_ALL_USER_TABLES_FOR_SCHEMA_SQL % schema
+    sql = GET_ALL_USER_TABLES_FOR_SCHEMA_SQL % pg.escape_string(schema)
     return execute_sql(sql, master_port, dbname)
 
 def get_last_operation_data(master_port, dbname):
@@ -525,12 +542,14 @@ def filter_dirty_tables(dirty_tables, dump_database, master_datadir, backup_dir,
     filter_file = get_filter_file(dump_database, master_datadir, backup_dir, dump_dir, dump_prefix, ddboost, netbackup_service_host, netbackup_block_size)
     if filter_file:
         tables_to_filter = get_lines_from_file(filter_file)
+        logger.info('=============== Tables to filter are %s =============' % tables_to_filter)
         dirty_copy = dirty_tables[:]
         for table in dirty_copy:
             if table not in tables_to_filter:
                 if os.path.exists(schema_filename):
                     schemas_to_filter = get_lines_from_file(schema_filename)
-                    table_schema = table.split('.')[0].strip()
+                    logger.info('============ Schemas to filter are %s ==============' % schemas_to_filter)
+                    table_schema = smart_split(table)[0]
                     if table_schema not in schemas_to_filter:
                         dirty_tables.remove(table)
                 else:
@@ -689,8 +708,8 @@ class DumpDatabase(Operation):
         self.dump_schema = dump_schema
         self.include_dump_tables = include_dump_tables
         self.exclude_dump_tables = exclude_dump_tables
-        self.include_dump_tables_file = include_dump_tables_file,
-        self.exclude_dump_tables_file = exclude_dump_tables_file,
+        self.include_dump_tables_file = include_dump_tables_file
+        self.exclude_dump_tables_file = exclude_dump_tables_file
         self.backup_dir = backup_dir
         self.free_space_percent = free_space_percent
         self.compress = compress
@@ -716,8 +735,8 @@ class DumpDatabase(Operation):
                                                         dump_schema = self.dump_schema,
                                                         include_dump_tables = self.include_dump_tables,
                                                         exclude_dump_tables = self.exclude_dump_tables,
-                                                        include_dump_tables_file = self.include_dump_tables_file[0],
-                                                        exclude_dump_tables_file = self.exclude_dump_tables_file[0],
+                                                        include_dump_tables_file = self.include_dump_tables_file,
+                                                        exclude_dump_tables_file = self.exclude_dump_tables_file,
                                                         backup_dir = self.backup_dir,
                                                         free_space_percent = self.free_space_percent,
                                                         compress = self.compress,
@@ -728,11 +747,21 @@ class DumpDatabase(Operation):
                                                         incremental = self.incremental,
                                                         include_schema_file = self.include_schema_file).run()
 
-        if self.incremental and self.dump_prefix \
-                            and get_filter_file(self.dump_database, self.master_datadir, self.backup_dir, self.dump_dir, self.dump_prefix, self.ddboost, self.netbackup_service_host):
+        # Format sql strings for all schema and table names
+        # to refactor, jason
+        for table_file in [self.include_dump_tables_file, self.exclude_dump_tables_file]:
+            formatSQLString(rel_file=table_file, isTableName=True)
+
+        formatSQLString(rel_file=self.include_schema_file, isTableName=False)
+
+        if (self.incremental and self.dump_prefix and 
+            get_filter_file(self.dump_database, self.master_datadir, self.backup_dir, self.dump_dir,
+                            self.dump_prefix, self.ddboost, self.netbackup_service_host)):
+
             filtered_dump_line = self.create_filtered_dump_string(getUserName(), DUMP_DATE, TIMESTAMP_KEY)
             (start, end, rc) = self.perform_dump('Dump process', filtered_dump_line)
             return self.create_dump_outcome(start, end, rc)
+
         dump_line = self.create_dump_string(getUserName(), DUMP_DATE, TIMESTAMP_KEY)
         (start, end, rc) = self.perform_dump('Dump process', dump_line)
         if self.dump_prefix and self.include_dump_tables_file and not self.incremental:
@@ -839,21 +868,25 @@ class DumpDatabase(Operation):
             logger.info("Adding schema name %s" % self.dump_schema)
             dump_line += " -n \"\\\"%s\\\"\"" % self.dump_schema
             #dump_line += " -n \"%s\"" % self.dump_schema
-        dump_line += " %s" % self.dump_database
+
+        db_name = shellEscape(self.dump_database)
+        dump_line += " %s" % checkAndAddEnclosingDoubleQuote(db_name)
+
         for dump_table in self.include_dump_tables:
-            schema, table = dump_table.split('.')
+            schema, table = smart_split(dump_table)
             dump_line += " --table=\"\\\"%s\\\"\".\"\\\"%s\\\"\"" % (schema, table)
             #dump_line += " --table=\"%s\".\"%s\"" % (schema, table)
         for dump_table in self.exclude_dump_tables:
-            schema, table = dump_table.split('.')
+            schema, table = smart_split(dump_table)
             dump_line += " --exclude-table=\"\\\"%s\\\"\".\"\\\"%s\\\"\"" % (schema, table)
             #dump_line += " --exclude-table=\"%s\".\"%s\"" % (schema, table)
-        if self.include_dump_tables_file[0] is not None:
+        if self.include_dump_tables_file is not None:
             dump_line += " --table-file=%s" % self.include_dump_tables_file
-        if self.exclude_dump_tables_file[0] is not None:
+        if self.exclude_dump_tables_file is not None:
             dump_line += " --exclude-table-file=%s" % self.exclude_dump_tables_file
         if self.include_schema_file is not None and not self.dump_prefix:
             dump_line += " --schema-file=%s" % self.include_schema_file
+
         for opt in self.output_options:
             dump_line += " %s" % opt
 
@@ -1179,9 +1212,12 @@ class ValidateSegDiskSpace(Operation):
             conn = dbconn.connect(dburl, utility=True)
             if self.include_dump_tables:
                 for dump_table in self.include_dump_tables:
-                    needed_space += execSQLForSingleton(conn, "SELECT pg_relation_size('%s')/1024;" % dump_table)
+                    needed_space += execSQLForSingleton(conn, "SELECT pg_relation_size('%s')/1024;" % pg.escape_string(dump_table))
             else:
-                needed_space = execSQLForSingleton(conn, "SELECT pg_database_size('%s')/1024;" % self.dump_database)
+                needed_space = execSQLForSingleton(conn, "SELECT pg_database_size('%s')/1024;" % pg.escape_string(self.dump_database))
+                with open("/tmp/pg_database", "w") as fw:
+                    fw.write("SELECT pg_database_size('%s')/1024;" % pg.escape_string(self.dump_database))
+                    fw.write('\n%s' % needed_space)
         finally:
             if conn is not None:
                 conn.close()
@@ -1356,7 +1392,7 @@ class ValidateIncludeTargets(Operation):
         for dump_table in dump_tables:
             if '.' not in dump_table:
                 raise ExceptionNoStackTraceNeeded("No schema name supplied for table %s" % dump_table)
-            schema, table = dump_table.split('.')
+            schema, table = smart_split(dump_table)
             exists = CheckTableExists(schema = schema,
                                       table = table,
                                       database = self.dump_database,
@@ -1391,10 +1427,13 @@ class ValidateExcludeTargets(Operation):
                 dump_tables.append(line.strip('\n'))
             exclude_file.close()
 
+        with open("/tmp/dump_tables1", "w") as fm:
+            fm.write("\n".join(dump_tables))
+
         for dump_table in dump_tables:
             if '.' not in dump_table:
                 raise ExceptionNoStackTraceNeeded("No schema name supplied for exclude table %s" % dump_table)
-            schema, table = dump_table.split('.')
+            schema, table = smart_split(dump_table)
             exists = CheckTableExists(schema = schema,
                                       table = table,
                                       database = self.dump_database,
@@ -1406,7 +1445,7 @@ class ValidateExcludeTargets(Operation):
                             logger.info("Adding table %s to exclude list" % dump_table)
                             rebuild_excludes.append(dump_table)
                         else:
-                            logger.warn("Schema dump request and exclude table %s not in that schema, ignoring" % dump_table)
+                            logger.warn("Schema dump request and exclude table %s in that schema, ignoring" % dump_table)
             else:
                 logger.warn("Exclude table %s does not exist in %s database, ignoring" % (dump_table, self.dump_database))
         if len(rebuild_excludes) == 0:
@@ -1420,11 +1459,15 @@ class ValidateDatabaseExists(Operation):
         self.database = database
 
     def execute(self):
+        with open("/tmp/database", "w") as fw:
+            fw.write(self.database + '\n')
+            fw.write(pg.escape_string(self.database))
         conn = None
         try:
             dburl = dbconn.DbURL(port=self.master_port)
             conn = dbconn.connect(dburl)
-            count = execSQLForSingleton(conn, "select count(*) from pg_database where datname='%s';" % self.database)
+            count = execSQLForSingleton(conn, "select count(*) from pg_database where datname='%s';" %
+                                        pg.escape_string(self.database))
             if count == 0:
                 raise ExceptionNoStackTraceNeeded("Database %s does not exist." % self.database)
         finally:
@@ -1439,11 +1482,15 @@ class ValidateSchemaExists(Operation):
         self.master_port = master_port
 
     def execute(self):
+        with open("/tmp/schema", "w") as fw:
+            fw.write(self.schema + '\n')
+            fw.write(pg.escape_string(self.schema))
         conn = None
         try:
             dburl = dbconn.DbURL(port=self.master_port, dbname=self.database)
             conn = dbconn.connect(dburl)
-            count = execSQLForSingleton(conn, "select count(*) from pg_namespace where nspname='%s';" % self.schema)
+            count = execSQLForSingleton(conn, "select count(*) from pg_namespace where nspname='%s';" %
+                                        pg.escape_string(self.schema))
             if count == 0:
                 raise ExceptionNoStackTraceNeeded("Schema %s does not exist in database %s." % (self.schema, self.database))
         finally:
@@ -1460,12 +1507,20 @@ class CheckTableExists(Operation):
         if CheckTableExists.all_tables is None:
             CheckTableExists.all_tables = set()
             for (schema, table) in get_user_table_list(self.master_port, self.database):
-                CheckTableExists.all_tables.add((schema, table))
+                CheckTableExists.all_tables.add((schema,
+                                                 table))
+        with open("/tmp/alltables", "w") as f:
+            for (schema, table) in CheckTableExists.all_tables:
+                f.write(schema + '.' + table+'\n')
 
     def execute(self):
+        with open("/tmp/input", "w") as f:
+            f.write(self.schema + '.' + self.table + '\n')
+
         if (self.schema, self.table) in CheckTableExists.all_tables:
             return True
         return False
+
 
 class ValidateCluster(Operation):
     def __init__(self, master_port):
@@ -1492,7 +1547,7 @@ class UpdateHistoryTable(Operation):
         self.master_port = master_port
 
     def execute(self):
-        schema, table = UpdateHistoryTable.HISTORY_TABLE.split('.')
+        schema, table = smart_split(UpdateHistoryTable.HISTORY_TABLE)
         exists = CheckTableExists(database = self.dump_database,
                                   schema = schema,
                                   table = table,
