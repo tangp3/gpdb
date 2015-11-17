@@ -2,6 +2,7 @@ import os
 import shutil
 import tempfile
 from datetime import datetime
+from time import sleep
 from gppylib import gplog
 from gppylib.commands.base import Command, REMOTE, ExecutionError
 from gppylib.commands.gp import Psql
@@ -20,7 +21,7 @@ from gppylib.operations.backup_utils import backup_file_with_nbu, check_file_dum
                                             generate_pgstatlastoperation_filename, generate_report_filename, generate_schema_filename, generate_seg_dbdump_prefix, \
                                             generate_seg_status_prefix, generate_segment_config_filename, get_incremental_ts_from_report_file, \
                                             get_latest_full_dump_timestamp, get_latest_full_ts_with_nbu, get_latest_report_timestamp, get_lines_from_file, \
-                                            restore_file_with_nbu, validate_timestamp, verify_lines_in_file, write_lines_to_file
+                                            restore_file_with_nbu, validate_timestamp, verify_lines_in_file, write_lines_to_file, isQuoted, formatSQLString
 
 logger = gplog.get_default_logger()
 
@@ -857,6 +858,8 @@ class DumpDatabase(Operation):
         if self.netbackup_keyword is not None:
             dump_line += " --netbackup-keyword=%s" % self.netbackup_keyword
 
+	sleep(10)
+
         return dump_line
 
 class CreateIncrementsFile(Operation):
@@ -1447,12 +1450,22 @@ class CheckTableExists(Operation):
         if CheckTableExists.all_tables is None:
             CheckTableExists.all_tables = set()
             for (schema, table) in get_user_table_list(self.master_port, self.database):
-                CheckTableExists.all_tables.add((schema, table))
+                # Add escape strings for the tables to make it similar to how it would look like
+                # in a pg_dump file
+                CheckTableExists.all_tables.add((formatSQLString(schema),
+                                                 formatSQLString(table)))
+        with open("/tmp/alltables", "w") as f:
+            for (schema, table) in CheckTableExists.all_tables:
+                f.write(schema + '.' + table+'\n')
 
     def execute(self):
+        with open("/tmp/input", "w") as f:
+            f.write(self.schema + '.' + self.table + '\n')
+
         if (self.schema, self.table) in CheckTableExists.all_tables:
             return True
         return False
+
 
 class ValidateCluster(Operation):
     def __init__(self, master_port):

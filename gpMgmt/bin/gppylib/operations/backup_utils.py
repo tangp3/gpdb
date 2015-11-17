@@ -2,6 +2,7 @@ import fnmatch
 import glob
 import os
 import tempfile
+import shutil
 from gppylib import gplog
 from gppylib.commands.base import WorkerPool, Command, REMOTE
 from gppylib.commands.unix import Scp
@@ -614,3 +615,29 @@ def get_latest_full_ts_with_nbu(dbname, backup_dir, dump_prefix, netbackup_servi
             return timestamp
 
     raise Exception('No full backup found for given incremental on the specified NetBackup server')
+
+
+def isQuoted(string):
+    if len(string) > 2 and string[0] == '"' and string[-1] == '"':
+        return True
+    return False
+
+def formatSQLString(string):
+    """ Add enclosing double quote, and escape the double quote in the table or schema name"""
+    if isQuoted(string):
+        string = string[1 : len(string) - 1]
+    string = string.replace('"', '""')
+
+    return '"' + string + '"'
+
+def formatSQLStringInFile(table_file):
+    tables = []
+    if table_file:
+        with open(table_file, 'r') as fr:
+            schema, table = fr.readline().strip('\n').split('.')
+            schema = formatSQLString(schema)
+            table = formatSQLString(table)
+            tables.append(schema + '.' + table)
+        if len(tables) > 0:
+            tmp_file = create_temp_file_from_list(tables, os.path.basename(table_file))
+            shutil.move(tmp_file, table_file)
