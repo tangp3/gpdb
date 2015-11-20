@@ -3,6 +3,7 @@ import shutil
 import tempfile
 from datetime import datetime
 from time import sleep
+from pygresql import pg
 from gppylib import gplog
 from gppylib.commands.base import Command, REMOTE, ExecutionError
 from gppylib.commands.gp import Psql
@@ -21,7 +22,7 @@ from gppylib.operations.backup_utils import backup_file_with_nbu, check_file_dum
                                             generate_pgstatlastoperation_filename, generate_report_filename, generate_schema_filename, generate_seg_dbdump_prefix, \
                                             generate_seg_status_prefix, generate_segment_config_filename, get_incremental_ts_from_report_file, \
                                             get_latest_full_dump_timestamp, get_latest_full_ts_with_nbu, get_latest_report_timestamp, get_lines_from_file, \
-                                            restore_file_with_nbu, validate_timestamp, verify_lines_in_file, write_lines_to_file, isQuoted, formatSQLString
+                                            restore_file_with_nbu, validate_timestamp, verify_lines_in_file, write_lines_to_file, isDoubleQuoted, formatSQLString
 
 logger = gplog.get_default_logger()
 
@@ -106,10 +107,16 @@ GET_LAST_OPERATION_SQL = """
 GET_ALL_SCHEMAS_SQL = "SELECT nspname from pg_namespace;"
 
 def get_include_schema_list_from_exclude_schema(exclude_schema_list, catalog_schema_list, master_port, dbname):
+    """
+    If schema name is already double quoted, remove it so comparing with
+    schemas returned by database will be correct.
+    Don't do strip, that will remove white space inside schema name
+    """
     include_schema_list = []
+    exclude_schema_list = [removeEnclosingDoubleQuote(exclude_schema) for exclude_schema in exclude_schema_list]
     schema_list = execute_sql(GET_ALL_SCHEMAS_SQL, master_port, dbname)
     for schema in schema_list:
-        if schema[0].strip() not in exclude_schema_list and schema[0].strip() not in catalog_schema_list:
+        if schema[0] not in exclude_schema_list and schema[0] not in catalog_schema_list:
             include_schema_list.append(schema[0])
 
     return include_schema_list
@@ -396,7 +403,7 @@ def get_user_table_list(master_port, dbname):
     return execute_sql(GET_ALL_USER_TABLES_SQL, master_port, dbname)
 
 def get_user_table_list_for_schema(master_port, dbname, schema):
-    sql = GET_ALL_USER_TABLES_FOR_SCHEMA_SQL % schema
+    sql = GET_ALL_USER_TABLES_FOR_SCHEMA_SQL % pg.escape_string(schema)
     return execute_sql(sql, master_port, dbname)
 
 def get_last_operation_data(master_port, dbname):
@@ -1414,7 +1421,8 @@ class ValidateDatabaseExists(Operation):
         try:
             dburl = dbconn.DbURL(port=self.master_port)
             conn = dbconn.connect(dburl)
-            count = execSQLForSingleton(conn, "select count(*) from pg_database where datname='%s';" % self.database)
+            count = execSQLForSingleton(conn, "select count(*) from pg_database where datname='%s';" %
+                                        pg.escape_string(self.database))
             if count == 0:
                 raise ExceptionNoStackTraceNeeded("Database %s does not exist." % self.database)
         finally:
@@ -1429,11 +1437,16 @@ class ValidateSchemaExists(Operation):
         self.master_port = master_port
 
     def execute(self):
+        with open("/tmp/schema", "w") as fw:
+            fw.write(self.schema)
+            fw.write(pg.escape_string(self.schema))
+
         conn = None
         try:
             dburl = dbconn.DbURL(port=self.master_port, dbname=self.database)
             conn = dbconn.connect(dburl)
-            count = execSQLForSingleton(conn, "select count(*) from pg_namespace where nspname='%s';" % self.schema)
+            count = execSQLForSingleton(conn, "select count(*) from pg_namespace where nspname='%s';" %
+                                        pg.escape_string(self.schema))
             if count == 0:
                 raise ExceptionNoStackTraceNeeded("Schema %s does not exist in database %s." % (self.schema, self.database))
         finally:

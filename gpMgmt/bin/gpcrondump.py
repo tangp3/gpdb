@@ -32,7 +32,7 @@ try:
     from gppylib.operations.backup_utils import check_funny_chars_in_tablenames, create_temp_file_from_list, expand_partitions_and_populate_filter_file, \
                                                 generate_files_filename, generate_pipes_filename, generate_schema_filename, get_backup_directory, \
                                                 get_latest_full_dump_timestamp, get_latest_full_ts_with_nbu, get_lines_from_file, remove_file_from_segments, \
-                                                validate_timestamp, verify_lines_in_file, write_lines_to_file, formatSQLStringInFile
+                                                validate_timestamp, verify_lines_in_file, write_lines_to_file, formatSQLString
     from gppylib.operations.dump import CreateIncrementsFile, DeleteCurrentDump, DeleteOldestDumps, DumpConfig, DumpDatabase, DumpGlobal, \
                                         MailDumpEvent, PostDumpDatabase, UpdateHistoryTable, VacuumDatabase, ValidateDatabaseExists, ValidateGpToolkit, \
                                         ValidateSchemaExists, backup_cdatabase_file_with_nbu, backup_config_files_with_nbu, backup_dirty_file_with_nbu, \
@@ -822,11 +822,14 @@ class GpCronDump(Operation):
                 schema_file = self.get_schema_list_file(dump_database)
                 (include_file, exclude_file) = self.get_include_exclude_for_dump_database(dirty_file, dump_database)
 
-                for table_file in [include_file, exclude_file]:
-                    formatSQLStringInFile(table_file)
-
                 if self.dump_prefix and schema_file and not self.incremental:
                     include_file = self.generate_include_table_list_from_schema_file(dump_database, schema_file)
+
+                # Format sql strings for all schema and table names
+                for table_file in [include_file, exclude_file]:
+                    formatSQLString(rel_file=table_file, isTableName=True)
+
+                formatSQLStringInFile(rel_file=schema_file, isTableName=False)
 
                 dump_outcome = DumpDatabase(dump_database = dump_database,
                                             dump_schema = self.dump_schema,

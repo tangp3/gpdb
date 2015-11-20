@@ -617,27 +617,57 @@ def get_latest_full_ts_with_nbu(dbname, backup_dir, dump_prefix, netbackup_servi
     raise Exception('No full backup found for given incremental on the specified NetBackup server')
 
 
-def isQuoted(string):
+def isDoubleQuoted(string):
     if len(string) > 2 and string[0] == '"' and string[-1] == '"':
         return True
     return False
 
-def formatSQLString(string):
-    """ Add enclosing double quote, and escape the double quote in the table or schema name"""
-    if isQuoted(string):
+def removeEnclosingDoubleQuote(string):
+    if isDoubleQuoted(string):
         string = string[1 : len(string) - 1]
+    return string
+
+def escapeDoubleQuoteInSQLString(string):
+    """
+    Add enclosing double quote after escaping the double quote 
+    inside the table or schema name
+    """
+    string = removeEnclosingDoubleQuote(string)
     string = string.replace('"', '""')
 
     return '"' + string + '"'
 
-def formatSQLStringInFile(table_file):
-    tables = []
-    if table_file:
-        with open(table_file, 'r') as fr:
-            schema, table = fr.readline().strip('\n').split('.')
-            schema = formatSQLString(schema)
-            table = formatSQLString(table)
-            tables.append(schema + '.' + table)
-        if len(tables) > 0:
-            tmp_file = create_temp_file_from_list(tables, os.path.basename(table_file))
-            shutil.move(tmp_file, table_file)
+def formatSQLString(rel_file, table=False):
+    """
+    Read the full qualified schema or table name, do a split 
+    if each item is a table name into schema and table,
+    escape the double quote inside the name properly.
+    """
+    relnames = []
+    if rel_file and os.path.exist(rel_file):
+        with open(rel_file, 'r') as fr:
+            line = fr.readline().strip('\n')
+            if isTableName:
+                schema, table = line.split('.')
+                schema = escapeDoubleQuoteInSQLString(schema)
+                table = escapeDoubleQuoteInSQLString(table)
+                relnames.append(schema + '.' + table)
+            else:
+                schema = escapeDoubleQuoteInSQLString(line)
+                relnames.append(schema)
+        if len(relnames) > 0:
+            tmp_file = create_temp_file_from_list(relnames, os.path.basename(rel_file))
+            shutil.move(tmp_file, rel_file)
+    else:
+        raise Exception('Invalid table file to format content.\n')
+'''
+def formatSQLStringInList(strs):
+    """
+    Take a list of sql names, format all properly by escaping double quote
+    inside the name.
+    """
+    if strs and len(strs) > 0:
+        strs = [escapeDoubleQuoteInSQLString(name) for name in strs]
+    else:
+        raise Exception("Input string list is either none or empty.\n")
+'''
