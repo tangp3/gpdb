@@ -59,6 +59,7 @@ static bool schemaRestore = true;
 static bool dataRestore = true;
 static bool schemaOnly = false;
 static bool bForcePassword = false;
+static bool forceErrorScan = false;
 static bool bIgnoreVersion = false;
 static bool bAoStats = true;
 static const char *pszAgent = "gp_restore_agent";
@@ -93,13 +94,6 @@ main(int argc, char **argv)
 	SegmentDatabase *targetSegDB = NULL;
 
 	progname = get_progname(argv[0]);
-
-	if(getenv("MASTER_DATA_DIRECTORY") == NULL);
-	{
-		/* Do not proceed if "MASTER_DATA_DIRECTORY" is not set */
-		mpp_err_msg(logError, progname, "Environment Variable MASTER_DATA_DIRECTORY not set!\n");
-		exit(1);
-	}
 
 	/* This struct holds the values of the command line parameters */
 	InputOptions inputOpts;
@@ -289,6 +283,8 @@ usage(void)
 	printf(("  -p, --port=PORT          database server port number\n"));
 	printf(("  -U, --username=NAME      connect as specified database user\n"));
 	printf(("  -W, --password           force password prompt (should happen automatically)\n"));
+	printf(("  -l, --error-scan         force a scan for \"ERROR:\" and \"[ERROR]\" from status file in the end,\n"
+                "                           report restore as failure on them\n"));
 
 	printf(("\nGreenplum Database specific options:\n"));
 	printf(("  --gp-c                  use gunzip for in-line de-compression\n"));
@@ -380,6 +376,7 @@ fillInputOptions(int argc, char **argv, InputOptions * pInputOpts)
 		{"netbackup-service-host", required_argument, NULL, 15},
 		{"netbackup-block-size", required_argument, NULL, 16},
 		{"change-schema", required_argument, NULL, 17},
+		{"error-scan", no_argument, NULL, 18},
 		{NULL, 0, NULL, 0}
 	};
 
@@ -762,7 +759,9 @@ fillInputOptions(int argc, char **argv, InputOptions * pInputOpts)
 				if (change_schema!= NULL)
 					free(change_schema);
 				break;
-
+			case 18:
+				forceErrorScan = true;
+				break;
 			default:
 				mpp_err_msg_cache(logError, progname, "Try \"%s --help\" for more information.\n", progname);
 				return false;
@@ -1218,12 +1217,12 @@ threadProc(void *arg)
 		}
 	}
 
-
-	/* We want a force scan of the restore status file for ERRORS, even if
+	/*
+	 * We want a force scan of the restore status file for ERRORS, even if
 	 * segment returns success, because psql client does not report the correct
 	 * error code upon SQL failure.
 	 */
-	if (pParm->bSuccess)
+	if(forceErrorScan && pParm->bSuccess)
 	{
 		pqBuffer = createPQExpBuffer();
 		int status = ReadBackendBackupFileError(pConn, status_file_dir, pszKey, BFT_RESTORE_STATUS, progname, pqBuffer);
