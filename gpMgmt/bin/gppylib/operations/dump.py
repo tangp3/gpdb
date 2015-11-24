@@ -1,4 +1,5 @@
 import os
+import sys
 import shutil
 import tempfile
 from datetime import datetime
@@ -22,7 +23,7 @@ from gppylib.operations.backup_utils import backup_file_with_nbu, check_file_dum
                                             generate_pgstatlastoperation_filename, generate_report_filename, generate_schema_filename, generate_seg_dbdump_prefix, \
                                             generate_seg_status_prefix, generate_segment_config_filename, get_incremental_ts_from_report_file, \
                                             get_latest_full_dump_timestamp, get_latest_full_ts_with_nbu, get_latest_report_timestamp, get_lines_from_file, \
-                                            restore_file_with_nbu, validate_timestamp, verify_lines_in_file, write_lines_to_file, isDoubleQuoted, formatSQLString
+                                            restore_file_with_nbu, validate_timestamp, verify_lines_in_file, write_lines_to_file, isDoubleQuoted, formatSQLString, checkAndRemoveEnclosingDoubleQuote, checkAndAddEnclosingDoubleQuote
 
 logger = gplog.get_default_logger()
 
@@ -113,7 +114,7 @@ def get_include_schema_list_from_exclude_schema(exclude_schema_list, catalog_sch
     Don't do strip, that will remove white space inside schema name
     """
     include_schema_list = []
-    exclude_schema_list = [removeEnclosingDoubleQuote(exclude_schema) for exclude_schema in exclude_schema_list]
+    exclude_schema_list = [checkAndRemoveEnclosingDoubleQuote(exclude_schema) for exclude_schema in exclude_schema_list]
     schema_list = execute_sql(GET_ALL_SCHEMAS_SQL, master_port, dbname)
     for schema in schema_list:
         if schema[0] not in exclude_schema_list and schema[0] not in catalog_schema_list:
@@ -684,8 +685,8 @@ class DumpDatabase(Operation):
         self.dump_schema = dump_schema
         self.include_dump_tables = include_dump_tables
         self.exclude_dump_tables = exclude_dump_tables
-        self.include_dump_tables_file = include_dump_tables_file,
-        self.exclude_dump_tables_file = exclude_dump_tables_file,
+        self.include_dump_tables_file = include_dump_tables_file
+        self.exclude_dump_tables_file = exclude_dump_tables_file
         self.backup_dir = backup_dir
         self.free_space_percent = free_space_percent
         self.compress = compress
@@ -711,8 +712,8 @@ class DumpDatabase(Operation):
                                                         dump_schema = self.dump_schema,
                                                         include_dump_tables = self.include_dump_tables,
                                                         exclude_dump_tables = self.exclude_dump_tables,
-                                                        include_dump_tables_file = self.include_dump_tables_file[0],
-                                                        exclude_dump_tables_file = self.exclude_dump_tables_file[0],
+                                                        include_dump_tables_file = self.include_dump_tables_file,
+                                                        exclude_dump_tables_file = self.exclude_dump_tables_file,
                                                         backup_dir = self.backup_dir,
                                                         free_space_percent = self.free_space_percent,
                                                         compress = self.compress,
@@ -722,6 +723,14 @@ class DumpDatabase(Operation):
                                                         dump_dir = self.dump_dir,
                                                         incremental = self.incremental,
                                                         include_schema_file = self.include_schema_file).run()
+
+        # Format sql strings for all schema and table names
+        print "include table is", self.include_dump_tables_file
+        for table_file in [self.include_dump_tables_file, self.exclude_dump_tables_file]:
+            print table_file
+            formatSQLString(rel_file=table_file, isTableName=True)
+
+        formatSQLString(rel_file=self.include_schema_file, isTableName=False)
 
         if self.incremental and self.dump_prefix \
                             and get_filter_file(self.dump_database, self.master_datadir, self.backup_dir, self.dump_dir, self.dump_prefix, self.ddboost, self.netbackup_service_host):
@@ -834,7 +843,7 @@ class DumpDatabase(Operation):
             logger.info("Adding schema name %s" % self.dump_schema)
             dump_line += " -n \"\\\"%s\\\"\"" % self.dump_schema
             #dump_line += " -n \"%s\"" % self.dump_schema
-        dump_line += " %s" % self.dump_database
+        dump_line += " %s" % checkAndAddEnclosingDoubleQuote(self.dump_database)
         for dump_table in self.include_dump_tables:
             schema, table = dump_table.split('.')
             dump_line += " --table=\"\\\"%s\\\"\".\"\\\"%s\\\"\"" % (schema, table)
@@ -843,12 +852,13 @@ class DumpDatabase(Operation):
             schema, table = dump_table.split('.')
             dump_line += " --exclude-table=\"\\\"%s\\\"\".\"\\\"%s\\\"\"" % (schema, table)
             #dump_line += " --exclude-table=\"%s\".\"%s\"" % (schema, table)
-        if self.include_dump_tables_file[0] is not None:
+        if self.include_dump_tables_file is not None:
             dump_line += " --table-file=%s" % self.include_dump_tables_file
-        if self.exclude_dump_tables_file[0] is not None:
+        if self.exclude_dump_tables_file is not None:
             dump_line += " --exclude-table-file=%s" % self.exclude_dump_tables_file
         if self.include_schema_file is not None and not self.dump_prefix:
             dump_line += " --schema-file=%s" % self.include_schema_file
+
         for opt in self.output_options:
             dump_line += " %s" % opt
 
@@ -864,8 +874,6 @@ class DumpDatabase(Operation):
             dump_line += " --netbackup-block-size=%s" % self.netbackup_block_size
         if self.netbackup_keyword is not None:
             dump_line += " --netbackup-keyword=%s" % self.netbackup_keyword
-
-	sleep(10)
 
         return dump_line
 
@@ -1090,7 +1098,7 @@ class ValidateDumpDatabase(Operation):
 
         for schema in dump_schemas:
             ValidateSchemaExists(database = self.dump_database,
-                                 schema = schema,
+                                 schema = checkAndRemoveEnclosingDoubleQuote(schema),
                                  master_port = self.master_port).run()
 
         ValidateCluster(master_port = self.master_port).run()
@@ -1176,9 +1184,12 @@ class ValidateSegDiskSpace(Operation):
             conn = dbconn.connect(dburl, utility=True)
             if self.include_dump_tables:
                 for dump_table in self.include_dump_tables:
-                    needed_space += execSQLForSingleton(conn, "SELECT pg_relation_size('%s')/1024;" % dump_table)
+                    needed_space += execSQLForSingleton(conn, "SELECT pg_relation_size('%s')/1024;" % pg.escape_string(dump_table))
             else:
-                needed_space = execSQLForSingleton(conn, "SELECT pg_database_size('%s')/1024;" % self.dump_database)
+                needed_space = execSQLForSingleton(conn, "SELECT pg_database_size('%s')/1024;" % pg.escape_string(self.dump_database))
+                with open("/tmp/pg_database", "w") as fw:
+                    fw.write("SELECT pg_database_size('%s')/1024;" % pg.escape_string(self.dump_database))
+                    fw.write('\n%s' % needed_space)
         finally:
             if conn is not None:
                 conn.close()
@@ -1354,6 +1365,7 @@ class ValidateIncludeTargets(Operation):
             if '.' not in dump_table:
                 raise ExceptionNoStackTraceNeeded("No schema name supplied for table %s" % dump_table)
             schema, table = dump_table.split('.')
+            schema, table = checkAndRemoveEnclosingDoubleQuote(schema), checkAndRemoveEnclosingDoubleQuote(table)
             exists = CheckTableExists(schema = schema,
                                       table = table,
                                       database = self.dump_database,
@@ -1392,6 +1404,7 @@ class ValidateExcludeTargets(Operation):
             if '.' not in dump_table:
                 raise ExceptionNoStackTraceNeeded("No schema name supplied for exclude table %s" % dump_table)
             schema, table = dump_table.split('.')
+            schema, table = checkAndRemoveEnclosingDoubleQuote(schema), checkAndRemoveEnclosingDoubleQuote(table)
             exists = CheckTableExists(schema = schema,
                                       table = table,
                                       database = self.dump_database,
@@ -1414,9 +1427,12 @@ class ValidateDatabaseExists(Operation):
     """ TODO: move this to gppylib.operations.common? """
     def __init__(self, database, master_port):
         self.master_port = master_port
-        self.database = database
+        self.database = checkAndRemoveEnclosingDoubleQuote(database)
 
     def execute(self):
+        with open("/tmp/database", "w") as fw:
+            fw.write(self.database + '\n')
+            fw.write(pg.escape_string(self.database))
         conn = None
         try:
             dburl = dbconn.DbURL(port=self.master_port)
@@ -1437,10 +1453,10 @@ class ValidateSchemaExists(Operation):
         self.master_port = master_port
 
     def execute(self):
+        self.schema = checkAndRemoveEnclosingDoubleQuote(self.schema)
         with open("/tmp/schema", "w") as fw:
-            fw.write(self.schema)
+            fw.write(self.schema + '\n')
             fw.write(pg.escape_string(self.schema))
-
         conn = None
         try:
             dburl = dbconn.DbURL(port=self.master_port, dbname=self.database)

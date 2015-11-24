@@ -622,9 +622,14 @@ def isDoubleQuoted(string):
         return True
     return False
 
-def removeEnclosingDoubleQuote(string):
+def checkAndRemoveEnclosingDoubleQuote(string):
     if isDoubleQuoted(string):
         string = string[1 : len(string) - 1]
+    return string
+
+def checkAndAddEnclosingDoubleQuote(string):
+    if not isDoubleQuoted(string):
+        string = '"' + string + '"'
     return string
 
 def escapeDoubleQuoteInSQLString(string):
@@ -632,19 +637,20 @@ def escapeDoubleQuoteInSQLString(string):
     Add enclosing double quote after escaping the double quote 
     inside the table or schema name
     """
-    string = removeEnclosingDoubleQuote(string)
+    string = checkAndRemoveEnclosingDoubleQuote(string)
     string = string.replace('"', '""')
 
     return '"' + string + '"'
 
-def formatSQLString(rel_file, table=False):
+def formatSQLString(rel_file, isTableName=False):
     """
     Read the full qualified schema or table name, do a split 
     if each item is a table name into schema and table,
     escape the double quote inside the name properly.
     """
     relnames = []
-    if rel_file and os.path.exist(rel_file):
+    print rel_file
+    if rel_file and os.path.exists(rel_file):
         with open(rel_file, 'r') as fr:
             line = fr.readline().strip('\n')
             if isTableName:
@@ -658,16 +664,3 @@ def formatSQLString(rel_file, table=False):
         if len(relnames) > 0:
             tmp_file = create_temp_file_from_list(relnames, os.path.basename(rel_file))
             shutil.move(tmp_file, rel_file)
-    else:
-        raise Exception('Invalid table file to format content.\n')
-'''
-def formatSQLStringInList(strs):
-    """
-    Take a list of sql names, format all properly by escaping double quote
-    inside the name.
-    """
-    if strs and len(strs) > 0:
-        strs = [escapeDoubleQuoteInSQLString(name) for name in strs]
-    else:
-        raise Exception("Input string list is either none or empty.\n")
-'''

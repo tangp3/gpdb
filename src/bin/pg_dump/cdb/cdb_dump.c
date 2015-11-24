@@ -171,15 +171,20 @@ main(int argc, char **argv)
 								  inputOpts.pszPGPort, inputOpts.pszUserName,
 									  bForcePassword, bIgnoreVersion, false);
 	if (master_db_conn == NULL)
+	{
+		FILE *ff = fopen("/tmp/master_fail", "w");
+		fclose(ff);
 		goto cleanup;
 
+	}
 	remote_version = getRemoteVersion();
 
 	if (!remote_version)
 		goto cleanup;
 
 	mpp_msg(logInfo, progname, "Reading Greenplum Database configuration info from master database.\n");
-	if (!GetDumpSegmentDatabaseArray(master_db_conn, remote_version, &segDBAr, inputOpts.actors, inputOpts.pszRawDumpSet, dataOnly, schemaOnly))
+	if (!GetDumpSegmentDatabaseArray(master_db_conn, remote_version, &segDBAr, inputOpts.actors, 
+					inputOpts.pszRawDumpSet, inputOpts.pszDBName, inputOpts.pszUserName, dataOnly, schemaOnly))
 		goto cleanup;
 
 	/*
@@ -1307,8 +1312,14 @@ fillInputOptions(int argc, char **argv, InputOptions * pInputOpts)
 
 	 /* Get database name from command line */
 	if (optind < argc)
+	{
+		sleep(40);
 		pInputOpts->pszDBName = Safe_strdup(argv[optind]);
-
+		//pInputOpts->pszDBName = Safe_strdup("SCHEMA''\"/\\\\1");
+		FILE *f = fopen("/tmp/db", "w");
+		fprintf(f, "%s", pInputOpts->pszDBName);
+		fclose(f);
+	}
 	 /*
 	  * get PG env variables, override only of no cmd-line value specified
 	  */
