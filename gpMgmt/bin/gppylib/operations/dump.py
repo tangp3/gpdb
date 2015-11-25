@@ -23,7 +23,7 @@ from gppylib.operations.backup_utils import backup_file_with_nbu, check_file_dum
                                             generate_pgstatlastoperation_filename, generate_report_filename, generate_schema_filename, generate_seg_dbdump_prefix, \
                                             generate_seg_status_prefix, generate_segment_config_filename, get_incremental_ts_from_report_file, \
                                             get_latest_full_dump_timestamp, get_latest_full_ts_with_nbu, get_latest_report_timestamp, get_lines_from_file, \
-                                            restore_file_with_nbu, validate_timestamp, verify_lines_in_file, write_lines_to_file, isDoubleQuoted, formatSQLString, checkAndRemoveEnclosingDoubleQuote, checkAndAddEnclosingDoubleQuote
+                                            restore_file_with_nbu, validate_timestamp, verify_lines_in_file, write_lines_to_file, isDoubleQuoted, formatSQLString, checkAndRemoveEnclosingDoubleQuote, checkAndAddEnclosingDoubleQuote, shellEscape
 
 logger = gplog.get_default_logger()
 
@@ -843,7 +843,10 @@ class DumpDatabase(Operation):
             logger.info("Adding schema name %s" % self.dump_schema)
             dump_line += " -n \"\\\"%s\\\"\"" % self.dump_schema
             #dump_line += " -n \"%s\"" % self.dump_schema
-        dump_line += " %s" % checkAndAddEnclosingDoubleQuote(self.dump_database)
+
+        db_name = shellEscape(self.dump_database)
+        dump_line += " %s" % checkAndAddEnclosingDoubleQuote(db_name)
+
         for dump_table in self.include_dump_tables:
             schema, table = dump_table.split('.')
             dump_line += " --table=\"\\\"%s\\\"\".\"\\\"%s\\\"\"" % (schema, table)
@@ -1427,12 +1430,14 @@ class ValidateDatabaseExists(Operation):
     """ TODO: move this to gppylib.operations.common? """
     def __init__(self, database, master_port):
         self.master_port = master_port
-        self.database = checkAndRemoveEnclosingDoubleQuote(database)
+        #self.database = checkAndRemoveEnclosingDoubleQuote(database)
+        self.database = database
 
     def execute(self):
         with open("/tmp/database", "w") as fw:
             fw.write(self.database + '\n')
             fw.write(pg.escape_string(self.database))
+        self.database = checkAndRemoveEnclosingDoubleQuote(self.database)
         conn = None
         try:
             dburl = dbconn.DbURL(port=self.master_port)

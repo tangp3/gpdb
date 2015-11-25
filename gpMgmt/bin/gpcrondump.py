@@ -95,6 +95,7 @@ class GpCronDump(Operation):
         self.exclude_schema_file = options.exclude_schema_file
         self.exclude_dump_schema = options.exclude_dump_schema
         self.dump_databases = options.dump_databases
+        print 'databases are ', self.dump_databases
         self.dump_global = options.dump_global
         self.clear_catalog_dumps = options.clear_catalog_dumps
         self.batch_default = options.batch_default
@@ -146,11 +147,11 @@ class GpCronDump(Operation):
         if options.report_dir:
             logger.warn("-y is a deprecacted option.  Report files are always generated with the backup set.")
 
-        if self.incremental and not self.dump_databases:
+        if self.incremental and len(self.dump_databases) == 0:
             raise ExceptionNoStackTraceNeeded("Must supply -x <database name> with incremental option")
 
-        if self.dump_databases is not None:
-            if self.incremental and len(self.dump_databases.split(',')) > 1:
+        if len(self.dump_databases) > 0:
+            if self.incremental and len(self.dump_databases) > 1:
                 raise ExceptionNoStackTraceNeeded('multi-database backup is not supported with incremental backup: %s databases selected' % len(self.dump_databases))
 
         if self.clear_dumps_only and self.incremental:
@@ -159,24 +160,23 @@ class GpCronDump(Operation):
         if self.list_backup_files and not self.timestamp_key:
             raise Exception('Must supply -K option when listing backup files')
 
-        if self.dump_databases is not None:
-            if self.timestamp_key and len(self.dump_databases.split(',')) > 1:
+        if len(self.dump_databases) > 0:
+            if self.timestamp_key and len(self.dump_databases) > 1:
                 raise ExceptionNoStackTraceNeeded('multi-database backup is not supported with -K option')
 
         if not (self.clear_dumps_only or bool(self.ddboost_hosts) or bool(self.ddboost_user) or self.ddboost_config_remove):
-            if self.dump_databases is not None:
-                self.dump_databases = self.dump_databases.split(",")
-            elif 'PGDATABASE' in os.environ:
-                self.dump_databases = [os.environ['PGDATABASE']]
-                logger.info("Setting dump database to value of $PGDATABASE which is %s" % self.dump_databases[0])
-            else:
-                if self.ddboost_verify is True:
-                    # We would expect to verify the credentials here and return some exit code,
-                    # but __init__() should return None, not 'int' - hence we are forced to use
-                    # some kind of flag
-                    self.ddboost_verify_and_exit = True
+            if len(self.dump_databases) == 0:
+                if 'PGDATABASE' in os.environ:
+                    self.dump_databases = [os.environ['PGDATABASE']]
+                    logger.info("Setting dump database to value of $PGDATABASE which is %s" % self.dump_databases[0])
                 else:
-                    raise ExceptionNoStackTraceNeeded("Must supply -x <database name> because $PGDATABASE is not set")
+                    if self.ddboost_verify is True:
+                        # We would expect to verify the credentials here and return some exit code,
+                        # but __init__() should return None, not 'int' - hence we are forced to use
+                        # some kind of flag
+                        self.ddboost_verify_and_exit = True
+                    else:
+                        raise ExceptionNoStackTraceNeeded("Must supply -x <database name> because $PGDATABASE is not set")
 
         self.ddboost = options.ddboost
 
@@ -396,7 +396,7 @@ class GpCronDump(Operation):
 
     # check if one of gpcrondump option was specified, except of ddboost options
     def only_ddboost_options(self):
-        return ((self.dump_databases is None) and (not self.dump_schema)
+        return ((len(self.dump_databases) == 0) and (not self.dump_schema)
                 and (self.backup_dir is None)
                 and not (self.include_dump_tables or self.output_options or self.clear_dumps_only or self.pre_vacuum
                          or self.clear_dumps_only or self.dump_global or self.rollback or self.exclude_dump_tables
@@ -747,6 +747,8 @@ class GpCronDump(Operation):
 
         if self.post_script is not None:
             self._validate_run_program()
+
+        print "Before invoking", self.dump_databases
 
         self._validate_dump_target()
 
@@ -1357,6 +1359,7 @@ class GpCronDump(Operation):
             logger.info("Configuring for multiple database dump")
 
         for dump_database in self.dump_databases:
+            print 'before validate the database name is', dump_database
             ValidateDatabaseExists(database=dump_database, master_port=self.master_port).run()
 
         if self.dump_schema:
@@ -1468,7 +1471,7 @@ def create_parser():
                      help="Exclude the specified schema's, in database specified through -x, from the dump.")
     addTo.add_option('--exclude-schema-file', dest='exclude_schema_file', metavar="<filename>",
                      help="Exclude the schemas named in this file from the dump. Option can be used only once.")
-    addTo.add_option('-x', dest='dump_databases', metavar="<database name,...>",
+    addTo.add_option('-x', type='string', default=[], action='append', dest='dump_databases', metavar="<database name,...>",
                      help="Database name(s) to dump. Multiple database names will preclude the schema and table options.")
     addTo.add_option('-g', action='store_true', dest='dump_config', default=False,
                      help="Dump configuration files: postgresql.conf, pg_ident.conf, and pg_hba.conf.")

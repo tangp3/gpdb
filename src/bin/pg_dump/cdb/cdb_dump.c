@@ -1313,7 +1313,7 @@ fillInputOptions(int argc, char **argv, InputOptions * pInputOpts)
 	 /* Get database name from command line */
 	if (optind < argc)
 	{
-		sleep(40);
+		//sleep(40);
 		pInputOpts->pszDBName = Safe_strdup(argv[optind]);
 		//pInputOpts->pszDBName = Safe_strdup("SCHEMA''\"/\\\\1");
 		FILE *f = fopen("/tmp/db", "w");

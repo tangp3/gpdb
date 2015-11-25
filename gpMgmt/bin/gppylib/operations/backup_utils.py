@@ -470,6 +470,8 @@ def get_latest_full_dump_timestamp(dbname, backup_dir, dump_dir, dump_prefix, dd
             continue
 
         dump_report_files = sorted(dump_report_files, key=lambda x: int(x.split('_')[-1].split('.')[0]), reverse=True)
+        with open("/tmp/report_files", "w") as fw:
+            fw.write(''.join(dump_report_files))
         for dump_report_file in dump_report_files:
             logger.debug('Checking for latest timestamp in report file %s' % os.path.join(dump_dir, dump_report_file))
             timestamp = get_full_ts_from_report_file(dbname, os.path.join(dump_dir, dump_report_file), dump_prefix, ddboost)
@@ -664,3 +666,16 @@ def formatSQLString(rel_file, isTableName=False):
         if len(relnames) > 0:
             tmp_file = create_temp_file_from_list(relnames, os.path.basename(rel_file))
             shutil.move(tmp_file, rel_file)
+
+def shellEscape(string):
+    """
+    shellEscape: Returns a string in which the shell-significant quoted-string characters are
+    escaped.
+    This function escapes the following characters: '"', '$', '`', '\', '!'
+    """
+    res = []
+    for ch in string:
+        if ch in ['\\', '`', '$', '!', '"']:
+            res.append('\\')
+        res.append(ch)
+    return ''.join(res)

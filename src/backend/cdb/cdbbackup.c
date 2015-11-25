@@ -2396,7 +2396,6 @@ shellEscape(const char *shellArg, PQExpBuffer escapeBuf)
                         case '\\':
                         case '`':
                         case '!':
-			case '\'':
                                 appendPQExpBufferChar(escapeBuf, escape);
                 }
                 appendPQExpBufferChar(escapeBuf, *s);

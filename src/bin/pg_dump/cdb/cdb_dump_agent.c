@@ -1801,7 +1801,7 @@ dumpDatabase(Archive *AH)
 					  "FROM pg_database "
 					  "WHERE datname = ",
 					  username_subquery);
-	appendStringLiteralAH(dbQry, datname, AH);
+	appendStringLiteralConn(dbQry, datname, g_conn);
 
 	res = PQexec(g_conn, dbQry->data);
 	check_sql_result(res, g_conn, dbQry->data, PGRES_TUPLES_OK);
