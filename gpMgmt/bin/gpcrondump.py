@@ -802,7 +802,7 @@ class GpCronDump(Operation):
                 heap_partitions = get_dirty_heap_tables(self.master_port, dump_database)
                 last_operation_list = get_last_operation_data(self.master_port, dump_database)
 
-                self._verify_tablenames(ao_partition_list, co_partition_list, heap_partitions)
+                #self._verify_tablenames(ao_partition_list, co_partition_list, heap_partitions)
 
                 dirty_partitions = None
                 dirty_file = None

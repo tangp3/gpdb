@@ -23,7 +23,7 @@ from gppylib.operations.backup_utils import backup_file_with_nbu, check_file_dum
                                             generate_pgstatlastoperation_filename, generate_report_filename, generate_schema_filename, generate_seg_dbdump_prefix, \
                                             generate_seg_status_prefix, generate_segment_config_filename, get_incremental_ts_from_report_file, \
                                             get_latest_full_dump_timestamp, get_latest_full_ts_with_nbu, get_latest_report_timestamp, get_lines_from_file, \
-                                            restore_file_with_nbu, validate_timestamp, verify_lines_in_file, write_lines_to_file, isDoubleQuoted, formatSQLString, checkAndRemoveEnclosingDoubleQuote, checkAndAddEnclosingDoubleQuote, shellEscape
+                                            restore_file_with_nbu, validate_timestamp, verify_lines_in_file, write_lines_to_file, isDoubleQuoted, formatSQLString, checkAndRemoveEnclosingDoubleQuote, checkAndAddEnclosingDoubleQuote, shellEscape, smart_split
 
 logger = gplog.get_default_logger()
 
@@ -848,11 +848,11 @@ class DumpDatabase(Operation):
         dump_line += " %s" % checkAndAddEnclosingDoubleQuote(db_name)
 
         for dump_table in self.include_dump_tables:
-            schema, table = dump_table.split('.')
+            schema, table = smart_split(dump_table)
             dump_line += " --table=\"\\\"%s\\\"\".\"\\\"%s\\\"\"" % (schema, table)
             #dump_line += " --table=\"%s\".\"%s\"" % (schema, table)
         for dump_table in self.exclude_dump_tables:
-            schema, table = dump_table.split('.')
+            schema, table = smart_split(dump_table)
             dump_line += " --exclude-table=\"\\\"%s\\\"\".\"\\\"%s\\\"\"" % (schema, table)
             #dump_line += " --exclude-table=\"%s\".\"%s\"" % (schema, table)
         if self.include_dump_tables_file is not None:
@@ -1367,7 +1367,7 @@ class ValidateIncludeTargets(Operation):
         for dump_table in dump_tables:
             if '.' not in dump_table:
                 raise ExceptionNoStackTraceNeeded("No schema name supplied for table %s" % dump_table)
-            schema, table = dump_table.split('.')
+            schema, table = smart_split(dump_table)
             schema, table = checkAndRemoveEnclosingDoubleQuote(schema), checkAndRemoveEnclosingDoubleQuote(table)
             exists = CheckTableExists(schema = schema,
                                       table = table,
@@ -1403,10 +1403,13 @@ class ValidateExcludeTargets(Operation):
                 dump_tables.append(line.strip('\n'))
             exclude_file.close()
 
+        with open("/tmp/dump_tables1", "w") as fm:
+            fm.write("\n".join(dump_tables))
+
         for dump_table in dump_tables:
             if '.' not in dump_table:
                 raise ExceptionNoStackTraceNeeded("No schema name supplied for exclude table %s" % dump_table)
-            schema, table = dump_table.split('.')
+            schema, table = smart_split(dump_table)
             schema, table = checkAndRemoveEnclosingDoubleQuote(schema), checkAndRemoveEnclosingDoubleQuote(table)
             exists = CheckTableExists(schema = schema,
                                       table = table,
@@ -1484,10 +1487,8 @@ class CheckTableExists(Operation):
         if CheckTableExists.all_tables is None:
             CheckTableExists.all_tables = set()
             for (schema, table) in get_user_table_list(self.master_port, self.database):
-                # Add escape strings for the tables to make it similar to how it would look like
-                # in a pg_dump file
-                CheckTableExists.all_tables.add((formatSQLString(schema),
-                                                 formatSQLString(table)))
+                CheckTableExists.all_tables.add((schema,
+                                                 table))
         with open("/tmp/alltables", "w") as f:
             for (schema, table) in CheckTableExists.all_tables:
                 f.write(schema + '.' + table+'\n')
