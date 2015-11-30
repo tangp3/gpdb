@@ -528,15 +528,13 @@ def run_pool_command(host_list, cmd_str, batch_default, check_results=True):
 def check_funny_chars_in_tablenames(tablenames):
     """
     '\n' inside table name makes it hard to specify the object name in shell command line,
-    this may be worked around by using table file, but currently we treat input line by line.
-
-    dot '.' inside table name makes it hard to split into schema and table parts.
-
+    this may be worked around by using table file, but currently we read input line by line.
     '!' inside table name will mess up with the shell history expansion.     
     """
+
     for tablename in tablenames:
-        if '\n' in tablename or '.' in tablename or '!' in tablename:
-            raise Exception('Tablename has an invalid character "\\n": ".": "!": "%s"' % tablename)
+        if '\n' in tablename or '!' in tablename:
+            raise Exception('Tablename has an invalid character "\\n": "!": "%s"' % tablename)
 
 #Form and run command line to backup individual file with NBU
 def backup_file_with_nbu(netbackup_service_host, netbackup_policy, netbackup_schedule, netbackup_block_size, netbackup_keyword, netbackup_filepath, hostname=None):
@@ -703,6 +701,11 @@ def smart_split(string):
     """
     Split full qualified table name into schema and table by separator '.',
     figure out the correct split option and return the (schema, table) tuple.
+
+    The right format:                  schema.table = '"A".B"."C"D"'
+                                       schema.table = 'ab.cd'
+    Format with multiple valid split:  schema.table = '"A"."B"."C"'
+    Format with none valid split:      schema.table = '"A".B".C"'
     """
     valid_cases = 0
     valid_schema = None
@@ -726,12 +729,16 @@ def smart_split(string):
 
 def validate_relname(relname):
     """
-    A relname (schema/table) can only be valid if it is double quoted, or not double quoted
-    after split, stand alone double quote in the head or tail is treated as invalid relname.
+    A schema/table name can only be valid if it is double quoted, or not double quoted. 
+    If a beginning and/or ending double quote is part of schema/table name, the whole
+    string must be double quoted.
+    Beginning or endding with stand alone double quote is treated as invalid relname.
 
-    Note: If double quote is part of relname (no matter beginning with double quote, or ending
-    with double quote, or has double quote as head and tail character), it mucst be double quoted.
+    valid table names:   '"test"': test, 'test': test, '""test"': "test, '"test""': test"
+                         'test"1': test"1
+    invalid table names: '"test', 'test"'
     """
+
     if (relname[0] == '"' and relname[-1] == '"') or (relname[0] != '"' and relname[-1] != '"'):
         return True
     else:
