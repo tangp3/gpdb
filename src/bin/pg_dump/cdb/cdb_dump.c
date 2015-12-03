@@ -99,6 +99,7 @@ static char *netbackup_keyword = NULL;
 char		g_comment_start[10];
 char		g_comment_end[10];
 static bool bForcePassword = false;
+static bool forceErrorScan = false;
 static bool bIgnoreVersion = false;
 static bool no_lock = false;
 static int  rsyncable = false;
@@ -844,6 +845,7 @@ fillInputOptions(int argc, char **argv, InputOptions * pInputOpts)
 		{"netbackup-block-size", required_argument, NULL, 18},
 		{"netbackup-keyword", required_argument, NULL, 19},
 		{"schema-file", required_argument, NULL, 20},
+		{"error-scan", no_argument, NULL, 21},
 
 		{NULL, 0, NULL, 0}
 	};
@@ -1265,7 +1267,9 @@ fillInputOptions(int argc, char **argv, InputOptions * pInputOpts)
 				addFileNameParam("schema-file", optarg, pInputOpts);
 				include_everything = false;
 				break;
-
+			case 21:
+				forceErrorScan = true;
+				break;
 			default:
 				mpp_err_msg_cache(logError, progname, "Try \"%s --help\" for more information.\n", progname);
 				goto cleanup;
@@ -1473,6 +1477,8 @@ help(const char *progname)
 	printf(_("  --use-set-session-authorization\n"
 			 "                              use SESSION AUTHORIZATION commands instead of\n"
 	         "                              ALTER OWNER commands to set ownership\n"));
+	printf(("  -l, --error-scan          force a scan for \"ERROR:\" and \"[ERROR]\" from status file in the end,\n"
+                "                            report dump as failure on them\n"));
 
 	printf(("\nConnection options:\n"));
 	printf(("  -h, --host=HOSTNAME      database server host or socket directory\n"));
@@ -2263,14 +2269,18 @@ threadProc(void *arg)
 	 * Do a force scan of the dump status file for ERRORS, such as broken pipe, even if
 	 * segment may report success.
 	 */
-	pqBuffer = createPQExpBuffer();
-	int status = ReadBackendBackupFileError(pConn, pInputOpts->pszBackupDirectory, pszKey,
-			BFT_BACKUP_STATUS, progname, pqBuffer);
-	if(status != 0)
+	if(forceErrorScan)
 	{
-		pParm->pszErrorMsg = pqBuffer->data;
-		pParm->bSuccess = false;
-		g_b_SendCancelMessage = true;
+		pqBuffer = createPQExpBuffer();
+		int status = ReadBackendBackupFileError(pConn, pInputOpts->pszBackupDirectory, pszKey,
+				BFT_BACKUP_STATUS, progname, pqBuffer);
+		if(status != 0)
+		{
+			pParm->pszErrorMsg = pqBuffer->data;
+			pParm->bSuccess = false;
+			g_b_SendCancelMessage = true;
+
+		}
 	}
 
 	/*

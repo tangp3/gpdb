@@ -5,7 +5,6 @@ import shutil
 import socket
 import time
 
-from pygresql import pg
 from gppylib import gplog
 from gppylib.commands.base import WorkerPool, Command, ExecutionError
 from gppylib.commands.gp import Psql
@@ -38,31 +37,25 @@ POST_DATA_SUFFIX = '_post_data'
 
 # TODO: use CLI-agnostic custom exceptions instead of ExceptionNoStackTraceNeeded
 
-def update_ao_stat_func(conn, ao_table, counter, batch_size):
-    qry = "SELECT * FROM gp_update_ao_master_stats('%s')" % pg.escape_string(ao_table)
+def update_ao_stat_func(conn, schema, table, counter, batch_size):
+    qry = "SELECT * FROM gp_update_ao_master_stats('%s.%s')" % (schema, table)
     rows = execSQLForSingleton(conn, qry)
     if counter % batch_size == 0:
         conn.commit()
 
-def update_ao_statistics(master_port, dbname, restored_tables):
+def update_ao_statistics(master_port, dbname):
     qry = """SELECT c.relname,n.nspname
-             FROM pg_class c, pg_namespace n
-             WHERE c.relnamespace=n.oid
-                 AND (c.relstorage='a' OR c.relstorage='c')"""
+                      FROM pg_class c, pg_namespace n
+                      WHERE c.relnamespace=n.oid
+                      AND (c.relstorage='a' OR c.relstorage='c')"""
 
     conn = None
     counter = 1
     try:
         results = execute_sql(qry, master_port, dbname)
-        ao_tables = ['%s.%s' % (sch, tbl) for (tbl, sch) in results]
-        restored_ao_tables = set(ao_tables).intersection(restored_tables)
-        if not restored_ao_tables:
-            logger.info("No AO/CO tables restored, skipping statistics update...")
-            return
-
         with dbconn.connect(dbconn.DbURL(port=master_port, dbname=dbname)) as conn:
-            for ao_table in sorted(restored_ao_tables):
-                update_ao_stat_func(conn, ao_table, counter, batch_size=1000)
+            for (tbl, sch) in results:
+                update_ao_stat_func(conn, sch, tbl, counter, batch_size=1000)
                 counter = counter + 1
             conn.commit()
     except Exception as e:
@@ -245,6 +238,36 @@ def validate_restore_tables_list(plan_file_contents, restore_tables):
     if invalid_tables != []:
         raise Exception('Invalid tables for -T option: The following tables were not found in plan file : "%s"' % (invalid_tables))
 
+def restore_incremental_data_only(master_datadir, backup_dir, dump_dir, dump_prefix, timestamp,
+                                  restore_tables, redirected_restore_db, report_status_dir,
+                                  ddboost=False, netbackup_service_host=None, netbackup_block_size=None):
+    restore_data = False
+    plan_file_items = get_plan_file_contents(master_datadir, backup_dir, timestamp, dump_dir, dump_prefix)
+    table_file = None
+    table_files = []
+
+    validate_restore_tables_list(plan_file_items, restore_tables)
+
+    for (ts, table_list) in plan_file_items:
+        if table_list:
+            restore_data = True
+            table_file = get_restore_table_list(table_list.split(','), restore_tables)
+            if table_file is None:
+                continue
+            cmd = _build_gpdbrestore_cmd_line(ts, table_file, backup_dir, redirected_restore_db, report_status_dir, dump_prefix, ddboost, netbackup_service_host, netbackup_block_size)
+            logger.info('Invoking commandline: %s' % cmd)
+            Command('Invoking gpdbrestore', cmd).run(validateAfter=True)
+            table_files.append(table_file)
+
+    if not restore_data:
+        raise Exception('There were no tables to restore. Check the plan file contents for restore timestamp %s' % timestamp)
+
+    for table_file in table_files:
+        if table_file:
+            os.remove(table_file)
+
+    return True
+
 #NetBackup related functions
 def restore_state_files_with_nbu(master_datadir, backup_dir, dump_dir, dump_prefix, restore_timestamp, netbackup_service_host, netbackup_block_size):
     if (master_datadir is None) and (backup_dir is None):
@@ -348,8 +371,7 @@ def global_file_dumped(master_datadir, backup_dir, dump_dir, dump_prefix, restor
     global_filename = generate_global_filename(master_datadir, backup_dir, dump_dir, dump_prefix, restore_timestamp[0:8], restore_timestamp)
     return check_file_dumped_with_nbu(netbackup_service_host, global_filename)
 
-def _build_gpdbrestore_cmd_line(ts, table_file, backup_dir, redirected_restore_db, report_status_dir, dump_prefix, ddboost=False, netbackup_service_host=None,
-                                netbackup_block_size=None, change_schema=None):
+def _build_gpdbrestore_cmd_line(ts, table_file, backup_dir, redirected_restore_db, report_status_dir, dump_prefix, ddboost=False, netbackup_service_host=None, netbackup_block_size=None):
     cmd = 'gpdbrestore -t %s --table-file %s -a -v --noplan --noanalyze --noaostats' % (ts, table_file)
     if backup_dir is not None:
         cmd += " -u %s" % backup_dir
@@ -365,8 +387,6 @@ def _build_gpdbrestore_cmd_line(ts, table_file, backup_dir, redirected_restore_d
         cmd += " --netbackup-service-host=%s" % netbackup_service_host
     if netbackup_block_size:
         cmd += " --netbackup-block-size=%s" % netbackup_block_size
-    if change_schema:
-        cmd += " --change-schema=%s" % change_schema
 
     return cmd
 
@@ -408,8 +428,8 @@ def validate_tablenames(table_list):
 
 class RestoreDatabase(Operation):
     def __init__(self, restore_timestamp, no_analyze, drop_db, restore_global, master_datadir, backup_dir,
-                 master_port, dump_dir, dump_prefix, no_plan, restore_tables, batch_default, no_ao_stats,
-                 redirected_restore_db, report_status_dir, ddboost, netbackup_service_host, netbackup_block_size, change_schema):
+                 master_port, dump_dir, dump_prefix, no_plan, force_error_scan, restore_tables, batch_default, no_ao_stats,
+                 redirected_restore_db, report_status_dir, ddboost, netbackup_service_host, netbackup_block_size):
         self.restore_timestamp = restore_timestamp
         self.no_analyze = no_analyze
         self.drop_db = drop_db
@@ -420,6 +440,7 @@ class RestoreDatabase(Operation):
         self.dump_dir = dump_dir
         self.dump_prefix = dump_prefix
         self.no_plan = no_plan
+        self.force_error_scan = force_error_scan
         self.restore_tables = restore_tables
         self.batch_default = batch_default
         self.no_ao_stats = no_ao_stats
@@ -428,7 +449,6 @@ class RestoreDatabase(Operation):
         self.ddboost = ddboost
         self.netbackup_service_host = netbackup_service_host
         self.netbackup_block_size = netbackup_block_size
-        self.change_schema = change_schema
 
     def execute(self):
         (restore_timestamp, restore_db, compress) = ValidateRestoreDatabase(restore_timestamp = self.restore_timestamp,
@@ -457,8 +477,6 @@ class RestoreDatabase(Operation):
 
         if self.restore_global:
             self._restore_global(restore_timestamp, self.master_datadir, self.backup_dir)
-            if self.restore_global == "only":
-                return
 
         """
         For full restore with table filter or for the first recurssion of the incremental restore
@@ -481,8 +499,7 @@ class RestoreDatabase(Operation):
                                                                 self.master_port,
                                                                 metadata_file,
                                                                 table_filter_file,
-                                                                full_restore_with_filter,
-                                                                self.change_schema)
+                                                                full_restore_with_filter)
             logger.info("Running metadata restore")
             logger.info("Invoking commandline: %s" % restore_line)
             Command('Invoking gp_restore', restore_line).run(validateAfter=True)
@@ -491,16 +508,28 @@ class RestoreDatabase(Operation):
 
         if begin_incremental:
             logger.info("Running data restore")
-            self.restore_incremental_data_only(restore_db)
+            restore_incremental_data_only(self.master_datadir,
+                                          self.backup_dir,
+                                          self.dump_dir,
+                                          self.dump_prefix,
+                                          self.restore_timestamp,
+                                          self.restore_tables,
+                                          self.redirected_restore_db,
+                                          self.report_status_dir,
+                                          self.ddboost,
+                                          self.netbackup_service_host,
+                                          self.netbackup_block_size)
+
+            logger.info("Updating AO/CO statistics on master")
+            update_ao_statistics(self.master_port, restore_db)
         else:
             table_filter_file = self.create_filter_file() # returns None if nothing to filter
 
             restore_line = self._build_restore_line(restore_timestamp,
                                                     restore_db, compress,
                                                     self.master_port,
-                                                    self.no_plan, table_filter_file,
-                                                    self.no_ao_stats, full_restore_with_filter,
-                                                    self.change_schema)
+                                                    self.no_plan, self.force_error_scan, table_filter_file,
+                                                    self.no_ao_stats, full_restore_with_filter)
             logger.info('gp_restore commandline: %s: ' % restore_line)
             Command('Invoking gp_restore', restore_line).run(validateAfter=True)
 
@@ -520,7 +549,7 @@ class RestoreDatabase(Operation):
         if (not self.no_analyze) and (self.restore_tables is None):
             self._analyze(restore_db, self.master_port)
         elif (not self.no_analyze) and self.restore_tables:
-            self._analyze_restore_tables(restore_db, self.restore_tables, self.change_schema)
+            self._analyze_restore_tables(restore_db, self.restore_tables)
 
     def _analyze(self, restore_db, master_port):
         conn = None
@@ -538,7 +567,7 @@ class RestoreDatabase(Operation):
             if conn is not None:
                 conn.close()
 
-    def _analyze_restore_tables(self, restore_db, restore_tables, change_schema):
+    def _analyze_restore_tables(self, restore_db, restore_tables):
         logger.info('Commencing analyze of restored tables in \'%s\' database, please wait' % restore_db)
         batch_count = 0
         try:
@@ -547,12 +576,7 @@ class RestoreDatabase(Operation):
                 for restore_table in restore_tables:
 
                     analyze_list = []
-                    schemaname, tablename = restore_table.split('.')
-                    schema = pg.escape_string(schemaname)
-                    table = pg.escape_string(tablename)
-                    if change_schema:
-                        schema = pg.escape_string(change_schema)
-                        restore_table = "%s.%s" % (schema, table)
+                    schema, table = restore_table.split('.')
 
                     if table == '*':
                         get_all_tables_qry = 'select schemaname || \'.\' || tablename from pg_tables where schemaname = \'%s\';' % schema
@@ -603,48 +627,6 @@ class RestoreDatabase(Operation):
             run_pool_command(addresses, cmd, self.batch_default, check_results=False)
         except Exception as e:
             logger.info("cleaning up filter table list file failed: %s" % e.__str__())
-
-    def restore_incremental_data_only(self, restore_db):
-        restore_data = False
-        plan_file_items = get_plan_file_contents(self.master_datadir, self.backup_dir,
-                                                 self.restore_timestamp, self.dump_dir,
-                                                 self.dump_prefix)
-        table_file = None
-        table_files = []
-        restored_tables = []
-
-        validate_restore_tables_list(plan_file_items, self.restore_tables)
-
-        for (ts, table_list) in plan_file_items:
-            if table_list:
-                restore_data = True
-                table_file = get_restore_table_list(table_list.split(','), self.restore_tables)
-                if table_file is None:
-                    continue
-                cmd = _build_gpdbrestore_cmd_line(ts, table_file, self.backup_dir,
-                                                  self.redirected_restore_db,
-                                                  self.report_status_dir, self.dump_prefix,
-                                                  self.ddboost, self.netbackup_service_host,
-                                                  self.netbackup_block_size, self.change_schema)
-                logger.info('Invoking commandline: %s' % cmd)
-                Command('Invoking gpdbrestore', cmd).run(validateAfter=True)
-                table_files.append(table_file)
-                restored_tables.extend(get_restore_tables_from_table_file(table_file))
-
-        if not restore_data:
-            raise Exception('There were no tables to restore. Check the plan file contents for restore timestamp %s' % self.restore_timestamp)
-
-        if not self.no_ao_stats:
-            logger.info("Updating AO/CO statistics on master")
-            update_ao_statistics(self.master_port, restore_db, restored_tables)
-        else:
-            logger.info("noaostats enabled. Skipping update of AO/CO statistics on master.")
-
-        for table_file in table_files:
-            if table_file:
-                os.remove(table_file)
-
-        return True
 
     def _restore_global(self, restore_timestamp, master_datadir, backup_dir):
         logger.info('Commencing restore of global objects')
@@ -749,7 +731,7 @@ class RestoreDatabase(Operation):
         return True
 
     def _build_restore_line(self, restore_timestamp, restore_db, compress, master_port, no_plan,
-                            table_filter_file, no_stats, full_restore_with_filter, change_schema):
+                            force_error_scan, table_filter_file, no_stats, full_restore_with_filter):
 
         user = getpass.getuser()
         hostname = socket.gethostname()    # TODO: can this just be localhost? bash was using `hostname`
@@ -782,6 +764,8 @@ class RestoreDatabase(Operation):
         # Restore only data if no_plan or full_restore_with_filter is True
         if no_plan or full_restore_with_filter:
             restore_line += " -a"
+        if force_error_scan:
+            restore_line += " --error-scan"
         if no_stats:
             restore_line += " --gp-nostats"
         if self.ddboost:
@@ -790,8 +774,6 @@ class RestoreDatabase(Operation):
             restore_line += " --netbackup-service-host=%s" % self.netbackup_service_host
         if self.netbackup_block_size:
             restore_line += " --netbackup-block-size=%s" % self.netbackup_block_size
-        if change_schema:
-            restore_line += " --change-schema=%s" % change_schema
 
         return restore_line
 
@@ -836,7 +818,7 @@ class RestoreDatabase(Operation):
         return restore_line
 
     def _build_schema_only_restore_line(self, restore_timestamp, restore_db, compress, master_port,
-                                        metadata_filename, table_filter_file, full_restore_with_filter, change_schema=None):
+                                        metadata_filename, table_filter_file, full_restore_with_filter):
         user = getpass.getuser()
         hostname = socket.gethostname()    # TODO: can this just be localhost? bash was using `hostname`
         (gpr_path, status_path, gpd_path) = self.get_restore_line_paths(restore_timestamp[0:8])
@@ -870,8 +852,6 @@ class RestoreDatabase(Operation):
             restore_line += " --netbackup-service-host=%s" % self.netbackup_service_host
         if self.netbackup_block_size:
             restore_line += " --netbackup-block-size=%s" % self.netbackup_block_size
-        if self.change_schema:
-            restore_line += " --change-schema=%s" % self.change_schema
 
         return restore_line
 
