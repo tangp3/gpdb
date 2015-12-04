@@ -2817,14 +2817,14 @@ class GpTransfer(object):
                             action_msg)
 
 
-	def _pre_valid_options(self):
+    def _pre_valid_options(self):
         """
         Validates the options passed in to the application.
         """
 
         logger.info('Validating options...')
         if self._options.batch_size > MAX_BATCH_SIZE \
-            or self._options.batch_size < 1:
+	    or self._options.batch_size < 1:
             raise ProgramArgumentValidationException('Invalid value for --batch-size.  '
                                    '--batch-size must be greater than 0 and '
                                    'less than %s' % MAX_BATCH_SIZE)
