@@ -537,7 +537,7 @@ def filter_dirty_tables(dirty_tables, dump_database, master_datadir, backup_dir,
             if table not in tables_to_filter:
                 if os.path.exists(schema_filename):
                     schemas_to_filter = get_lines_from_file(schema_filename)
-                    table_schema = table.split('.')[0].strip()
+                    table_schema = smart_split(table)[0].strip()
                     if table_schema not in schemas_to_filter:
                         dirty_tables.remove(table)
                 else:
@@ -1527,7 +1527,7 @@ class UpdateHistoryTable(Operation):
         self.master_port = master_port
 
     def execute(self):
-        schema, table = UpdateHistoryTable.HISTORY_TABLE.split('.')
+        schema, table = smart_split(UpdateHistoryTable.HISTORY_TABLE)
         exists = CheckTableExists(database = self.dump_database,
                                   schema = schema,
                                   table = table,
