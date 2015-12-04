@@ -231,6 +231,16 @@ def create_parser():
         default=False,
         help=SUPPRESS_HELP
     )
+
+    general_option_group.add_option(
+        '--partition-transfer',
+        dest='partition_transfer',
+        default=False,
+        action='store_true',
+        help='Transfer partition tables if enabled, disabled by default, this is '
+		     'used in combination with -f option'
+    )
+
     general_option_group.add_option(
         '--max-line-length',
         type='int',
@@ -408,7 +418,11 @@ def create_parser():
         default=None,
         action='store',
         metavar='<file>',
-        help='File containing list of database.schema.table entries to transfer'
+        help='File containing list of database.schema.table entries to transfer, '
+		     'if --partition-transfer option is specified, each line is a comma '
+			 'separated pair of full qualified source partition and destination '
+			 'partition table name, if dest partition table name is not specified, '
+			 'same source partition table name will be used in dest database'
     )
     # file
     source_option_group.add_option(
@@ -420,6 +434,7 @@ def create_parser():
         metavar='<file>',
         help='File containing list of database.schema.table entries to exclude from transfer'
     )
+
     # exclusive lock
     source_option_group.add_option(
         '-x',
@@ -2323,6 +2338,7 @@ class GpTransfer(object):
         _args: args from the options parser.  Not used.
         """
         self._options = options
+		self._pre_valiate_options()
         self._work_dir = os.path.join(self._options.work_base_dir,
                                       GPTRANSFER_TMP_DIR)
 
@@ -2391,7 +2407,7 @@ class GpTransfer(object):
                 self._options.max_gpfdist_instances)
 
         # validate options
-        self._validate_options()
+        self._post_validate_options()
 
         self._validate_host_map()
 
@@ -2800,7 +2816,8 @@ class GpTransfer(object):
                             str(pair.dest),
                             action_msg)
 
-    def _validate_options(self):
+
+	def _pre_valid_options(self):
         """
         Validates the options passed in to the application.
         """
@@ -2830,6 +2847,13 @@ class GpTransfer(object):
             logger.warning('Found no tables to exclude from transfer table list')
             sys.exit(0)
 
+		if (self._options.partition_transfer and not self._options.input_file):
+			raise ProgramArgumentValidationException('--partition-transfer option must be 
+					                                  specified with -f option')
+
+		if (self._options.partition_transfer and (self._options.tables or self._options.full)):
+			raise ProgramArgumentValidationException('--partition-transfer option can only be 
+					                                  specified with -f option')
         if self._options.full and (self._options.truncate or self._options.drop or
                                    self._options.skip_existing):
             raise ProgramArgumentValidationException('Cannot specify --drop, --truncate or '
@@ -2875,10 +2899,6 @@ class GpTransfer(object):
                                            self._options.input_file)) != 1:
             raise ProgramArgumentValidationException('Only one of --full, -f, -t, or -d can be specified')
 
-        if self._options.full and self._dest_databases != None and len(self._dest_databases) != 0:
-            raise ProgramArgumentValidationException('--full option specified but databases exist '
-                                   'in destination system')
-
         if self._options.base_port <= 1024 or self._options.base_port > 65535:
             raise ProgramArgumentValidationException('Invalid --base-port option')
 
@@ -2915,9 +2935,6 @@ class GpTransfer(object):
             raise ProgramArgumentValidationException('GPHOME directory does not exist on %s'
                                    % self._options.source_host)
 
-        if self._gpfdist_instance_count == 0:
-            raise Exception('Destination system is too small')
-
         if self._options.validator and self._options.validator not in \
                 validator_factory.get_available_validators():
             raise ProgramArgumentValidationException(
@@ -2946,6 +2963,19 @@ class GpTransfer(object):
         if self._options.delimiter == ',' and self._options.format.lower() == 'text':
             raise ProgramArgumentValidationException(
                 'Invalid --delimiter. Default delimiter "," is not allowed in TEXT format. Specify --delimiter option for TEXT')
+
+    def _post_validate_options(self):
+        """
+        Validates the options passed in to the application.
+        """
+
+        if self._options.full and self._dest_databases != None and len(self._dest_databases) != 0:
+            raise ProgramArgumentValidationException('--full option specified but databases exist '
+                                   'in destination system')
+
+        if self._gpfdist_instance_count == 0:
+            raise Exception('Destination system is too small')
+
 
     def _final_count_validation(self):
         logger.info('Running final table row count validation on destination tables...')
