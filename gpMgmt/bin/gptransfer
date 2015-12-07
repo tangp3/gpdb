@@ -3170,23 +3170,15 @@ class GpTransfer(object):
                 source_tables.append(table)
 
             del databases[:]
-            # add specified tables and parse wildcard of table names
             tables = list()
-            for fqn in self._options.tables:
-                (database, schema, table) = split_fqn(fqn)
-                database = _process_regexp(database)
-                schema = _process_regexp(schema)
-                table = _process_regexp(table)
+            # add specified tables and parse wildcard of table names
+            if self._options.tables:
+                self.get_tables_from_option(databases, tables)
 
-                if database not in databases:
-                    databases.append(database)
-
-                if (database, schema, table) not in tables:
-                    tables.append((database, schema, table))
-
-            # add all tables in input file and parse wildcard of table names
             # gptransfer with -f option
+            # add all tables from input file and parse wildcard of table names
             if self._options.input_file:
+                self.get_tables_from_input_file(databases, tables)
                 with open(self._options.input_file) as input_file:
                     for line in input_file:
                         line = line.strip()
@@ -3247,6 +3239,53 @@ class GpTransfer(object):
 
         return self.filter_tables(source_tables, self.get_exclude_tables())
 
+
+    def get_tables_from_input_file(self, databases, tables):
+        """
+        If users provide an input file, add all tables specified.
+        """
+        with open(self._options.input_file) as input_file:
+            for line in input_file:
+                line = line.strip()
+                if line.startswith('#'):
+                    continue
+
+                (database, schema, table) = _process_full_qualified_regexp_name(line)
+
+                if database not in databases:
+                    databases.append(database)
+
+                if (database, schema, table) not in tables:
+                    tables.append((database, schema, table))
+
+
+    def get_tables_from_option(self, databases, tables):
+        """
+        If use provided tables to transfer from command line, add all of them,
+        and save the databases where the table is from.
+        """
+        for fqn in self._options.tables:
+            (database, schema, table) = _process_full_qualified_regexp_name(fqn)
+
+            if database not in databases:
+                databases.append(database)
+
+            if (database, schema, table) not in tables:
+                tables.append((database, schema, table))
+
+
+    def _process_full_qualified_regexp_name(self, full_qualified_name):
+        """
+        split the full qualified table name(possibly in regexp format), and
+        return (database, schema, table) tuple
+        """
+        (database, schema, table) = split_fqn(full_qualified_name)
+
+        database = _process_regexp(database)
+        schema = _process_regexp(schema)
+        table = _process_regexp(table)
+
+        return (database, schema, table)
 
     def get_exclude_tables(self):
         """
