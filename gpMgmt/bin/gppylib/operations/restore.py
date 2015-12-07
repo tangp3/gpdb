@@ -349,7 +349,7 @@ def global_file_dumped(master_datadir, backup_dir, dump_dir, dump_prefix, restor
     return check_file_dumped_with_nbu(netbackup_service_host, global_filename)
 
 def _build_gpdbrestore_cmd_line(ts, table_file, backup_dir, redirected_restore_db, report_status_dir, dump_prefix, ddboost=False, netbackup_service_host=None,
-                                netbackup_block_size=None, change_schema=None):
+                                netbackup_block_size=None, change_schema=None, force_error_scan=False):
     cmd = 'gpdbrestore -t %s --table-file %s -a -v --noplan --noanalyze --noaostats' % (ts, table_file)
     if backup_dir is not None:
         cmd += " -u %s" % backup_dir
@@ -367,6 +367,8 @@ def _build_gpdbrestore_cmd_line(ts, table_file, backup_dir, redirected_restore_d
         cmd += " --netbackup-block-size=%s" % netbackup_block_size
     if change_schema:
         cmd += " --change-schema=%s" % change_schema
+    if force_error_scan:
+        cmd += " --error-scan"
 
     return cmd
 
@@ -499,7 +501,7 @@ class RestoreDatabase(Operation):
             restore_line = self._build_restore_line(restore_timestamp,
                                                     restore_db, compress,
                                                     self.master_port,
-                                                    self.no_plan, self.force_error_scan, table_filter_file,
+                                                    self.no_plan, table_filter_file,
                                                     self.no_ao_stats, full_restore_with_filter, self.change_schema)
             logger.info('gp_restore commandline: %s: ' % restore_line)
             Command('Invoking gp_restore', restore_line).run(validateAfter=True)
@@ -625,7 +627,7 @@ class RestoreDatabase(Operation):
                                                   self.redirected_restore_db,
                                                   self.report_status_dir, self.dump_prefix,
                                                   self.ddboost, self.netbackup_service_host,
-                                                  self.netbackup_block_size, self.change_schema)
+                                                  self.netbackup_block_size, self.change_schema, self.force_error_scan)
                 logger.info('Invoking commandline: %s' % cmd)
                 Command('Invoking gpdbrestore', cmd).run(validateAfter=True)
                 table_files.append(table_file)
@@ -749,7 +751,7 @@ class RestoreDatabase(Operation):
         return True
 
     def _build_restore_line(self, restore_timestamp, restore_db, compress, master_port, no_plan,
-                            force_error_scan, table_filter_file, no_stats, full_restore_with_filter, change_schema):
+                            table_filter_file, no_stats, full_restore_with_filter, change_schema):
 
         user = getpass.getuser()
         hostname = socket.gethostname()    # TODO: can this just be localhost? bash was using `hostname`
@@ -782,8 +784,6 @@ class RestoreDatabase(Operation):
         # Restore only data if no_plan or full_restore_with_filter is True
         if no_plan or full_restore_with_filter:
             restore_line += " -a"
-        if force_error_scan:
-            restore_line += " --error-scan"
         if no_stats:
             restore_line += " --gp-nostats"
         if self.ddboost:
@@ -794,6 +794,8 @@ class RestoreDatabase(Operation):
             restore_line += " --netbackup-block-size=%s" % self.netbackup_block_size
         if change_schema:
             restore_line += " --change-schema=%s" % change_schema
+        if self.force_error_scan:
+            restore_line += " --error-scan"
 
         return restore_line
 
@@ -834,6 +836,8 @@ class RestoreDatabase(Operation):
             restore_line += " --netbackup-service-host=%s" % self.netbackup_service_host
         if self.netbackup_block_size:
             restore_line += " --netbackup-block-size=%s" % self.netbackup_block_size
+        if self.force_error_scan:
+            restore_line += " --error-scan"
 
         return restore_line
 
@@ -874,6 +878,8 @@ class RestoreDatabase(Operation):
             restore_line += " --netbackup-block-size=%s" % self.netbackup_block_size
         if self.change_schema:
             restore_line += " --change-schema=%s" % self.change_schema
+        if self.force_error_scan:
+            restore_line += " --error-scan"
 
         return restore_line
 
