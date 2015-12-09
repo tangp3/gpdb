@@ -3577,7 +3577,7 @@ class GpTransfer(object):
 
     def _are_columns_same(self, table_pair):
         '''
-        colums at the same ordinal_position of two partition table need to be of same type
+        colums at the same ordinal_position of two partition tables need to be of same type
         '''
         src_columns = self.get_table_columns(table_pair.source)
         dest_columns = self.get_table_columns(table_pair.dest)
@@ -3604,26 +3604,65 @@ class GpTransfer(object):
         return column_types
 
     def _is_partition_criteria_same(self, table_pair):
-        get_partition_criteria = ''' select c.columnname, p.partitiontype, p.partitionisdefault, p.partitionlistvalues,
+
+        logger.info('Verifying partition type and criteria between source table %s and
+                     destination table %s is the same.' % (str(table_pair.source), str(table_pair.dest)))
+
+        src_partition_columns = self.get_partition_columns(table_pair.source, self._options.source_host,
+                                                            self._options.source_port, self._options.source_user)
+        dest_partition_columns = self.get_partition_columns(table_pair.dest, self._options.dest_host,
+                                                            self._options.dest_port, self._options.dest_user)
+
+        if (len(src_partition_columns) != len(dest_partition_columns) or
+            src_partition_columns.keys() != dest_partition_columns.keys()):
+            logger.error('source and destination partition table have different partition columns')
+            return False
+        for column in src_partition_columns.keys():
+            logger.info('Verifying the paritition type and criteria of column')
+            partition_type = src_partition_columns[column]['partitiontype']
+            if partition_type != dest_partition_columns[column]['partitiontype']:
+                logger.error('source and destination partition table have different partition types for column %s' % column)
+                logger.error('source table partition types %s' % partition_type)
+                logger.error('destination table partition types %s' % dest_partition_columns[column]['partitiontype'])
+                return False
+            elif partition_type == 'list':
+                if not self._is_list_partition_constraint_same(src_partition_columns, 
+                                                               dest_partition_columns, column):
+                    logger.error('source and destination partition table have different list partition criteria for column %s' % column)
+                    return False
+            elif partition_type == 'range':
+                 if not self._is_range_partition_constraint_same(src_partition_columns,        
+                                                               dest_partition_columns, column):
+                    logger.error('source and destination partition table have different partition type for column %s' % column)
+                    return False
+            else:
+                raise Exception('Unknown partition type \'%s\' of column \'%s\' found for table \'%s\'' % 
+                                 (partition_type, column, str(table_pair.source)))
+
+        return True
+
+    def get_partition_columns(self, tbl, host, port, user):
+        partition_columns = defaultdict(dict)
+        get_partition_info = ''' select c.columnname, p.partitiontype, p.partitionisdefault, p.partitionlistvalues,
                                      p.partitionrangestart, p.partitionstartinclusive, p.partitionrangeend, 
                                      p.partitionendinclusive, p.partitioneveryclause from pg_partition_columns c, 
                                      pg_partitions p 
-                                     where c.tablename = p.tablename and 
-                                     p.partitiontablename = '%s';'''
-
-        src_partition_columns = self.get_partition_columns(table_pair.source)
-        src_partition_type  =  self.get_partition_type(table_pair.source)
-
-        dest_partition_columns = self.get_partition_columns(table_pair.dest)
-        dest_partition_type  =  self.get_partition_type(table_pair.dest)
-
-        if src_partition_columns != dest_partition_columns or src_partition_type != dest_partition_type:
-            return False
-        return True
-
-    def get_partition_columns(self, tbl):
-        
-
+                                     where c.tablename = p.tablename and c.schemaname = p.schemaname and 
+                                     p.schemaname = '%s' and p.partitiontablename = '%s';'''
+        get_partition_info_sql = get_partition_info % (tbl.schema, tbl.table) 
+        with dbconn.connect(dbconn.DbURL(host, port, tbl.database, user)) as conn:
+            cursor = execSQL(conn, get_partition_info_sql)
+            for row in cursor:
+                columnname = row[0]
+                partition_columns[columnname]['partitiontype'] = row[1]
+                partition_columns[columnname]['partitionisdefault'] = row[2]
+                partition_columns[columnname]['partitionlistvalues'] = row[3]
+                partition_columns[columnname]['partitionrangestart'] = row[4]
+                partition_columns[columnname]['partitionstartinclusive'] = row[5]
+                partition_columns[columnname]['partitionrangeend'] = row[6]
+                partition_columns[columnname]['partitionendinclusive'] = row[7]
+                partition_columns[columnname]['partitioneveryclause'] = row[8]
+        return partition_columns
 
     def _check_leaf_partition(self, table_pair):
         # check source
@@ -3642,9 +3681,8 @@ class GpTransfer(object):
                              (select oid from pg_partition p where r.oid = p.parrelid) and  
                              relnamespace = (select oid from pg_namespace where nspname = '%s') and 
                              relname = '%s' ;'''
+        check_leaf_partition_sql = leaf_partition_sql % (tbl.schema, tbl.table)
         with dbconn.connect(dbconn.DbURL(host, port, tbl.database, user)) as conn:
-            check_leaf_partition_sql = leaf_partition_sql % (tbl.schema, tbl.table)
-            print 'check leaf query %s' % check_leaf_partition_sql
             cursor = execSQL(conn, check_leaf_partition_sql)
             if cursor.rowcount != 1:
                 return False
