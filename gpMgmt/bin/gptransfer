@@ -3664,6 +3664,143 @@ class GpTransfer(object):
                 partition_columns[columnname]['partitioneveryclause'] = row[8]
         return partition_columns
 
+
+    def _is_max_partition_level_same(self, table_pair):
+        src_max_levels = self._get_max_level_of_partitions(table_pair.source, self._options.source_host,
+                                                           self._options.source_port, self._options.source_user)
+        dest_max_levels = self._get_max_level_of_partitions(table_pair.source, self._options.dest_host,
+                                                            self._options.dest_port, self._options.dest_user)
+        if src_max_levels != dest_max_levels:
+            return False
+            #raise Exception('Source and destination partition tables have different levels of partitions.')
+        return True
+
+
+    def _get_max_level_of_partitions(self, tbl, host, port, user):
+        get_max_partition = ''' select max(p1.partitionlevel) from pg_partitions p1, pg_partitions p2 
+                                    where p1.schemaname = p2.schemaname and p1.tablename = p2.tablename and
+                                    p2.partitionschemaname = '%s' and p2.partitiontablename = '%s';'''
+        get_max_partition_sql = get_max_partition % (tbl.schema, tbl.tbale)
+        with dbconn.connect(dbconn.DbURL(host, port, tbl.database, user)) as conn:
+            cursor = execSQLSingleRow(conn, get_max_partition_sql)
+            return cursor
+
+
+    def _is_partition_criteria_the_same(self, src_db, src_schema, src_table, dest_db, dest_schema, dest_table, level):
+        # recursively check the partition type and partition criteria
+        #verify the current subpartition pair:
+        if not self._is_partition_key_column_the_same() or not self._is_partition_type_and_values_same():
+            return False
+        elif level == 0:
+            return True
+            #stop and return True if both are top level partition table
+        else:
+             src_parschema, src_partable = self._get_parentpartable()
+             dest_parschema, dest_partable = self._get_parentpartable()
+             return self._is_partition_criteria_the_same(src_db, src_parschema, src_partable, dest_db, dest_parschema, dest_partable)
+
+    def _get_parentpartable(self, db, schema, table, host, port, user):
+        """
+        get the parent partition table, return its schema and table name
+        """
+        oid = self._get_table_oid(db, schema, table, host, port, user)
+        get_parentpartable_sql = ''' select n.nspname, c.relname
+                                 from pg_class c,
+                                      pg_namespace n,
+                                      pg_inherits i
+                                 where i.inhrelid = %s
+                                       and i.inhparent = c.oid
+                                       and c.relnamespace = n.oid; ''' % oid
+        with dbconn.connect(dbconn.DbURL(host, port, db, user)) as conn:
+            cursor = execSingleRowSQL(conn, get_parentpartable_sql)
+            row = cursor
+        return row[0], row[1]
+
+
+    def _is_partition_key_column_the_same(self, src, dest):
+        pass
+
+    def _is_partition_type_and_value_same(self, table_pair):
+        '''
+
+        source_partition_info = self._get_partition_info()
+        dest_partition_info = self._get_partition_info()
+        part_type = source_partition_info['partitiontype']
+        if part_type != dest_partition_info['partitiontype']
+            logger.error('subpartition type is different for source and dest table')
+            return False
+        elif part_type == 'list':
+               self._is_list_partition_values_the_same(source_partition_info, dest_partition_info)
+        elif part_type is 'range':
+               self._is_range_partition_values_the_same(source_partition_info, dest_partition_info)
+        else:
+               Unknown type
+        '''
+
+    def _is_list_partition_values_the_same(self, source_partition_info, dest_partition_info):
+        for key in source_partition_info:
+            if source_partition_info[key] != dest_partition_info[key]:
+                return False
+        return True
+
+
+    def _get_table_oid(self, db, schema, table, host, port, user):
+        get_oid_sql = ''' select c.oid
+                     from pg_class c, pg_namespace n, pg_partitions p 
+                     where c.relname = p.partitiontablename 
+                           and n.oid = c.relnamespace
+                           and n.nspname = p.partitionschemaname
+                           and p.partitionschemaname = '%s’
+                           and p.partitiontablename = '%s';''' % (schema, table)
+        with dbconn.connect(dbconn.DbURL(host, port, db, user)) as conn:
+            cursor = execSingleRowSQL(conn, get_oid_sql)
+        return oid
+
+
+    def _get_partition_info(self, db, schema, table, host, port, user):
+        oid = None
+        part_type = None
+        partition_info = defaultdict(dict())
+        get_oid_sql = ''' select c.oid
+                     from pg_class c, pg_namespace n, pg_partitions p 
+                     where c.relname = p.partitiontablename 
+                           and n.oid = c.relnamespace
+                           and n.nspname = p.partitionschemaname
+                           and p.partitionschemaname = '%s’
+                           and p.partitiontablename = '%s';''' % (schema, table)
+        with dbconn.connect(dbconn.DbURL(host, port, db, user)) as conn:
+            cursor = execSingleRowSQL(conn, get_oid_sql)
+            oid = cursor
+
+        get_partition_type = ''' select partitiontype
+                                 from pg_partitions
+                                 where partitionschemaname = '%s'
+                                       and partitiontablename = '%s';''' % (schema, table)
+        with dbconn.connect(dbconn.DbURL(host, port, tbl.database, user)) as conn:
+            cursor = execSingleRowSQL(conn, get_partition_type)
+            row = cursor
+            part_type = row
+            partition_info['partitiontype'] = part_type
+
+        get_partition_info_sql = '''select parisdefault, parruleord, parrangestartincl, parrangeendincl, parrangestart,
+                                           parrangeend, parrangeevery, parlistvalues
+                                    from pg_partition_rule 
+                                    where parchildrelid = %s;''' % oid
+
+        with dbconn.connect(dbconn.DbURL(host, port, tbl.database, user)) as conn:
+            cursor = execSingleRowSQL(conn, get_partition_info_sql)
+            row = cursor:
+            partition_info['parisdefault'] = row[0] 
+            partition_info['parruleord'] = row[1] 
+            partition_info['parrangestartincl'] = row[2] 
+            partition_info['parrangeendincl'] = row[3] 
+            partition_info['parrangestart'] = row[4] 
+            partition_info['parrangeend'] = row[5] 
+            partition_info['parrangeevery'] = row[6] 
+            partition_info['parlistvalues'] = row[7] 
+        return partition_info
+
+
     def _check_leaf_partition(self, table_pair):
         # check source
         if not self._is_leaf_partition(table_pair.source, self._options.source_host,
