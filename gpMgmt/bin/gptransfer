@@ -3686,18 +3686,10 @@ class GpTransfer(object):
             return cursor
 
 
-    def _is_partition_criteria_the_same(self, src_db, src_schema, src_table, dest_db, dest_schema, dest_table, level):
-        # recursively check the partition type and partition criteria
+    def _is_partition_criteria_the_same(self, table_pair):
         #verify the current subpartition pair:
-        if not self._is_partition_key_column_the_same() or not self._is_partition_type_and_values_same():
+        if not self._is_partition_key_column_the_same(table_pair) or not self._is_partition_type_and_values_same():
             return False
-        elif level == 0:
-            return True
-            #stop and return True if both are top level partition table
-        else:
-             src_parschema, src_partable = self._get_parentpartable()
-             dest_parschema, dest_partable = self._get_parentpartable()
-             return self._is_partition_criteria_the_same(src_db, src_parschema, src_partable, dest_db, dest_parschema, dest_partable)
 
     def _get_parentpartable(self, db, schema, table, host, port, user):
         """
@@ -3717,12 +3709,40 @@ class GpTransfer(object):
         return row[0], row[1]
 
 
-    def _is_partition_key_column_the_same(self, src, dest):
-        pass
+    def _is_partition_key_column_the_same(self, table_pair):
+        source_partition_column_info = get_partition_column_info(table_pair.source.database,
+                                                                 table_pair.souce.schema,)
+                                                                 table_pair.souce.table,)
+                                                                 self._options.src_host,)
+                                                                 self._options.src_port,)
+                                                                 self._options.src_usrr,)
+
+        dest_partition_column_info = get_partition_column_info(table_pair.source.database,
+                                                                 table_pair.souce.schema,)
+                                                                 table_pair.souce.table,)
+                                                                 self._options.src_host,)
+                                                                 self._options.src_port,)
+                                                                 self._options.src_usrr,)
+        for key in source_partition_column_info:
+            if source_partition_column_info[key] != dest_partition_column_info[key]:
+                logger.error('not match the partitio column')
+                return False
+
+    def get_partition_column_info(self):
+        get_partition_colum = ''' select parkind, parlevel, parnatts, paratts from pg_partition
+                                  where paristemplate = 'f' 
+                                  and parrelid in (
+                                                   select oid 
+                                                   from pg_class
+                                                   where relname = '%s' 
+                                                   and relnamespace in (
+                                                                        select oid from pg_namespace
+                                                                        where nspname = '%s'
+                                                                        )
+                                                   ); '''
 
     def _is_partition_type_and_value_same(self, table_pair):
         '''
-
         source_partition_info = self._get_partition_info()
         dest_partition_info = self._get_partition_info()
         part_type = source_partition_info['partitiontype']
