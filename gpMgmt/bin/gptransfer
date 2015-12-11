@@ -27,6 +27,7 @@ import signal
 import inspect
 import hashlib
 import datetime
+from collections import defaultdict
 from threading import Thread, Event, Lock
 import thread
 from optparse import OptionGroup, SUPPRESS_HELP
@@ -3566,6 +3567,8 @@ class GpTransfer(object):
         validate that the pair have same layout and partition criteria.
         """
 
+        logger.info('Validating partition table transfer set...')
+
         for table_pair in self._table_transfer_set:
             self._check_leaf_partition_set(table_pair)
 
@@ -3587,14 +3590,14 @@ class GpTransfer(object):
                 return False
         return True
 
-    def get_table_columns(tbl, host, port, user):
-        columns = dict()
+    def get_table_columns(self, tbl, host, port, user):
+        column_types = dict()
         get_columns_sql = ''' select ordinal_position, is_nullable, data_type, character_maximum_length,
                              character_octet_length, numeric_precision, numeric_precision_radix, numeric_scale,
                              datetime_precision, interval_type, udt_name from information_schema.columns
                              where table_schema = '%s' and table_name = '%s';''' % (tbl.schema, tbl.table)
         with dbconn.connect(dbconn.DbURL(host, port, tbl.database, user)) as conn:
-            cursor = conn.execSQL(conn, get_columns_sql)
+            cursor = execSQL(conn, get_columns_sql)
             for row in cursor:
                 column_attrs = list()
                 ordinal_pos = row[0]
@@ -3611,6 +3614,7 @@ class GpTransfer(object):
         if src_prt_levels != dest_prt_levels:
             return False
         else:
+            print '=====================_has_same_partition_levels=================='
             return True
 
 
@@ -3619,12 +3623,13 @@ class GpTransfer(object):
                                     where p1.schemaname = p2.schemaname and p1.tablename = p2.tablename and
                                     p2.partitionschemaname = '%s' and p2.partitiontablename = '%s';''' % (tbl.schema, tbl.table)
         with dbconn.connect(dbconn.DbURL(host, port, tbl.database, user)) as conn:
-            res = conn.execSQLForSingletonRow(conn, get_max_partition_sql)
+            res = execSQLForSingletonRow(conn, get_max_partition_sql)
             return res[0]
 
 
     def _has_same_partition_criteria(self, table_pair):
         #verify the current subpartition pair:
+        logger.info('Verifying that partition table pair has same partition criteria')
         if (not self._has_same_partition_levels(table_pair) or
            not self._has_same_partition_type_and_key_columns(table_pair) or
            not self._has_same_parent_partition_value(
@@ -3642,6 +3647,7 @@ class GpTransfer(object):
             logger.error('Source and destination partition table have different partitioning criteria.')
             return False
         else:
+            print '====================== _has_same_partition_criteria ================'
             return True
 
     def _has_same_parent_partition_value(self, level, src_db, src_schema, src_table, dest_db, dest_schema, dest_table):
@@ -3658,7 +3664,7 @@ class GpTransfer(object):
         get the parent partition table, return its schema and table name
         """
         logger.info('Getting parent table information for table %s.%s.%s on host %s' % (db, schema, table, host))
-        oid = self._get_table_oid(db, schema, table, host, port, user)
+        oid = self.get_oid(db, schema, table, host, port, user)
         get_parentpartable_sql = ''' select n.nspname, c.relname
                                  from pg_class c,
                                       pg_namespace n,
@@ -3667,38 +3673,40 @@ class GpTransfer(object):
                                        and c.relnamespace = n.oid
                                        and i.inhrelid = %s; ''' % oid
         with dbconn.connect(dbconn.DbURL(host, port, db, user)) as conn:
-            row = conn.execSQLForSingletonRow(conn, get_parentpartable_sql)
+            row = execSQLForSingletonRow(conn, get_parentpartable_sql)
             if row:
+                print '=====================_get_parentpartable=================='
                 return row[0], row[1]
             else:
                 raise Exception('Found no parent table information')
 
     def _has_same_partition_type_and_key_columns(self, table_pair):
-        source_partition_column_info = get_partition_column_info(table_pair.source.database,
-                                                                 table_pair.souce.schema,
-                                                                 table_pair.souce.table,
-                                                                 self._options.src_host,
-                                                                 self._options.src_port,
-                                                                 self._options.src_user)
+        source_partition_column_info = self.get_partition_column_info(table_pair.source.database,
+                                                                 table_pair.source.schema,
+                                                                 table_pair.source.table,
+                                                                 self._options.source_host,
+                                                                 self._options.source_port,
+                                                                 self._options.source_user)
 
-        dest_partition_column_info = get_partition_column_info(table_pair.dest.database,
+        dest_partition_column_info = self.get_partition_column_info(table_pair.dest.database,
                                                                  table_pair.dest.schema,
                                                                  table_pair.dest.table,
                                                                  self._options.dest_host,
                                                                  self._options.dest_port,
                                                                  self._options.dest_user)
         for level_key in source_partition_column_info:
-            if source_partition_column_info[level_key]['parkind'] != dest_partition_column_info[level_key]['parkind'] or
+            if (source_partition_column_info[level_key]['parkind'] != dest_partition_column_info[level_key]['parkind'] or
                source_partition_column_info[level_key]['parnatts'] != dest_partition_column_info[level_key]['parnatts'] or
-               source_partition_column_info[level_key]['paratts'] != dest_partition_column_info[level_key]['paratts']:
+               source_partition_column_info[level_key]['paratts'] != dest_partition_column_info[level_key]['paratts']):
 
                 logger.error('Partition column attribute is different at level %s for source table %s and destination table %s.' % 
                             (level_key, str(table_pair.source), str(table_pair.dest)))
                 return False
+        print '============================_has_same_partition_type_and_key_columns===================='
         return True
 
     def get_partition_column_info(self, db, schema, table, host, port, user):
-        level_partition_info = defaultdict(dict())
+        level_partition_info = defaultdict(dict)
         get_partition_colum = ''' select parkind, parlevel, parnatts, paratts from pg_partition
                                   where paristemplate = 'f' 
                                   and parrelid in (
@@ -3711,7 +3719,7 @@ class GpTransfer(object):
                                                                         )
                                                    ); ''' % (table, schema)
         with dbconn.connect(dbconn.DbURL(host, port, db, user)) as conn:
-            cursor = conn.execSQL(conn, get_partition_colum)
+            cursor = execSQL(conn, get_partition_colum)
             for row in cursor:
                 level = row[1]
                 level_partition_info[level]['parkind'] = row[0]
@@ -3736,6 +3744,7 @@ class GpTransfer(object):
             logger.error('One of the subpartition table is a default partition.')
             return False
 
+        print '=========================_has_same_partition_value====================='
         if part_type == 'list':
                return self._has_same_list_partition_value(source_partition_info, dest_partition_info)
         elif part_type == 'range':
@@ -3751,42 +3760,52 @@ class GpTransfer(object):
 
              logger.error('Range partition value is different between source and destination partition table')
              return False
+
+        print '=========================_has_same_list_partition_value========================'
         return True
 
     def _has_same_range_partition_value(self, source_partition_info, dest_partition_info):
         if source_partition_info['parlistvalues'] != dest_partition_info['parlistvalues']:
             logger.error('List partition value is different between source and destination partition table')
             return False
+        print '======================_has_same_range_partition_value================'
         return True
 
 
-    def get_oid(self, db, schema, table,  host, port, user):
+    def get_oid(self, db, schema, table, host, port, user):
+        print '=========================Start get_oid======================'
         get_oid_sql = ''' select c.oid
                      from pg_catalog.pg_class c, pg_catalog.pg_namespace n, pg_catalog.pg_partitions p 
                      where c.relname = p.partitiontablename 
                            and n.oid = c.relnamespace
                            and n.nspname = p.partitionschemaname
-                           and p.partitionschemaname = '%s’
+                           and p.partitionschemaname = '%s'
                            and p.partitiontablename = '%s';''' % (schema, table)
-        with dbconn.connect(dbconn.DbURL(host, port, database, user)) as conn:
-            res = conn.execSQLForSingletonRow(conn, get_oid_sql)
+        print '=========================Start get_oid======================'
+        with dbconn.connect(dbconn.DbURL(host, port, db, user)) as conn:
+            res = execSQLForSingletonRow(conn, get_oid_sql)
+            print 'res == None %s' % (res == None)
+            print 'res[0] %s' % (res[0])
             if res:
-                return res
+                return res[0]
             else:
-                raise Exception('Failed to retrieve the oid of table %s.%s.%s on host %s' % (database, schema, table, host))
+                raise Exception('Failed to retrieve the oid of table %s.%s.%s on host %s' % (db, schema, table, host))
 
 
     def get_partition_info(self, db, schema, table, host, port, user):
+        print '=========================Start get_partition_info======================'
         part_type = None
         partition_info = dict()
         oid = self.get_oid(db, schema, table, host, port, user)
 
+        print '=========================After Oid======================'
         get_partition_type = ''' select partitiontype
                                  from pg_catalog.pg_partitions
                                  where partitionschemaname = '%s'
                                        and partitiontablename = '%s';''' % (schema, table)
-        with dbconn.connect(dbconn.DbURL(host, port, database, user)) as conn:
-            part_type = conn.execSQLForSingletonRow(conn, get_partition_type)
+        print '=========================Before get_partition_type======================'
+        with dbconn.connect(dbconn.DbURL(host, port, db, user)) as conn:
+            part_type = execSQLForSingletonRow(conn, get_partition_type)
             partition_info['partitiontype'] = part_type[0]
 
         get_partition_info_sql = '''select parisdefault, parruleord, parrangestartincl, parrangeendincl, parrangestart,
@@ -3794,8 +3813,8 @@ class GpTransfer(object):
                                     from pg_catalog.pg_partition_rule 
                                     where parchildrelid = %s;''' % oid
 
-        with dbconn.connect(dbconn.DbURL(host, port, database, user)) as conn:
-            row = conn.execSQLForSingletonRow(conn, get_partition_info_sql)
+        with dbconn.connect(dbconn.DbURL(host, port, db, user)) as conn:
+            row = execSQLForSingletonRow(conn, get_partition_info_sql)
             partition_info['parisdefault'] = row[0] 
             partition_info['parruleord'] = row[1] 
             partition_info['parrangestartincl'] = row[2] 
@@ -3804,11 +3823,14 @@ class GpTransfer(object):
             partition_info['parrangeend'] = row[5] 
             partition_info['parrangeevery'] = row[6] 
             partition_info['parlistvalues'] = row[7] 
+        print '========================= Done get_partition_info======================'
         return partition_info
 
 
     def _check_leaf_partition_set(self, table_pair):
         # check if the source and destination table are all leaf partition tables
+
+        logger.info('Verifying partition table is leaf partition table.')
         if not self._is_leaf_partition(table_pair.source, self._options.source_host,
                                       self._options.source_port, self._options.source_user):
             raise Exception('Source table %s is not a leaf partition table.' % str(table_pair.source))
@@ -3824,10 +3846,14 @@ class GpTransfer(object):
                              (select oid from pg_partition p where r.oid = p.parrelid) and  
                              relnamespace = (select oid from pg_namespace where nspname = '%s') and 
                              relname = '%s' ;''' % (tbl.schema, tbl.table)
+        print '==========check_leaf_partition_sql ============ \n%s' % check_leaf_partition_sql
         with dbconn.connect(dbconn.DbURL(host, port, tbl.database, user)) as conn:
             cursor = execSQL(conn, check_leaf_partition_sql)
             if cursor.rowcount != 1:
                 return False
+
+
+        print '==========Done ============ \n'
         return True
 
 
