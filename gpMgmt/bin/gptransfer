@@ -3572,7 +3572,7 @@ class GpTransfer(object):
             if not self._has_same_column_types(table_pair):
                 raise Exception('source and destination partition table have different column layout or types'
                                 'source table %s, destination table %s' % (str(table_pair.source), str(table_pair.dest)))        
-            if not self._is_partition_criteria_same(table_pair):
+            if not self._has_same_partition_criteria(table_pair):
                 raise Exception('source and destination partition table have different partition criteria'
                                 'source table %s, destination table %s' % (str(table_pair.source), str(table_pair.dest)))
 
@@ -3594,7 +3594,7 @@ class GpTransfer(object):
                              datetime_precision, interval_type, udt_name from information_schema.columns
                              where table_schema = '%s' and table_name = '%s';''' % (tbl.schema, tbl.table)
         with dbconn.connect(dbconn.DbURL(host, port, tbl.database, user)) as conn:
-            cursor = execSQL(conn, get_columns_sql)
+            cursor = conn.execSQL(conn, get_columns_sql)
             for row in cursor:
                 column_attrs = list()
                 ordinal_pos = row[0]
@@ -3603,89 +3603,101 @@ class GpTransfer(object):
         return column_types
 
 
-    def _check_same_partition_levels(self, table_pair):
-        src_max_levels = self._get_max_level_of_partitions(table_pair.source, self._options.source_host,
+    def _has_same_partition_levels(self, table_pair):
+        src_prt_levels = self._get_partition_levels(table_pair.source, self._options.source_host,
                                                            self._options.source_port, self._options.source_user)
-        dest_max_levels = self._get_max_level_of_partitions(table_pair.source, self._options.dest_host,
+        dest_prt_levels = self._get_partition_levels(table_pair.source, self._options.dest_host,
                                                             self._options.dest_port, self._options.dest_user)
-        if src_max_levels != dest_max_levels:
+        if src_prt_levels != dest_prt_levels:
             return False
-            #raise Exception('Source and destination partition tables have different levels of partitions.')
-        return True
+        else:
+            return True
 
 
-    def get_max_level_of_partitions(self, tbl, host, port, user):
-        get_max_partition = ''' select max(p1.partitionlevel) from pg_partitions p1, pg_partitions p2 
+    def _get_partition_levels(self, tbl, host, port, user):
+        get_max_partition_sql = ''' select max(p1.partitionlevel) from pg_partitions p1, pg_partitions p2 
                                     where p1.schemaname = p2.schemaname and p1.tablename = p2.tablename and
-                                    p2.partitionschemaname = '%s' and p2.partitiontablename = '%s';'''
-        get_max_partition_sql = get_max_partition % (tbl.schema, tbl.tbale)
+                                    p2.partitionschemaname = '%s' and p2.partitiontablename = '%s';''' % (tbl.schema, tbl.table)
         with dbconn.connect(dbconn.DbURL(host, port, tbl.database, user)) as conn:
-            cursor = execSQLSingleRow(conn, get_max_partition_sql)
-            return cursor
+            res = conn.execSQLForSingletonRow(conn, get_max_partition_sql)
+            return res[0]
 
 
-    def _is_partition_criteria_the_same(self, table_pair):
+    def _has_same_partition_criteria(self, table_pair):
         #verify the current subpartition pair:
-        if not self._check_same_partition_levels(table_pair):
+        if (not self._has_same_partition_levels(table_pair) or
+           not self._has_same_partition_type_and_key_columns(table_pair) or
+           not self._has_same_parent_partition_value(
+                                                      self._get_partition_levels(
+                                                          table_pair.source,
+                                                          self._options.source_host,
+                                                          self._options.source_port,
+                                                          self._options.source_user),
+                                                      table_pair.source.database,
+                                                      table_pair.source.schema,
+                                                      table_pair.source.table,
+                                                      table_pair.dest.database,
+                                                      table_pair.dest.schema,
+                                                      table_pair.dest.table)):
+            logger.error('Source and destination partition table have different partitioning criteria.')
             return False
-        if not self._check_same_partition_type_and_key_columns(table_pair):
-            return False
-        if not self._has_same_partition_value(table_pair):
-            return False
-        return True
+        else:
+            return True
 
-    def _has_same_partition_value(self, level, table_pair):
-        if not self._is_same_partition_values():
+    def _has_same_parent_partition_value(self, level, src_db, src_schema, src_table, dest_db, dest_schema, dest_table):
+        if not self._has_same_partition_value(src_db, src_schema, src_table, dest_db, dest_schema, dest_table):
             return False
         if level == 0:
             return True
-        src_parent_schema, src_parent_table = _get_parentpartable()
-        dest_parent_schema, dest_parent_table = _get_parentpartable()
-        return self._has_same_partition_value(level, table_pair.get_parent())
-
+        src_schema, src_table = self._get_parentpartable(src_db, src_schema, src_table, self._options.source_host, self._options.source_port, self._options.source_user)
+        dest_schema, dest_table = self._get_parentpartable(dest_db, dest_schema, dest_table, self._options.dest_host, self._options.dest_port, self._options.dest_user)
+        return self._has_same_parent_partition_value(level - 1, src_db, src_schema, src_table, dest_db, dest_schema, dest_table)
 
     def _get_parentpartable(self, db, schema, table, host, port, user):
         """
         get the parent partition table, return its schema and table name
         """
+        logger.info('Getting parent table information for table %s.%s.%s on host %s' % (db, schema, table, host))
         oid = self._get_table_oid(db, schema, table, host, port, user)
         get_parentpartable_sql = ''' select n.nspname, c.relname
                                  from pg_class c,
                                       pg_namespace n,
                                       pg_inherits i
-                                 where i.inhrelid = %s
-                                       and i.inhparent = c.oid
-                                       and c.relnamespace = n.oid; ''' % oid
+                                 where i.inhparent = c.oid
+                                       and c.relnamespace = n.oid
+                                       and i.inhrelid = %s; ''' % oid
         with dbconn.connect(dbconn.DbURL(host, port, db, user)) as conn:
-            cursor = execSingleRowSQL(conn, get_parentpartable_sql)
-            row = cursor
-        return row[0], row[1]
+            row = conn.execSQLForSingletonRow(conn, get_parentpartable_sql)
+            if row:
+                return row[0], row[1]
+            else:
+                raise Exception('Found no parent table information')
 
-
-    def _check_same_partition_key_columns(self, table_pair):
+    def _has_same_partition_type_and_key_columns(self, table_pair):
         source_partition_column_info = get_partition_column_info(table_pair.source.database,
-                                                                 table_pair.souce.schema,)
-                                                                 table_pair.souce.table,)
-                                                                 self._options.src_host,)
-                                                                 self._options.src_port,)
-                                                                 self._options.src_usrr,)
+                                                                 table_pair.souce.schema,
+                                                                 table_pair.souce.table,
+                                                                 self._options.src_host,
+                                                                 self._options.src_port,
+                                                                 self._options.src_user)
 
-        dest_partition_column_info = get_partition_column_info(table_pair.source.database,
-                                                                 table_pair.souce.schema,)
-                                                                 table_pair.souce.table,)
-                                                                 self._options.src_host,)
-                                                                 self._options.src_port,)
-                                                                 self._options.src_usrr,)
+        dest_partition_column_info = get_partition_column_info(table_pair.dest.database,
+                                                                 table_pair.dest.schema,
+                                                                 table_pair.dest.table,
+                                                                 self._options.dest_host,
+                                                                 self._options.dest_port,
+                                                                 self._options.dest_user)
         for level_key in source_partition_column_info:
             if source_partition_column_info[level_key]['parkind'] != dest_partition_column_info[level_key]['parkind'] or
                source_partition_column_info[level_key]['parnatts'] != dest_partition_column_info[level_key]['parnatts'] or
                source_partition_column_info[level_key]['paratts'] != dest_partition_column_info[level_key]['paratts']:
 
-                logger.error('not match the partition column')
+                logger.error('Partition column attribute is different at level %s for source table %s and destination table %s.' % 
+                            (level_key, str(table_pair.source), str(table_pair.dest)))
                 return False
         return True
 
-    def get_partition_column_info(self, host, port, user, db, schema, table):
+    def get_partition_column_info(self, db, schema, table, host, port, user):
         level_partition_info = defaultdict(dict())
         get_partition_colum = ''' select parkind, parlevel, parnatts, paratts from pg_partition
                                   where paristemplate = 'f' 
@@ -3697,9 +3709,9 @@ class GpTransfer(object):
                                                                         select oid from pg_namespace
                                                                         where nspname = '%s'
                                                                         )
-                                                   ); ''' % (table schema)
+                                                   ); ''' % (table, schema)
         with dbconn.connect(dbconn.DbURL(host, port, db, user)) as conn:
-            cursor = execSQL(conn, get_partition_colum)
+            cursor = conn.execSQL(conn, get_partition_colum)
             for row in cursor:
                 level = row[1]
                 level_partition_info[level]['parkind'] = row[0]
@@ -3707,78 +3719,83 @@ class GpTransfer(object):
                 level_partition_info[level]['paratts'] = row[3]
         return level_partition_info
 
+    def _has_same_partition_value(self, src_db, src_schema, src_table, dest_db, dest_schema, dest_table):
+        """
+        Verify that the partition value is the same based on the partition type: [range, list]
+        """
+        source_partition_info = self.get_partition_info(src_db, src_schema, src_table, self._options.source_host,
+                                                         self._options.source_port, self._options.source_user)
+        dest_partition_info = self.get_partition_info(dest_db, dest_schema, dest_table, self._options.dest_host,
+                                                       self._options.dest_port, self._options.dest_user)
 
-    def _is_same_partition_values(self, table_pair):
-        """
-        """
-        source_partition_info = self._get_partition_info()
-        dest_partition_info = self._get_partition_info()
+        part_type = source_partition_info['partitiontype']
+        if source_partition_info['parruleord'] != dest_partition_info['parruleord']:
+            logger.error('Range partition rank mismatch.')
+            return False
+        if source_partition_info['parisdefault'] != dest_partition_info['parisdefault']:
+            logger.error('One of the subpartition table is a default partition.')
+            return False
+
         if part_type == 'list':
-               self._is_list_partition_values_the_same(source_partition_info, dest_partition_info)
-        elif part_type is 'range':
-               self._is_range_partition_values_the_same(source_partition_info, dest_partition_info)
+               return self._has_same_list_partition_value(source_partition_info, dest_partition_info)
+        elif part_type == 'range':
+               return self._has_same_range_partition_value(source_partition_info, dest_partition_info)
         else:
-               logger.error('Unknown type')
+               raise Exception('Unknown partitioning type %s' % part_type)
 
-    def _has_same_list_partition_values(self, source_partition_info, dest_partition_info):
-        for key in source_partition_info:
-            if source_partition_info[key] != dest_partition_info[key]:
-                return False
+    def _has_same_list_partition_value(self, source_partition_info, dest_partition_info):
+        if (source_partition_info['parrangestartincl'] != dest_partition_info['parrangestartincl'] or
+            source_partition_info['parrangestart'] != dest_partition_info['parrangestart'] or
+            source_partition_info['parrangeend'] != dest_partition_info['parrangeend'] or
+            source_partition_info['parrangeevery'] != dest_partition_info['parrangeevery']):
+
+             logger.error('Range partition value is different between source and destination partition table')
+             return False
         return True
 
-    def _has_same_range_partition_values(self, source_partition_info, dest_partition_info):
-        for key in source_partition_info:
-            if source_partition_info[key] != dest_partition_info[key]:
-                return False
+    def _has_same_range_partition_value(self, source_partition_info, dest_partition_info):
+        if source_partition_info['parlistvalues'] != dest_partition_info['parlistvalues']:
+            logger.error('List partition value is different between source and destination partition table')
+            return False
         return True
 
 
-    def _get_table_oid(self, db, schema, table, host, port, user):
+    def get_oid(self, db, schema, table,  host, port, user):
         get_oid_sql = ''' select c.oid
-                     from pg_class c, pg_namespace n, pg_partitions p 
+                     from pg_catalog.pg_class c, pg_catalog.pg_namespace n, pg_catalog.pg_partitions p 
                      where c.relname = p.partitiontablename 
                            and n.oid = c.relnamespace
                            and n.nspname = p.partitionschemaname
                            and p.partitionschemaname = '%s’
                            and p.partitiontablename = '%s';''' % (schema, table)
-        with dbconn.connect(dbconn.DbURL(host, port, db, user)) as conn:
-            cursor = execSingleRowSQL(conn, get_oid_sql)
-        return oid
+        with dbconn.connect(dbconn.DbURL(host, port, database, user)) as conn:
+            res = conn.execSQLForSingletonRow(conn, get_oid_sql)
+            if res:
+                return res
+            else:
+                raise Exception('Failed to retrieve the oid of table %s.%s.%s on host %s' % (database, schema, table, host))
 
 
-    def _get_partition_info(self, db, schema, table, host, port, user):
-        oid = None
+    def get_partition_info(self, db, schema, table, host, port, user):
         part_type = None
-        partition_info = defaultdict(dict())
-        get_oid_sql = ''' select c.oid
-                     from pg_class c, pg_namespace n, pg_partitions p 
-                     where c.relname = p.partitiontablename 
-                           and n.oid = c.relnamespace
-                           and n.nspname = p.partitionschemaname
-                           and p.partitionschemaname = '%s’
-                           and p.partitiontablename = '%s';''' % (schema, table)
-        with dbconn.connect(dbconn.DbURL(host, port, db, user)) as conn:
-            cursor = execSingleRowSQL(conn, get_oid_sql)
-            oid = cursor
+        partition_info = dict()
+        oid = self.get_oid(db, schema, table, host, port, user)
 
         get_partition_type = ''' select partitiontype
-                                 from pg_partitions
+                                 from pg_catalog.pg_partitions
                                  where partitionschemaname = '%s'
                                        and partitiontablename = '%s';''' % (schema, table)
-        with dbconn.connect(dbconn.DbURL(host, port, tbl.database, user)) as conn:
-            cursor = execSingleRowSQL(conn, get_partition_type)
-            row = cursor
-            part_type = row
-            partition_info['partitiontype'] = part_type
+        with dbconn.connect(dbconn.DbURL(host, port, database, user)) as conn:
+            part_type = conn.execSQLForSingletonRow(conn, get_partition_type)
+            partition_info['partitiontype'] = part_type[0]
 
         get_partition_info_sql = '''select parisdefault, parruleord, parrangestartincl, parrangeendincl, parrangestart,
                                            parrangeend, parrangeevery, parlistvalues
-                                    from pg_partition_rule 
+                                    from pg_catalog.pg_partition_rule 
                                     where parchildrelid = %s;''' % oid
 
-        with dbconn.connect(dbconn.DbURL(host, port, tbl.database, user)) as conn:
-            cursor = execSingleRowSQL(conn, get_partition_info_sql)
-            row = cursor:
+        with dbconn.connect(dbconn.DbURL(host, port, database, user)) as conn:
+            row = conn.execSQLForSingletonRow(conn, get_partition_info_sql)
             partition_info['parisdefault'] = row[0] 
             partition_info['parruleord'] = row[1] 
             partition_info['parrangestartincl'] = row[2] 
