@@ -2421,10 +2421,9 @@ class GpTransfer(object):
 
         self._validate_host_map()
 
+        self._validate_table_transfer_set()
         if self._options.partition_transfer:
             self._validate_partition_table_transfer_set()
-        else:
-            self._validate_table_transfer_set()
 
         self._validate_filespace(self._options.source_host, self._options.source_port, self._options.source_user,
                                  self._options.dest_host, self._options.dest_port, self._options.dest_user,
@@ -2864,6 +2863,9 @@ class GpTransfer(object):
             raise ProgramArgumentValidationException('--partition-transfer option must be '
                                                      'specified with -f option')
 
+        if self._options.input_file and not os.path.isfile(self._options.input_file):
+            raise ProgramArgumentValidationException('Input file %s is not a valid file' % self._options.input_file)
+
         if (self._options.partition_transfer and (self._options.tables or self._options.full)):
             raise ProgramArgumentValidationException('--partition-transfer option can only be ' 
                                                      'specified with -f option')
@@ -3147,6 +3149,21 @@ class GpTransfer(object):
 
     def _get_source_tables(self):
         source_tables = list()
+        # --partition-transfer will have the exact database name for each destination table
+        if self._options.partition_transfer:
+            self.get_tables_from_partition_input_file()
+            user_tables = get_user_tables(self._options.source_host,
+                                          self._options.source_port,
+                                          self._options.source_user,
+                                          self._src_databases,
+                                          False,
+                                          self._options.partition_transfer)
+            for tbl in self.src_dest_partition_table_mapping:
+                for user_tbl in user_tables:
+                    if tbl == str(user_tbl):
+                        source_tables.append(user_tbl)
+            return source_tables
+
         if self._options.full:
             for src_table in get_user_tables(self._options.source_host,
                                              self._options.source_port,
@@ -3196,12 +3213,7 @@ class GpTransfer(object):
             # gptransfer with -f option
             # add all tables from input file and parse wildcard of table names
             if self._options.input_file:
-                if self._options.partition_transfer:
-                    self.get_tables_from_partition_input_file(databases, tables)
-                else:
-                    self.get_tables_from_input_file(databases, tables)
-
-            print 'databases is %s' % databases
+                self.get_tables_from_input_file(databases, tables)
 
             databases_table_transfer = get_databases_by_regexp(
                                            self._options.source_host,
@@ -3213,14 +3225,11 @@ class GpTransfer(object):
             self._src_databases = databases_full_transfer + databases_table_transfer
 
 
-            # --partition-transfer will have the exact database name for each destination table
-            # which has already been obtained from parsing the input file.
-            if not self._options.partition_transfer:
-                # get all destination databases
-                if self._options.dest_database:
-                    self._dest_databases = [self._options.dest_database]
-                else:
-                    self._dest_databases = [db for db in self._all_dest_databases if db in self._src_databases]
+            # get all destination databases
+            if self._options.dest_database:
+                self._dest_databases = [self._options.dest_database]
+            else:
+                self._dest_databases = [db for db in self._all_dest_databases if db in self._src_databases]
 
             print 'size of databases_table_transfer is %s' % databases_table_transfer
 
@@ -3279,7 +3288,7 @@ class GpTransfer(object):
                     continue
                 self.process_tables_details(line, databases, tables)
 
-    def get_tables_from_partition_input_file(self, databases, tables):
+    def get_tables_from_partition_input_file(self):
         """
         if users provide an input file with partition table pair <source,destination>,
         add all tables specified.
@@ -3287,6 +3296,7 @@ class GpTransfer(object):
         """
         self.src_dest_partition_table_mapping = dict()
         self._dest_databases = []
+        self._src_databases = []
         with open (self._options.input_file) as input_file:
             for line in input_file:
                 line = line.strip()
@@ -3300,15 +3310,12 @@ class GpTransfer(object):
                 src_table, dest_table = src_table.strip(), dest_table.strip()
                 self.src_dest_partition_table_mapping[src_table] = dest_table
 
-                d_database, _, _ = split_fqn(dest_table)
-                if d_database not in self._dest_databases:
-                    self._dest_databases.append(d_database)
-
-                s_database, s_schema, s_table = split_fqn(src_table)
-                if s_database not in databases:
-                    databases.append(s_database)
-                if (s_database, s_schema, s_table) not in tables:
-                    tables.append((s_database, s_schema, s_table))
+                src_db = split_fqn(src_table)[0]
+                if src_db not in self._src_databases:
+                    self._src_databases.append(src_db)
+                dest_db = split_fqn(dest_table)[0]
+                if dest_db not in self._dest_databases:
+                    self._dest_databases.append(dest_db)
 
     def get_tables_from_option(self, databases, tables):
         """
@@ -3413,12 +3420,14 @@ class GpTransfer(object):
 
         for src_table in self._src_tables:
             if self._options.partition_transfer:
-                dest_db, dest_schema, dest_table = self.src_dest_partition_table_mapping[str(src_table)].split('.')
+                src_tbl_key = str(src_table)
+                dest_db, dest_schema, dest_tbl = split_fqn(self.src_dest_partition_table_mapping[src_tbl_key])
                 table_pair = GpTransferTablePair(src_table,
                                              GpTransferTable(dest_db,
                                                              dest_schema,
-                                                             dest_table,
+                                                             dest_tbl,
                                                              src_table.external))
+
             else:
                 dest_database = src_table.database
                 if self._options.dest_database and not self._options.full:
