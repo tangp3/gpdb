@@ -28,6 +28,19 @@ Feature: gptransfer tests
         And the user runs "psql -p $GPTRANSFER_SOURCE_PORT -h $GPTRANSFER_SOURCE_HOST -U $GPTRANSFER_SOURCE_USER -f gppylib/test/behave/mgmt_utils/steps/data/gptransfer_setup.sql -d template1"
         Then psql should return a return code of 0
 
+    @partition_transfer
+    @prt_1
+    Scenario: gptransfer leaf partition -> leaf partition
+        Given the database is running
+        And database "destdb" exists
+        And database "srcdb" is created if not exists on host "GPTRANSFER_SOURCE_HOST" with port "GPTRANSFER_SOURCE_PORT" with user "GPTRANSFER_SOURCE_USER"
+        And there is a "heap" table "sales" with compression "None" in "destdb" with data
+        And there is a "heap" table "sales" with compression "None" in "srcdb" with data "True" on host "GPTRANSFER_SOURCE_HOST" with port "GPTRANSFER_SOURCE_PORT" with user "GPTRANSFER_SOURCE_USER" 
+        And there is a file "input_file" with tables "srcdb.public.sales_1_prt_p1_2_prt_1, destdb.public.sales_1_prt_p1_2_prt_1"
+        When the user runs "gptransfer -f input_file --partition-transfer --source-port $GPTRANSFER_SOURCE_PORT --source-host $GPTRANSFER_SOURCE_HOST --source-user $GPTRANSFER_SOURCE_USER --dest-user $GPTRANSFER_SOURCE_USER --dest-port $GPTRANSFER_SOURCE_PORT --dest-host $GPTRANSFER_SOURCE_HOST --source-map-file $GPTRANSFER_MAP_FILE"
+        Then gptransfer should return a return code of 0
+        And verify that table "public.sales_1_prt_p1_2_prt_1" in database "srcdb" of source system has same data with table "public.sales_1_prt_p1_2_prt_1" in database "destdb" of destination system
+
     @T339833
     Scenario: gptransfer full, source cluster -> source cluster
         Given the database is running
@@ -1620,7 +1633,7 @@ Feature: gptransfer tests
         Then psql should return a return code of 0 
         And the user runs "gptransfer -t 'gptransfer_test_db.public.t1' --source-port $GPTRANSFER_SOURCE_PORT --source-host $GPTRANSFER_SOURCE_HOST --source-user $GPTRANSFER_SOURCE_USER --dest-user $GPTRANSFER_DEST_USER --dest-port $GPTRANSFER_DEST_PORT --dest-host $GPTRANSFER_DEST_HOST --source-map-file $GPTRANSFER_MAP_FILE -a"
         Then gptransfer should return a return code of 0 
-        And verify that table "t1" in "gptransfer_test_db" has same data on source and destination system with order by "id" 
+        And verify that table "t1" in database "gptransfer_test_db" of source system has same data with table "t1" in database "gptransfer_test_db" of destination system with order by "id" 
 
     Scenario: Empty spaces in NOT NULL columns and NULL values are getting transferred correctly in CSV format
         Given the database is running
@@ -1629,7 +1642,7 @@ Feature: gptransfer tests
         Then psql should return a return code of 0 
         And the user runs "gptransfer -t 'gptransfer_test_db_one.public.table1' --source-port $GPTRANSFER_SOURCE_PORT --source-host $GPTRANSFER_SOURCE_HOST --source-user $GPTRANSFER_SOURCE_USER --dest-user $GPTRANSFER_DEST_USER --dest-port $GPTRANSFER_DEST_PORT --dest-host $GPTRANSFER_DEST_HOST --source-map-file $GPTRANSFER_MAP_FILE -a"
         Then gptransfer should return a return code of 0 
-        And verify that table "table1" in "gptransfer_test_db_one" has same data on source and destination system with order by "id" 
+        And verify that table "table1" in database "gptransfer_test_db_one" of source system has same data with table "table1" in database "gptransfer_test_db_one" of destination system with order by "id" 
         And verify that the query "select count(*) from table1 where address is NULL" in database "gptransfer_test_db_one" returns "1"
         And verify that the query "select count(*) from table1 where address=''" in database "gptransfer_test_db_one" returns "1"
 
@@ -1640,7 +1653,7 @@ Feature: gptransfer tests
         Then psql should return a return code of 0 
         And the user runs "gptransfer -t 'gptransfer_test_db_one.public.table1' --source-port $GPTRANSFER_SOURCE_PORT --source-host $GPTRANSFER_SOURCE_HOST --source-user $GPTRANSFER_SOURCE_USER --dest-user $GPTRANSFER_DEST_USER --dest-port $GPTRANSFER_DEST_PORT --dest-host $GPTRANSFER_DEST_HOST --source-map-file $GPTRANSFER_MAP_FILE -a --delimiter '\001' --format=text"
         Then gptransfer should return a return code of 0 
-        And verify that table "table1" in "gptransfer_test_db_one" has same data on source and destination system with order by "id"
+        And verify that table "table1" in database "gptransfer_test_db_one" of source system has same data with table "tabl1" in database "gptransfer_test_db_one" of destination system with order by "id"
         And verify that the query "select count(*) from table1 where address is NULL" in database "gptransfer_test_db_one" returns "1"
         And verify that the query "select count(*) from table1 where address=''" in database "gptransfer_test_db_one" returns "1"
 
