@@ -3434,6 +3434,8 @@ class GpTransfer(object):
         table_pairs = list()
         seen = set()
 
+        print '===========================len of src_tables %s' % len(self._src_tables) 
+
         for src_table in self._src_tables:
             if self._options.partition_transfer:
                 src_tbl_key = str(src_table)
@@ -3739,7 +3741,7 @@ class GpTransfer(object):
                                                                  self._options.dest_user)
         for level_key in source_partition_column_info:
             if source_partition_column_info[level_key]['parkind'] != dest_partition_column_info[level_key]['parkind']:
-                logger.error('Partition type is different at level %s between %s' (level_key, source_dest_info))
+                logger.error('Partition type is different at level %s between %s' % (level_key, source_dest_info))
             if source_partition_column_info[level_key]['parnatts'] != dest_partition_column_info[level_key]['parnatts']:
                 logger.error('Number of partition columns is different at level %s between %s' % (level_key, source_dest_info))
 
@@ -3748,7 +3750,7 @@ class GpTransfer(object):
             dest_paratts = [att.strip() for att in dest_partition_column_info[level_key]['paratts'].split(' ')]
             if sorted(source_paratts) != sorted(dest_paratts):
                 logger.error('Partition column attributes is different at level %s between %s' % 
-                            (level_key, str(table_pair.source), str(table_pair.dest)))
+                            (level_key, source_dest_info))
                 return False
         return True
 

@@ -1,4 +1,6 @@
 -- two levels partition table, range(date) and list(regin)
+DROP TABLE IF EXISTS sales;
+
 CREATE TABLE sales (trans_id int, date date, amount decimal(9,2), region text)
 DISTRIBUTED BY (trans_id)
 PARTITION BY RANGE (date)
