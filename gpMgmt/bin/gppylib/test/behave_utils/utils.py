@@ -655,13 +655,18 @@ def create_int_table(context, table_name, table_type='heap', dbname='testdb'):
         if result != NROW:
             raise Exception('Integer table creation was not successful. Expected %d does not match %d' %(NROW, result))
        
-def drop_database(context, dbname):
+def drop_database(context, dbname, host=None, port=0, user=None):
 
     LOOPS = 10
+    if host == None or port == 0 or user == None:
+        dropdb_cmd = 'dropdb %s' % dbname
+    else:
+        dropdb_cmd = 'psql -h %s -p %d -U %s -d template1 -c "drop database %s"' % (host,
+                        port, user, dbname)
     for i in range(LOOPS):
         context.exception = None
 
-        run_gpcommand(context, 'dropdb %s' % dbname)
+        run_gpcommand(context, dropdb_cmd)
 
         if context.exception:
             time.sleep(1)
@@ -677,9 +682,9 @@ def drop_database(context, dbname):
 
     raise Exception('db exists after dropping: %s' % dbname)
 
-def drop_database_if_exists(context, dbname):
-    if check_db_exists(dbname):
-        drop_database(context, dbname)
+def drop_database_if_exists(context, dbname=None, host=None, port=0, user=None):
+    if check_db_exists(dbname, host=host, port=port, user=user):
+        drop_database(context, dbname, host=host, port=port, user=user)
 
 def run_on_all_segs(context, dbname, query):
     gparray = GpArray.initFromCatalog(dbconn.DbURL())
@@ -765,18 +770,21 @@ def check_row_count(tablename, dbname, nrows):
 def check_empty_table(tablename, dbname):
     check_row_count(tablename, dbname, 0)
      
-def match_table_select(context, src_tablename, src_dbname, dest_tablename, dest_dbname, orderby=None):
+def match_table_select(context, src_tablename, src_dbname, dest_tablename, dest_dbname, orderby=None, options=''):
     if orderby != None :
-        src_check_query = 'psql -d %s -c \'select * from %s order by %s\'' % (dest_dbname, dest_tablename, orderby)
-        command = 'psql -p $GPTRANSFER_SOURCE_PORT -h $GPTRANSFER_SOURCE_HOST -U $GPTRANSFER_SOURCE_USER -d %s -c \'select * from %s order by %s\''%(src_dbname, src_tablename, orderby)
+        check_query = 'psql -d %s -c \'select * from %s order by %s\' %s' % (dest_dbname, dest_tablename, orderby, options)
+        command = '''psql -p $GPTRANSFER_SOURCE_PORT -h $GPTRANSFER_SOURCE_HOST -U $GPTRANSFER_SOURCE_USER -d %s
+                     -c \'select * from %s order by %s\' %s''' % (src_dbname, src_tablename, orderby, options)
     else:
-        check_query = 'psql -d %s -c \'select * from %s\'' % (dest_dbname, dest_tablename)
-        command = 'psql -p $GPTRANSFER_SOURCE_PORT -h $GPTRANSFER_SOURCE_HOST -U $GPTRANSFER_SOURCE_USER -d %s -c \'select * from %s\''%(src_dbname, src_tablename)
+        check_query = 'psql -d %s -c \'select * from %s\' %s' % (dest_dbname, dest_tablename, options)
+        command = '''psql -p $GPTRANSFER_SOURCE_PORT -h $GPTRANSFER_SOURCE_HOST -U $GPTRANSFER_SOURCE_USER -d %s
+                     -c \'select * from %s\' %s''' % (src_dbname, src_tablename, options)
+
     (rc, out1, err) = run_cmd(check_query)
     (rc, out2, err) = run_cmd(command)
     if out2 != out1:
-        raise Exception('table %s in database %s of source system does not match table %s in database %s of destination system.'%(src_tablename,src_dbname,
-                        dest_tablename, dest_dbname))
+        raise Exception('table %s in database %s of source system does not match rows with table %s in database %s of destination system.' % (
+                         src_tablename,src_dbname, dest_tablename, dest_dbname))
 
 def get_master_hostname(dbname='template1'):
     master_hostname_sql = "select distinct hostname from gp_segment_configuration where content=-1 and role='p'"
