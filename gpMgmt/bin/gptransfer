@@ -3012,6 +3012,8 @@ class GpTransfer(object):
             logger.warning('Found no tables to exclude from transfer table list')
             sys.exit(0)
 
+
+
     def _final_count_validation(self):
         logger.info('Running final table row count validation on destination tables...')
         for table_pair in self._table_transfer_set:
@@ -3529,7 +3531,12 @@ class GpTransfer(object):
             if self._options.partition_transfer:
                 if table_pair.dest not in self._dest_tables:
                     raise Exception('Table %s does not exist in destination database ' 
-                                     'to transfer partition tables' % table_pair.dest)
+                                     'to transfer partition tables' % str(table_pair.dest))
+                elif ((not self._options.no_final_count_validation or self._options.validator != None) and 
+                      not self._is_table_empty(table_pair.dest.database, table_pair.dest.schema, table_pair.dest.table,
+                                          self._options.source_host, self._options.source_port, self._options.source_user)):
+                    raise Exception('Destination table %s is not empty, specify --truncate option to remove data if possible' % 
+                                     str(table_pair.dest))
 
         if len(non_supported_table_name_list) > 0:
             with open(GPTRANSFER_FAILED_TABLES_FILE, 'w') as failed_file:
@@ -3602,6 +3609,15 @@ class GpTransfer(object):
             if src_tbl_columns[ordinal_pos] != dest_tbl_columns[ordinal_pos]:
                 return False
         return True
+
+    def _is_table_empty(self, db, schema, tbl, host, port, user):
+        check_empty_sql = 'SELECT * FROM %s.%s LIMIT 1;' % (schema, tbl)
+        with dbconn.connect(dbconn.DbURL(host, port, db, user)) as conn:
+            row = execSQLForSingletonRow(conn, check_empty_sql)
+            if row:
+                return False
+            else:
+                return True
 
     def _get_table_columns(self, tbl, host, port, user):
         column_types = dict()
