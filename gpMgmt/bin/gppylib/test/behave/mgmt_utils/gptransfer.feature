@@ -28,6 +28,439 @@ Feature: gptransfer tests
         And the user runs "psql -p $GPTRANSFER_SOURCE_PORT -h $GPTRANSFER_SOURCE_HOST -U $GPTRANSFER_SOURCE_USER -f gppylib/test/behave/mgmt_utils/steps/data/gptransfer_setup.sql -d template1"
         Then psql should return a return code of 0
 
+    @partition_transfer
+    @prt_transfer_1
+    Scenario: gptransfer leaf partition -> leaf partition
+        Given the database is running
+        And database "destdb" exists
+        And database "srcdb" is created if not exists on host "GPTRANSFER_SOURCE_HOST" with port "GPTRANSFER_SOURCE_PORT" with user "GPTRANSFER_SOURCE_USER"
+        And there is a "heap" table "sales" with compression "None" in "destdb" with data
+        And there is a "heap" table "sales" with compression "None" in "srcdb" with data "True" on host "GPTRANSFER_SOURCE_HOST" with port "GPTRANSFER_SOURCE_PORT" with user "GPTRANSFER_SOURCE_USER" 
+        And there is a file "input_file" with tables "srcdb.public.sales_1_prt_p1_2_prt_1, destdb.public.sales_1_prt_p1_2_prt_1"
+        When the user runs "gptransfer -f input_file --partition-transfer --source-port $GPTRANSFER_SOURCE_PORT --source-host $GPTRANSFER_SOURCE_HOST --source-user $GPTRANSFER_SOURCE_USER --dest-user $GPTRANSFER_SOURCE_USER --dest-port $GPTRANSFER_SOURCE_PORT --dest-host $GPTRANSFER_SOURCE_HOST --source-map-file $GPTRANSFER_MAP_FILE"
+        Then gptransfer should return a return code of 0
+        And verify that table "public.sales_1_prt_p1_2_prt_1" in database "srcdb" of source system has same data with table "public.sales_1_prt_p1_2_prt_1" in database "destdb" of destination system with options "-q"
+
+    @partition_transfer
+    @prt_transfer_2
+    Scenario: gptransfer leaf partition -> root partition
+        Given the database is running
+        And database "destdb" exists
+        And database "srcdb" is created if not exists on host "GPTRANSFER_SOURCE_HOST" with port "GPTRANSFER_SOURCE_PORT" with user "GPTRANSFER_SOURCE_USER"
+        And there is a "heap" table "sales" with compression "None" in "destdb" with data
+        And there is a "heap" table "sales" with compression "None" in "srcdb" with data "True" on host "GPTRANSFER_SOURCE_HOST" with port "GPTRANSFER_SOURCE_PORT" with user "GPTRANSFER_SOURCE_USER" 
+        And there is a file "input_file" with tables "srcdb.public.sales_1_prt_p1_2_prt_1, destdb.public.sales"
+        When the user runs "gptransfer -f input_file --partition-transfer --source-port $GPTRANSFER_SOURCE_PORT --source-host $GPTRANSFER_SOURCE_HOST --source-user $GPTRANSFER_SOURCE_USER --dest-user $GPTRANSFER_SOURCE_USER --dest-port $GPTRANSFER_SOURCE_PORT --dest-host $GPTRANSFER_SOURCE_HOST --source-map-file $GPTRANSFER_MAP_FILE"
+        Then gptransfer should return a return code of 2
+        And gptransfer should print Destination table destdb.public.sales is not a leaf partition table to stdout
+
+    @partition_transfer
+    @prt_transfer_3
+    Scenario: gptransfer leaf partition -> sub partition
+        Given the database is running
+        And database "destdb" exists
+        And database "srcdb" is created if not exists on host "GPTRANSFER_SOURCE_HOST" with port "GPTRANSFER_SOURCE_PORT" with user "GPTRANSFER_SOURCE_USER"
+        And there is a "heap" table "sales" with compression "None" in "destdb" with data
+        And there is a "heap" table "sales" with compression "None" in "srcdb" with data "True" on host "GPTRANSFER_SOURCE_HOST" with port "GPTRANSFER_SOURCE_PORT" with user "GPTRANSFER_SOURCE_USER" 
+        And there is a file "input_file" with tables "srcdb.public.sales_1_prt_p1_2_prt_1, destdb.public.sales_1_prt_p1"
+        When the user runs "gptransfer -f input_file --partition-transfer --source-port $GPTRANSFER_SOURCE_PORT --source-host $GPTRANSFER_SOURCE_HOST --source-user $GPTRANSFER_SOURCE_USER --dest-user $GPTRANSFER_SOURCE_USER --dest-port $GPTRANSFER_SOURCE_PORT --dest-host $GPTRANSFER_SOURCE_HOST --source-map-file $GPTRANSFER_MAP_FILE"
+        Then gptransfer should return a return code of 2
+        And gptransfer should print Destination table destdb.public.sales_1_prt_p1 is not a leaf partition table to stdout
+
+    @partition_transfer
+    @prt_transfer_4
+    Scenario: gptransfer sub partition -> sub partition
+        Given the database is running
+        And database "destdb" exists
+        And database "srcdb" is created if not exists on host "GPTRANSFER_SOURCE_HOST" with port "GPTRANSFER_SOURCE_PORT" with user "GPTRANSFER_SOURCE_USER"
+        And there is a "heap" table "sales" with compression "None" in "destdb" with data
+        And there is a "heap" table "sales" with compression "None" in "srcdb" with data "True" on host "GPTRANSFER_SOURCE_HOST" with port "GPTRANSFER_SOURCE_PORT" with user "GPTRANSFER_SOURCE_USER" 
+        And there is a file "input_file" with tables "srcdb.public.sales_1_prt_p1, destdb.public.sales_1_prt_p1"
+        When the user runs "gptransfer -f input_file --partition-transfer --source-port $GPTRANSFER_SOURCE_PORT --source-host $GPTRANSFER_SOURCE_HOST --source-user $GPTRANSFER_SOURCE_USER --dest-user $GPTRANSFER_SOURCE_USER --dest-port $GPTRANSFER_SOURCE_PORT --dest-host $GPTRANSFER_SOURCE_HOST --source-map-file $GPTRANSFER_MAP_FILE"
+        Then gptransfer should return a return code of 2
+        And gptransfer should print Source table srcdb.public.sales_1_prt_p1 is not a leaf partition table to stdout
+
+    @partition_transfer
+    @prt_transfer_5
+    Scenario: gptransfer root partition -> leaf partition
+        Given the database is running
+        And database "destdb" exists
+        And database "srcdb" is created if not exists on host "GPTRANSFER_SOURCE_HOST" with port "GPTRANSFER_SOURCE_PORT" with user "GPTRANSFER_SOURCE_USER"
+        And there is a "heap" table "sales" with compression "None" in "destdb" with data
+        And there is a "heap" table "sales" with compression "None" in "srcdb" with data "True" on host "GPTRANSFER_SOURCE_HOST" with port "GPTRANSFER_SOURCE_PORT" with user "GPTRANSFER_SOURCE_USER" 
+        And there is a file "input_file" with tables "srcdb.public.sales, destdb.public.sales_1_prt_p1_2_prt_1"
+        When the user runs "gptransfer -f input_file --partition-transfer --source-port $GPTRANSFER_SOURCE_PORT --source-host $GPTRANSFER_SOURCE_HOST --source-user $GPTRANSFER_SOURCE_USER --dest-user $GPTRANSFER_SOURCE_USER --dest-port $GPTRANSFER_SOURCE_PORT --dest-host $GPTRANSFER_SOURCE_HOST --source-map-file $GPTRANSFER_MAP_FILE"
+        Then gptransfer should return a return code of 2
+        And gptransfer should print Source table srcdb.public.sales is not a leaf partition table to stdout
+
+    @partition_transfer
+    @prt_transfer_6
+    Scenario: gptransfer sub partition -> leaf partition
+        Given the database is running
+        And database "destdb" exists
+        And database "srcdb" is created if not exists on host "GPTRANSFER_SOURCE_HOST" with port "GPTRANSFER_SOURCE_PORT" with user "GPTRANSFER_SOURCE_USER"
+        And there is a "heap" table "sales" with compression "None" in "destdb" with data
+        And there is a "heap" table "sales" with compression "None" in "srcdb" with data "True" on host "GPTRANSFER_SOURCE_HOST" with port "GPTRANSFER_SOURCE_PORT" with user "GPTRANSFER_SOURCE_USER" 
+        And there is a file "input_file" with tables "srcdb.public.sales_1_prt_p1, destdb.public.sales_1_prt_p1_2_prt_1"
+        When the user runs "gptransfer -f input_file --partition-transfer --source-port $GPTRANSFER_SOURCE_PORT --source-host $GPTRANSFER_SOURCE_HOST --source-user $GPTRANSFER_SOURCE_USER --dest-user $GPTRANSFER_SOURCE_USER --dest-port $GPTRANSFER_SOURCE_PORT --dest-host $GPTRANSFER_SOURCE_HOST --source-map-file $GPTRANSFER_MAP_FILE"
+        Then gptransfer should return a return code of 2
+        And gptransfer should print Source table srcdb.public.sales_1_prt_p1 is not a leaf partition table to stdout
+
+    @partition_transfer
+    @prt_transfer_7
+    Scenario: gptransfer leaf partition -> non exist db
+        Given the database is running
+        And the database "destdb" does not exist
+        And database "srcdb" is created if not exists on host "GPTRANSFER_SOURCE_HOST" with port "GPTRANSFER_SOURCE_PORT" with user "GPTRANSFER_SOURCE_USER"
+        And there is a "heap" table "sales" with compression "None" in "srcdb" with data "True" on host "GPTRANSFER_SOURCE_HOST" with port "GPTRANSFER_SOURCE_PORT" with user "GPTRANSFER_SOURCE_USER" 
+        And there is a file "input_file" with tables "srcdb.public.sales_1_prt_p1_2_prt_1, destdb.public.sales_1_prt_p1_2_prt_1"
+        When the user runs "gptransfer -f input_file --partition-transfer --source-port $GPTRANSFER_SOURCE_PORT --source-host $GPTRANSFER_SOURCE_HOST --source-user $GPTRANSFER_SOURCE_USER --dest-user $GPTRANSFER_SOURCE_USER --dest-port $GPTRANSFER_SOURCE_PORT --dest-host $GPTRANSFER_SOURCE_HOST --source-map-file $GPTRANSFER_MAP_FILE"
+        Then gptransfer should return a return code of 2
+        And gptransfer should print Table destdb.public.sales_1_prt_p1_2_prt_1 does not exist in destination database to transfer partition tables to stdout
+
+    @partition_transfer
+    @prt_transfer_8
+    Scenario: gptransfer leaf partition -> non exist schema
+        Given the database is running
+        And database "destdb" exists
+        And database "srcdb" is created if not exists on host "GPTRANSFER_SOURCE_HOST" with port "GPTRANSFER_SOURCE_PORT" with user "GPTRANSFER_SOURCE_USER"
+        And there is a "heap" table "sales" with compression "None" in "destdb" with data
+        And there is a "heap" table "sales" with compression "None" in "srcdb" with data "True" on host "GPTRANSFER_SOURCE_HOST" with port "GPTRANSFER_SOURCE_PORT" with user "GPTRANSFER_SOURCE_USER" 
+        And there is a file "input_file" with tables "srcdb.public.sales_1_prt_p1, destdb.nonexist_schema.sales_1_prt_p1_2_prt_1"
+        When the user runs "gptransfer -f input_file --partition-transfer --source-port $GPTRANSFER_SOURCE_PORT --source-host $GPTRANSFER_SOURCE_HOST --source-user $GPTRANSFER_SOURCE_USER --dest-user $GPTRANSFER_SOURCE_USER --dest-port $GPTRANSFER_SOURCE_PORT --dest-host $GPTRANSFER_SOURCE_HOST --source-map-file $GPTRANSFER_MAP_FILE"
+        Then gptransfer should return a return code of 2
+        And gptransfer should print Table destdb.nonexist_schema.sales_1_prt_p1_2_prt_1 does not exist in destination database to transfer partition tables to stdout
+
+    @partition_transfer
+    @prt_transfer_9
+    Scenario: gptransfer leaf partition -> non exist table
+        Given the database is running
+        And database "destdb" exists
+        And database "srcdb" is created if not exists on host "GPTRANSFER_SOURCE_HOST" with port "GPTRANSFER_SOURCE_PORT" with user "GPTRANSFER_SOURCE_USER"
+        And there is a "heap" table "sales" with compression "None" in "destdb" with data
+        And there is a "heap" table "sales" with compression "None" in "srcdb" with data "True" on host "GPTRANSFER_SOURCE_HOST" with port "GPTRANSFER_SOURCE_PORT" with user "GPTRANSFER_SOURCE_USER" 
+        And there is a file "input_file" with tables "srcdb.public.sales_1_prt_p1, destdb.public.nonexist_table"
+        When the user runs "gptransfer -f input_file --partition-transfer --source-port $GPTRANSFER_SOURCE_PORT --source-host $GPTRANSFER_SOURCE_HOST --source-user $GPTRANSFER_SOURCE_USER --dest-user $GPTRANSFER_SOURCE_USER --dest-port $GPTRANSFER_SOURCE_PORT --dest-host $GPTRANSFER_SOURCE_HOST --source-map-file $GPTRANSFER_MAP_FILE"
+        Then gptransfer should return a return code of 2
+        And gptransfer should print Table destdb.public.nonexist_table does not exist in destination database to transfer partition tables to stdout
+
+    @partition_transfer
+    @prt_transfer_10
+    Scenario: gptransfer non exist db -> leaf partition
+        Given the database is running
+        And the database "srcdb" does not exist on host "GPTRANSFER_SOURCE_HOST" with port "GPTRANSFER_SOURCE_PORT" with user "GPTRANSFER_SOURCE_USER"
+        And database "destdb" exists
+        And there is a "heap" table "sales" with compression "None" in "destdb" with data
+        And there is a file "input_file" with tables "srcdb.public.sales_1_prt_p1_2_prt_1, destdb.public.sales_1_prt_p1_2_prt_1"
+        When the user runs "gptransfer -f input_file --partition-transfer --source-port $GPTRANSFER_SOURCE_PORT --source-host $GPTRANSFER_SOURCE_HOST --source-user $GPTRANSFER_SOURCE_USER --dest-user $GPTRANSFER_SOURCE_USER --dest-port $GPTRANSFER_SOURCE_PORT --dest-host $GPTRANSFER_SOURCE_HOST --source-map-file $GPTRANSFER_MAP_FILE"
+        Then gptransfer should return a return code of 2
+        And gptransfer should print FATAL:  database "srcdb" does not exist to stdout
+
+    @partition_transfer
+    @prt_transfer_11
+    Scenario: gptransfer non exist schema -> leaf partition
+        Given the database is running
+        And database "destdb" exists
+        And database "srcdb" is created if not exists on host "GPTRANSFER_SOURCE_HOST" with port "GPTRANSFER_SOURCE_PORT" with user "GPTRANSFER_SOURCE_USER"
+        And there is a "heap" table "sales" with compression "None" in "destdb" with data
+        And there is a "heap" table "sales" with compression "None" in "srcdb" with data "True" on host "GPTRANSFER_SOURCE_HOST" with port "GPTRANSFER_SOURCE_PORT" with user "GPTRANSFER_SOURCE_USER" 
+        And there is a file "input_file" with tables "srcdb.nonexist_schema.sales_1_prt_p1_2_prt_1, destdb.public.sales_1_prt_p1_2_prt_1"
+        When the user runs "gptransfer -f input_file --partition-transfer --source-port $GPTRANSFER_SOURCE_PORT --source-host $GPTRANSFER_SOURCE_HOST --source-user $GPTRANSFER_SOURCE_USER --dest-user $GPTRANSFER_SOURCE_USER --dest-port $GPTRANSFER_SOURCE_PORT --dest-host $GPTRANSFER_SOURCE_HOST --source-map-file $GPTRANSFER_MAP_FILE"
+        Then gptransfer should return a return code of 0
+        And gptransfer should print Found no tables to transfer to stdout
+
+    @partition_transfer
+    @prt_transfer_12
+    Scenario: gptransfer non exist table -> leaf partition
+        Given the database is running
+        And database "destdb" exists
+        And database "srcdb" is created if not exists on host "GPTRANSFER_SOURCE_HOST" with port "GPTRANSFER_SOURCE_PORT" with user "GPTRANSFER_SOURCE_USER"
+        And there is a "heap" table "sales" with compression "None" in "destdb" with data
+        And there is a "heap" table "sales" with compression "None" in "srcdb" with data "True" on host "GPTRANSFER_SOURCE_HOST" with port "GPTRANSFER_SOURCE_PORT" with user "GPTRANSFER_SOURCE_USER" 
+        And there is a file "input_file" with tables "srcdb.public.nonexist_table, destdb.public.sales_1_prt_p1_2_prt_1"
+        When the user runs "gptransfer -f input_file --partition-transfer --source-port $GPTRANSFER_SOURCE_PORT --source-host $GPTRANSFER_SOURCE_HOST --source-user $GPTRANSFER_SOURCE_USER --dest-user $GPTRANSFER_SOURCE_USER --dest-port $GPTRANSFER_SOURCE_PORT --dest-host $GPTRANSFER_SOURCE_HOST --source-map-file $GPTRANSFER_MAP_FILE"
+        Then gptransfer should return a return code of 0
+        And gptransfer should print Found no tables to transfer to stdout
+
+    @partition_transfer
+    @prt_transfer_13
+    Scenario: gptransfer list partition -> range partition
+        Given the database is running
+        And database "destdb" exists
+        And database "srcdb" is created if not exists on host "GPTRANSFER_SOURCE_HOST" with port "GPTRANSFER_SOURCE_PORT" with user "GPTRANSFER_SOURCE_USER"
+        And the user runs "psql -p $GPTRANSFER_SOURCE_PORT -h $GPTRANSFER_SOURCE_HOST -U $GPTRANSFER_SOURCE_USER -f gppylib/test/behave/mgmt_utils/steps/data/gptransfer/one_level_list_prt_1.sql -d srcdb"
+        And the user runs "psql -p $GPTRANSFER_DEST_PORT -h $GPTRANSFER_DEST_HOST -U $GPTRANSFER_DEST_USER -f gppylib/test/behave/mgmt_utils/steps/data/gptransfer/one_level_range_prt_1.sql -d destdb"
+        And there is a file "input_file" with tables "srcdb.public.employee_1_prt_boys, destdb.public.employee_1_prt_1"
+        When the user runs "gptransfer -f input_file --partition-transfer --source-port $GPTRANSFER_SOURCE_PORT --source-host $GPTRANSFER_SOURCE_HOST --source-user $GPTRANSFER_SOURCE_USER --dest-user $GPTRANSFER_SOURCE_USER --dest-port $GPTRANSFER_SOURCE_PORT --dest-host $GPTRANSFER_SOURCE_HOST --source-map-file $GPTRANSFER_MAP_FILE"
+        Then gptransfer should return a return code of 2
+        And gptransfer should print Partition type is different to stdout
+
+    @partition_transfer
+    @prt_transfer_14
+    Scenario: gptransfer one level leaf partition -> zero level leaf partition
+        Given the database is running
+        And database "destdb" exists
+        And database "srcdb" is created if not exists on host "GPTRANSFER_SOURCE_HOST" with port "GPTRANSFER_SOURCE_PORT" with user "GPTRANSFER_SOURCE_USER"
+        And the user runs "psql -p $GPTRANSFER_SOURCE_PORT -h $GPTRANSFER_SOURCE_HOST -U $GPTRANSFER_SOURCE_USER -f gppylib/test/behave/mgmt_utils/steps/data/gptransfer/two_level_range_prt_2.sql -d srcdb"
+        And the user runs "psql -p $GPTRANSFER_DEST_PORT -h $GPTRANSFER_DEST_HOST -U $GPTRANSFER_DEST_USER -f gppylib/test/behave/mgmt_utils/steps/data/gptransfer/one_level_range_prt_2.sql -d destdb"
+        And there is a file "input_file" with tables "srcdb.public.sales_1_prt_2_2_prt_2, destdb.public.sales_1_prt_2"
+        When the user runs "gptransfer -f input_file --partition-transfer --source-port $GPTRANSFER_SOURCE_PORT --source-host $GPTRANSFER_SOURCE_HOST --source-user $GPTRANSFER_SOURCE_USER --dest-user $GPTRANSFER_SOURCE_USER --dest-port $GPTRANSFER_SOURCE_PORT --dest-host $GPTRANSFER_SOURCE_HOST --source-map-file $GPTRANSFER_MAP_FILE"
+        Then gptransfer should return a return code of 2
+        And gptransfer should print Max levels of partition is not same to stdout
+
+    @partition_transfer
+    @prt_transfer_15
+    Scenario: gptransfer leaf partition, more columns table -> less columns table
+        Given the database is running
+        And database "destdb" exists
+        And database "srcdb" is created if not exists on host "GPTRANSFER_SOURCE_HOST" with port "GPTRANSFER_SOURCE_PORT" with user "GPTRANSFER_SOURCE_USER"
+        And the user runs "psql -p $GPTRANSFER_SOURCE_PORT -h $GPTRANSFER_SOURCE_HOST -U $GPTRANSFER_SOURCE_USER -f gppylib/test/behave/mgmt_utils/steps/data/gptransfer/one_level_list_prt_1.sql -d srcdb"
+        And the user runs "psql -p $GPTRANSFER_DEST_PORT -h $GPTRANSFER_DEST_HOST -U $GPTRANSFER_DEST_USER -f gppylib/test/behave/mgmt_utils/steps/data/gptransfer/one_level_list_prt_3.sql -d destdb"
+        And there is a file "input_file" with tables "srcdb.public.employee_1_prt_boys, destdb.public.employee_1_prt_boys"
+        When the user runs "gptransfer -f input_file --partition-transfer --source-port $GPTRANSFER_SOURCE_PORT --source-host $GPTRANSFER_SOURCE_HOST --source-user $GPTRANSFER_SOURCE_USER --dest-user $GPTRANSFER_SOURCE_USER --dest-port $GPTRANSFER_SOURCE_PORT --dest-host $GPTRANSFER_SOURCE_HOST --source-map-file $GPTRANSFER_MAP_FILE"
+        Then gptransfer should return a return code of 2
+        And gptransfer should print has different column layout or types to stdout
+
+    @partition_transfer
+    @prt_transfer_16
+    Scenario: gptransfer leaf partition, same partition type using different column as partition key
+        Given the database is running
+        And database "destdb" exists
+        And database "srcdb" is created if not exists on host "GPTRANSFER_SOURCE_HOST" with port "GPTRANSFER_SOURCE_PORT" with user "GPTRANSFER_SOURCE_USER"
+        And the user runs "psql -p $GPTRANSFER_SOURCE_PORT -h $GPTRANSFER_SOURCE_HOST -U $GPTRANSFER_SOURCE_USER -f gppylib/test/behave/mgmt_utils/steps/data/gptransfer/one_level_list_prt_2.sql -d srcdb"
+        And the user runs "psql -p $GPTRANSFER_DEST_PORT -h $GPTRANSFER_DEST_HOST -U $GPTRANSFER_DEST_USER -f gppylib/test/behave/mgmt_utils/steps/data/gptransfer/one_level_list_prt_4.sql -d destdb"
+        And there is a file "input_file" with tables "srcdb.public.employee_1_prt_main, destdb.public.employee_1_prt_main"
+        When the user runs "gptransfer -f input_file --partition-transfer --source-port $GPTRANSFER_SOURCE_PORT --source-host $GPTRANSFER_SOURCE_HOST --source-user $GPTRANSFER_SOURCE_USER --dest-user $GPTRANSFER_SOURCE_USER --dest-port $GPTRANSFER_SOURCE_PORT --dest-host $GPTRANSFER_SOURCE_HOST --source-map-file $GPTRANSFER_MAP_FILE"
+        Then gptransfer should return a return code of 2
+        And gptransfer should print Partition column attributes is different to stdout
+
+    @partition_transfer
+    @prt_transfer_17
+    Scenario: gptransfer same leaf partition with different parent partition
+        Given the database is running
+        And database "destdb" exists
+        And database "srcdb" is created if not exists on host "GPTRANSFER_SOURCE_HOST" with port "GPTRANSFER_SOURCE_PORT" with user "GPTRANSFER_SOURCE_USER"
+        And the user runs "psql -p $GPTRANSFER_SOURCE_PORT -h $GPTRANSFER_SOURCE_HOST -U $GPTRANSFER_SOURCE_USER -f gppylib/test/behave/mgmt_utils/steps/data/gptransfer/two_level_range_list_prt_1.sql -d srcdb"
+        And the user runs "psql -p $GPTRANSFER_DEST_PORT -h $GPTRANSFER_DEST_HOST -U $GPTRANSFER_DEST_USER -f gppylib/test/behave/mgmt_utils/steps/data/gptransfer/two_level_range_list_prt_6.sql -d destdb"
+        And there is a file "input_file" with tables "srcdb.public.sales_1_prt_2_2_prt_asia, destdb.public.sales_1_prt_2_2_prt_asia"
+        When the user runs "gptransfer -f input_file --partition-transfer --source-port $GPTRANSFER_SOURCE_PORT --source-host $GPTRANSFER_SOURCE_HOST --source-user $GPTRANSFER_SOURCE_USER --dest-user $GPTRANSFER_SOURCE_USER --dest-port $GPTRANSFER_SOURCE_PORT --dest-host $GPTRANSFER_SOURCE_HOST --source-map-file $GPTRANSFER_MAP_FILE"
+        Then gptransfer should return a return code of 2
+        And gptransfer should print Partition column attributes is different to stdout
+
+    @partition_transfer
+    @prt_transfer_18
+    Scenario: gptransfer same leaf partition column key, with different partition value
+        Given the database is running
+        And database "destdb" exists
+        And database "srcdb" is created if not exists on host "GPTRANSFER_SOURCE_HOST" with port "GPTRANSFER_SOURCE_PORT" with user "GPTRANSFER_SOURCE_USER"
+        And the user runs "psql -p $GPTRANSFER_SOURCE_PORT -h $GPTRANSFER_SOURCE_HOST -U $GPTRANSFER_SOURCE_USER -f gppylib/test/behave/mgmt_utils/steps/data/gptransfer/one_level_list_prt_1.sql -d srcdb"
+        And the user runs "psql -p $GPTRANSFER_DEST_PORT -h $GPTRANSFER_DEST_HOST -U $GPTRANSFER_DEST_USER -f gppylib/test/behave/mgmt_utils/steps/data/gptransfer/one_level_list_prt_5.sql -d destdb"
+        And there is a file "input_file" with tables "srcdb.public.employee_1_prt_girls, destdb.public.employee_1_prt_girls"
+        When the user runs "gptransfer -f input_file --partition-transfer --source-port $GPTRANSFER_SOURCE_PORT --source-host $GPTRANSFER_SOURCE_HOST --source-user $GPTRANSFER_SOURCE_USER --dest-user $GPTRANSFER_SOURCE_USER --dest-port $GPTRANSFER_SOURCE_PORT --dest-host $GPTRANSFER_SOURCE_HOST --source-map-file $GPTRANSFER_MAP_FILE"
+        Then gptransfer should return a return code of 2
+        And gptransfer should print partition value is different to stdout
+
+    @partition_transfer
+    @prt_transfer_19
+    Scenario: gptransfer same leaf partition column key, with different parent partition value
+        Given the database is running
+        And database "destdb" exists
+        And database "srcdb" is created if not exists on host "GPTRANSFER_SOURCE_HOST" with port "GPTRANSFER_SOURCE_PORT" with user "GPTRANSFER_SOURCE_USER"
+        And the user runs "psql -p $GPTRANSFER_SOURCE_PORT -h $GPTRANSFER_SOURCE_HOST -U $GPTRANSFER_SOURCE_USER -f gppylib/test/behave/mgmt_utils/steps/data/gptransfer/two_level_range_list_prt_1.sql -d srcdb"
+        And the user runs "psql -p $GPTRANSFER_DEST_PORT -h $GPTRANSFER_DEST_HOST -U $GPTRANSFER_DEST_USER -f gppylib/test/behave/mgmt_utils/steps/data/gptransfer/two_level_range_list_prt_6.sql -d destdb"
+        And there is a file "input_file" with tables "srcdb.public.sales_1_prt_2_2_prt_asia, destdb.public.sales_1_prt_2_2_prt_asia"
+        When the user runs "gptransfer -f input_file --partition-transfer --source-port $GPTRANSFER_SOURCE_PORT --source-host $GPTRANSFER_SOURCE_HOST --source-user $GPTRANSFER_SOURCE_USER --dest-user $GPTRANSFER_SOURCE_USER --dest-port $GPTRANSFER_SOURCE_PORT --dest-host $GPTRANSFER_SOURCE_HOST --source-map-file $GPTRANSFER_MAP_FILE"
+        Then gptransfer should return a return code of 2
+        And gptransfer should print Partition column attributes is different to stdout
+
+    @partition_transfer
+    @prt_transfer_20
+    Scenario: gptransfer leaf partition, with different table and column name
+        Given the database is running
+        And database "destdb" exists
+        And database "srcdb" is created if not exists on host "GPTRANSFER_SOURCE_HOST" with port "GPTRANSFER_SOURCE_PORT" with user "GPTRANSFER_SOURCE_USER"
+        And the user runs "psql -p $GPTRANSFER_SOURCE_PORT -h $GPTRANSFER_SOURCE_HOST -U $GPTRANSFER_SOURCE_USER -f gppylib/test/behave/mgmt_utils/steps/data/gptransfer/create_one_level_range_prt_3.sql -d srcdb"
+        And the user runs "psql -p $GPTRANSFER_SOURCE_PORT -h $GPTRANSFER_SOURCE_HOST -U $GPTRANSFER_SOURCE_USER -f gppylib/test/behave/mgmt_utils/steps/data/gptransfer/insert_into_employee.sql -d srcdb"
+        And the user runs "psql -p $GPTRANSFER_SOURCE_PORT -h $GPTRANSFER_SOURCE_HOST -U $GPTRANSFER_SOURCE_USER -f gppylib/test/behave/mgmt_utils/steps/data/gptransfer/insert_into_e_employee.sql -d srcdb"
+        And the user runs "psql -p $GPTRANSFER_DEST_PORT -h $GPTRANSFER_DEST_HOST -U $GPTRANSFER_DEST_USER -f gppylib/test/behave/mgmt_utils/steps/data/gptransfer/create_one_level_range_prt_3.sql -d destdb"
+        And there is a file "input_file" with tables "srcdb.public.employee_1_prt_1, destdb.public.e_employee_1_prt_1 | srcdb.public.e_employee_1_prt_1, destdb.public.employee_1_prt_1"
+        When the user runs "gptransfer -f input_file --partition-transfer --source-port $GPTRANSFER_SOURCE_PORT --source-host $GPTRANSFER_SOURCE_HOST --source-user $GPTRANSFER_SOURCE_USER --dest-user $GPTRANSFER_SOURCE_USER --dest-port $GPTRANSFER_SOURCE_PORT --dest-host $GPTRANSFER_SOURCE_HOST --source-map-file $GPTRANSFER_MAP_FILE"
+        Then gptransfer should return a return code of 0
+        And verify that table "public.employee_1_prt_1" in database "srcdb" of source system has same data with table "public.e_employee_1_prt_1" in database "destdb" of destination system with options "-t"
+        And verify that table "public.e_employee_1_prt_1" in database "srcdb" of source system has same data with table "public.employee_1_prt_1" in database "destdb" of destination system with options "-t"
+
+    @partition_transfer
+    @prt_transfer_21
+    Scenario: gptransfer normal heap table to a leaf partition
+        Given the database is running
+        And database "destdb" exists
+        And database "srcdb" is created if not exists on host "GPTRANSFER_SOURCE_HOST" with port "GPTRANSFER_SOURCE_PORT" with user "GPTRANSFER_SOURCE_USER"
+        And the user runs "psql -p $GPTRANSFER_SOURCE_PORT -h $GPTRANSFER_SOURCE_HOST -U $GPTRANSFER_SOURCE_USER -f gppylib/test/behave/mgmt_utils/steps/data/gptransfer/create_heap_table.sql -d srcdb"
+        And the user runs "psql -p $GPTRANSFER_DEST_PORT -h $GPTRANSFER_DEST_HOST -U $GPTRANSFER_DEST_USER -f gppylib/test/behave/mgmt_utils/steps/data/gptransfer/one_level_list_prt_1.sql -d destdb"
+        And there is a file "input_file" with tables "srcdb.public.heap_employee, destdb.public.employee_1_prt_boys"
+        When the user runs "gptransfer -f input_file --partition-transfer --source-port $GPTRANSFER_SOURCE_PORT --source-host $GPTRANSFER_SOURCE_HOST --source-user $GPTRANSFER_SOURCE_USER --dest-user $GPTRANSFER_SOURCE_USER --dest-port $GPTRANSFER_SOURCE_PORT --dest-host $GPTRANSFER_SOURCE_HOST --source-map-file $GPTRANSFER_MAP_FILE"
+        Then gptransfer should return a return code of 2
+        And gptransfer should print Source table srcdb.public.heap_employee is not a leaf partition table to stdout
+
+    @partition_transfer
+    @prt_transfer_22
+    Scenario: gptransfer ao partition table to co partition table
+        Given the database is running
+        And database "destdb" exists
+        And database "srcdb" is created if not exists on host "GPTRANSFER_SOURCE_HOST" with port "GPTRANSFER_SOURCE_PORT" with user "GPTRANSFER_SOURCE_USER"
+        And the user runs "psql -p $GPTRANSFER_SOURCE_PORT -h $GPTRANSFER_SOURCE_HOST -U $GPTRANSFER_SOURCE_USER -f gppylib/test/behave/mgmt_utils/steps/data/gptransfer/create_one_level_row_oriented.sql -d srcdb"
+        And the user runs "psql -p $GPTRANSFER_SOURCE_PORT -h $GPTRANSFER_SOURCE_HOST -U $GPTRANSFER_SOURCE_USER -f gppylib/test/behave/mgmt_utils/steps/data/gptransfer/insert_into_employee.sql -d srcdb"
+        And the user runs "psql -p $GPTRANSFER_DEST_PORT -h $GPTRANSFER_DEST_HOST -U $GPTRANSFER_DEST_USER -f gppylib/test/behave/mgmt_utils/steps/data/gptransfer/create_one_level_column_oriented.sql -d destdb"
+        And there is a file "input_file" with tables "srcdb.public.employee_1_prt_other, destdb.public.employee_1_prt_other"
+        When the user runs "gptransfer -f input_file --partition-transfer --source-port $GPTRANSFER_SOURCE_PORT --source-host $GPTRANSFER_SOURCE_HOST --source-user $GPTRANSFER_SOURCE_USER --dest-user $GPTRANSFER_SOURCE_USER --dest-port $GPTRANSFER_SOURCE_PORT --dest-host $GPTRANSFER_SOURCE_HOST --source-map-file $GPTRANSFER_MAP_FILE"
+        Then gptransfer should return a return code of 0
+        And verify that table "public.employee_1_prt_other" in database "srcdb" of source system has same data with table "public.employee_1_prt_other" in database "destdb" of destination system with options "-t"
+
+    @partition_transfer
+    @prt_transfer_23
+    Scenario: gptransfer with --truncate option 
+        Given the database is running
+        And database "destdb" exists
+        And database "srcdb" is created if not exists on host "GPTRANSFER_SOURCE_HOST" with port "GPTRANSFER_SOURCE_PORT" with user "GPTRANSFER_SOURCE_USER"
+        And the user runs "psql -p $GPTRANSFER_SOURCE_PORT -h $GPTRANSFER_SOURCE_HOST -U $GPTRANSFER_SOURCE_USER -f gppylib/test/behave/mgmt_utils/steps/data/gptransfer/one_level_list_prt_1.sql -d srcdb"
+        And the user runs "psql -p $GPTRANSFER_SOURCE_PORT -h $GPTRANSFER_SOURCE_HOST -U $GPTRANSFER_SOURCE_USER -f gppylib/test/behave/mgmt_utils/steps/data/gptransfer/insert_into_employee.sql -d srcdb"
+        And the user runs "psql -p $GPTRANSFER_DEST_PORT -h $GPTRANSFER_DEST_HOST -U $GPTRANSFER_DEST_USER -f gppylib/test/behave/mgmt_utils/steps/data/gptransfer/one_level_list_prt_1.sql -d destdb"
+        And the user runs "psql -p $GPTRANSFER_DEST_PORT -h $GPTRANSFER_DEST_HOST -U $GPTRANSFER_DEST_USER -f gppylib/test/behave/mgmt_utils/steps/data/gptransfer/insert_into_employee.sql -d destdb"
+        And there is a file "input_file" with tables "srcdb.public.employee_1_prt_boys, destdb.public.employee_1_prt_boys"
+        When the user runs "gptransfer -f input_file --partition-transfer --truncate --source-port $GPTRANSFER_SOURCE_PORT --source-host $GPTRANSFER_SOURCE_HOST --source-user $GPTRANSFER_SOURCE_USER --dest-user $GPTRANSFER_SOURCE_USER --dest-port $GPTRANSFER_SOURCE_PORT --dest-host $GPTRANSFER_SOURCE_HOST --source-map-file $GPTRANSFER_MAP_FILE -a"
+        Then gptransfer should return a return code of 0
+        And verify that table "public.employee_1_prt_boys" in database "srcdb" of source system has same data with table "public.employee_1_prt_boys" in database "destdb" of destination system with options "-t"
+
+    @partition_transfer
+    @prt_transfer_24
+    Scenario: gptransfer with --skip-existing option 
+        Given the database is running
+        And database "destdb" exists
+        And database "srcdb" is created if not exists on host "GPTRANSFER_SOURCE_HOST" with port "GPTRANSFER_SOURCE_PORT" with user "GPTRANSFER_SOURCE_USER"
+        And the user runs "psql -p $GPTRANSFER_SOURCE_PORT -h $GPTRANSFER_SOURCE_HOST -U $GPTRANSFER_SOURCE_USER -f gppylib/test/behave/mgmt_utils/steps/data/gptransfer/one_level_list_prt_1.sql -d srcdb"
+        And the user runs "psql -p $GPTRANSFER_DEST_PORT -h $GPTRANSFER_DEST_HOST -U $GPTRANSFER_DEST_USER -f gppylib/test/behave/mgmt_utils/steps/data/gptransfer/one_level_list_prt_1.sql -d destdb"
+        And the user runs "psql -p $GPTRANSFER_DEST_PORT -h $GPTRANSFER_DEST_HOST -U $GPTRANSFER_DEST_USER -f gppylib/test/behave/mgmt_utils/steps/data/gptransfer/insert_into_employee.sql -d destdb"
+        And there is a file "input_file" with tables "srcdb.public.employee_1_prt_boys, destdb.public.employee_1_prt_boys"
+        When the user runs "gptransfer -f input_file --partition-transfer --skip-existing --source-port $GPTRANSFER_SOURCE_PORT --source-host $GPTRANSFER_SOURCE_HOST --source-user $GPTRANSFER_SOURCE_USER --dest-user $GPTRANSFER_SOURCE_USER --dest-port $GPTRANSFER_SOURCE_PORT --dest-host $GPTRANSFER_SOURCE_HOST --source-map-file $GPTRANSFER_MAP_FILE -a"
+        Then gptransfer should return a return code of 0
+        And verify that table "public.employee_1_prt_boys" in "destdb" has "1" rows
+
+    @partition_transfer
+    @prt_transfer_25
+    Scenario: gptransfer, multi columns partition key to single column partition key
+        Given the database is running
+        And database "destdb" exists
+        And database "srcdb" is created if not exists on host "GPTRANSFER_SOURCE_HOST" with port "GPTRANSFER_SOURCE_PORT" with user "GPTRANSFER_SOURCE_USER"
+        And the user runs "psql -p $GPTRANSFER_SOURCE_PORT -h $GPTRANSFER_SOURCE_HOST -U $GPTRANSFER_SOURCE_USER -f gppylib/test/behave/mgmt_utils/steps/data/gptransfer/create_multi_column_partition_1.sql -d srcdb"
+        And the user runs "psql -p $GPTRANSFER_DEST_PORT -h $GPTRANSFER_DEST_HOST -U $GPTRANSFER_DEST_USER -f gppylib/test/behave/mgmt_utils/steps/data/gptransfer/one_level_list_prt_1.sql -d destdb"
+        And there is a file "input_file" with tables "srcdb.public.employee_1_prt_boys, destdb.public.employee_1_prt_boys"
+        When the user runs "gptransfer -f input_file --partition-transfer --source-port $GPTRANSFER_SOURCE_PORT --source-host $GPTRANSFER_SOURCE_HOST --source-user $GPTRANSFER_SOURCE_USER --dest-user $GPTRANSFER_SOURCE_USER --dest-port $GPTRANSFER_SOURCE_PORT --dest-host $GPTRANSFER_SOURCE_HOST --source-map-file $GPTRANSFER_MAP_FILE -a"
+        Then gptransfer should return a return code of 2
+        And gptransfer should print Partition column attributes is different to stdout
+
+    @partition_transfer
+    @prt_transfer_26
+    Scenario: gptransfer, with multi columns partition key reversed between source and destination
+        Given the database is running
+        And database "destdb" exists
+        And database "srcdb" is created if not exists on host "GPTRANSFER_SOURCE_HOST" with port "GPTRANSFER_SOURCE_PORT" with user "GPTRANSFER_SOURCE_USER"
+        And the user runs "psql -p $GPTRANSFER_SOURCE_PORT -h $GPTRANSFER_SOURCE_HOST -U $GPTRANSFER_SOURCE_USER -f gppylib/test/behave/mgmt_utils/steps/data/gptransfer/create_multi_column_partition_1.sql -d srcdb"
+        And the user runs "psql -p $GPTRANSFER_DEST_PORT -h $GPTRANSFER_DEST_HOST -U $GPTRANSFER_DEST_USER -f gppylib/test/behave/mgmt_utils/steps/data/gptransfer/create_multi_column_partition_2.sql -d destdb"
+        And there is a file "input_file" with tables "srcdb.public.employee_1_prt_boys, destdb.public.employee_1_prt_boys"
+        When the user runs "gptransfer -f input_file --partition-transfer --source-port $GPTRANSFER_SOURCE_PORT --source-host $GPTRANSFER_SOURCE_HOST --source-user $GPTRANSFER_SOURCE_USER --dest-user $GPTRANSFER_SOURCE_USER --dest-port $GPTRANSFER_SOURCE_PORT --dest-host $GPTRANSFER_SOURCE_HOST --source-map-file $GPTRANSFER_MAP_FILE -a"
+        Then gptransfer should return a return code of 0
+
+    @partition_transfer
+    @prt_transfer_27
+    Scenario: gptransfer, --partition-transfer can not be used with --full option
+        Given the database is running
+        And there is a file "input_file" with tables "srcdb.public.tbl, destdb.public.tbl"
+        When the user runs "gptransfer -f input_file --partition-transfer --full --source-port $GPTRANSFER_SOURCE_PORT --source-host $GPTRANSFER_SOURCE_HOST --source-user $GPTRANSFER_SOURCE_USER --dest-user $GPTRANSFER_SOURCE_USER --dest-port $GPTRANSFER_SOURCE_PORT --dest-host $GPTRANSFER_SOURCE_HOST --source-map-file $GPTRANSFER_MAP_FILE -a"
+        Then gptransfer should return a return code of 2
+        And gptransfer should print --partition-transfer option cannot be used with --full option to stdout
+
+    @partition_transfer
+    @prt_transfer_28
+    Scenario: gptransfer, --partition-transfer can not be used with -d option 
+        Given the database is running
+        And there is a file "input_file" with tables "srcdb.public.tbl, destdb.public.tbl"
+        When the user runs "gptransfer -f input_file --partition-transfer -d srcdb --source-port $GPTRANSFER_SOURCE_PORT --source-host $GPTRANSFER_SOURCE_HOST --source-user $GPTRANSFER_SOURCE_USER --dest-user $GPTRANSFER_SOURCE_USER --dest-port $GPTRANSFER_SOURCE_PORT --dest-host $GPTRANSFER_SOURCE_HOST --source-map-file $GPTRANSFER_MAP_FILE -a"
+        Then gptransfer should return a return code of 2
+        And gptransfer should print --partition-transfer option cannot be used with -d option to stdout
+
+    @partition_transfer
+    @prt_transfer_29
+    Scenario: gptransfer, --partition-transfer can not be used with --drop option 
+        Given the database is running
+        And there is a file "input_file" with tables "srcdb.public.tbl, destdb.public.tbl"
+        When the user runs "gptransfer -f input_file --partition-transfer --drop --source-port $GPTRANSFER_SOURCE_PORT --source-host $GPTRANSFER_SOURCE_HOST --source-user $GPTRANSFER_SOURCE_USER --dest-user $GPTRANSFER_SOURCE_USER --dest-port $GPTRANSFER_SOURCE_PORT --dest-host $GPTRANSFER_SOURCE_HOST --source-map-file $GPTRANSFER_MAP_FILE -a"
+        Then gptransfer should return a return code of 2
+        And gptransfer should print --partition-transfer option cannot be used with --drop option to stdout
+
+    @partition_transfer
+    @prt_transfer_30
+    Scenario: gptransfer, --partition-transfer can not be used with -t option 
+        Given the database is running
+        And there is a file "input_file" with tables "srcdb.public.tbl, destdb.public.tbl"
+        When the user runs "gptransfer -f input_file --partition-transfer -t srcdb.public.tbl --source-port $GPTRANSFER_SOURCE_PORT --source-host $GPTRANSFER_SOURCE_HOST --source-user $GPTRANSFER_SOURCE_USER --dest-user $GPTRANSFER_SOURCE_USER --dest-port $GPTRANSFER_SOURCE_PORT --dest-host $GPTRANSFER_SOURCE_HOST --source-map-file $GPTRANSFER_MAP_FILE -a"
+        Then gptransfer should return a return code of 2
+        And gptransfer should print --partition-transfer option cannot be used with -t option to stdout
+
+    @partition_transfer
+    @prt_transfer_31
+    Scenario: gptransfer, --partition-transfer can not be used with --schema-only option 
+        Given the database is running
+        And there is a file "input_file" with tables "srcdb.public.tbl, destdb.public.tbl"
+        When the user runs "gptransfer -f input_file --partition-transfer --schema-only --source-port $GPTRANSFER_SOURCE_PORT --source-host $GPTRANSFER_SOURCE_HOST --source-user $GPTRANSFER_SOURCE_USER --dest-user $GPTRANSFER_SOURCE_USER --dest-port $GPTRANSFER_SOURCE_PORT --dest-host $GPTRANSFER_SOURCE_HOST --source-map-file $GPTRANSFER_MAP_FILE -a"
+        Then gptransfer should return a return code of 2
+        And gptransfer should print --partition-transfer option cannot be used with --schema-only option to stdout
+
+    @partition_transfer
+    @prt_transfer_32
+    Scenario: gptransfer, --partition-transfer can not be used with -T option 
+        Given the database is running
+        And there is a file "input_file" with tables "srcdb.public.tbl, destdb.public.tbl"
+        When the user runs "gptransfer -f input_file --partition-transfer -T srcdb.public.tbl --source-port $GPTRANSFER_SOURCE_PORT --source-host $GPTRANSFER_SOURCE_HOST --source-user $GPTRANSFER_SOURCE_USER --dest-user $GPTRANSFER_SOURCE_USER --dest-port $GPTRANSFER_SOURCE_PORT --dest-host $GPTRANSFER_SOURCE_HOST --source-map-file $GPTRANSFER_MAP_FILE -a"
+        Then gptransfer should return a return code of 2
+        And gptransfer should print --partition-transfer option cannot be used with any exclude table option to stdout
+
+    @partition_transfer
+    @prt_transfer_33
+    Scenario: gptransfer, --partition-transfer can not be used with -F option 
+        Given the database is running
+        And there is a file "input_file" with tables "srcdb.public.tbl, destdb.public.tbl"
+        When the user runs "gptransfer -f input_file --partition-transfer -F input_file --source-port $GPTRANSFER_SOURCE_PORT --source-host $GPTRANSFER_SOURCE_HOST --source-user $GPTRANSFER_SOURCE_USER --dest-user $GPTRANSFER_SOURCE_USER --dest-port $GPTRANSFER_SOURCE_PORT --dest-host $GPTRANSFER_SOURCE_HOST --source-map-file $GPTRANSFER_MAP_FILE -a"
+        Then gptransfer should return a return code of 2
+        And gptransfer should print --partition-transfer option cannot be used with any exclude table option to stdout
+
+    @partition_transfer
+    @prt_transfer_34
+    Scenario: gptransfer with public schema to non public schema
+        Given the database is running
+        And database "destdb" exists
+        And database "srcdb" is created if not exists on host "GPTRANSFER_SOURCE_HOST" with port "GPTRANSFER_SOURCE_PORT" with user "GPTRANSFER_SOURCE_USER"
+        And the user runs "psql -p $GPTRANSFER_SOURCE_PORT -h $GPTRANSFER_SOURCE_HOST -U $GPTRANSFER_SOURCE_USER -f gppylib/test/behave/mgmt_utils/steps/data/gptransfer/one_level_list_prt_1.sql -d srcdb"
+        And the user runs "psql -p $GPTRANSFER_SOURCE_PORT -h $GPTRANSFER_SOURCE_HOST -U $GPTRANSFER_SOURCE_USER -f gppylib/test/behave/mgmt_utils/steps/data/gptransfer/insert_into_employee.sql -d srcdb"
+        And the user runs "psql -p $GPTRANSFER_DEST_PORT -h $GPTRANSFER_DEST_HOST -U $GPTRANSFER_DEST_USER -f gppylib/test/behave/mgmt_utils/steps/data/gptransfer/one_level_list_prt_1_with_namespace.sql -d destdb"
+        And there is a file "input_file" with tables "srcdb.public.employee_1_prt_boys, destdb.schema1.employee_1_prt_boys"
+        When the user runs "gptransfer -f input_file --partition-transfer --source-port $GPTRANSFER_SOURCE_PORT --source-host $GPTRANSFER_SOURCE_HOST --source-user $GPTRANSFER_SOURCE_USER --dest-user $GPTRANSFER_SOURCE_USER --dest-port $GPTRANSFER_SOURCE_PORT --dest-host $GPTRANSFER_SOURCE_HOST --source-map-file $GPTRANSFER_MAP_FILE -a"
+        Then gptransfer should return a return code of 0
+        And verify that table "schema1.employee_1_prt_boys" in "destdb" has "1" rows
+
+    @partition_transfer
+    @prt_transfer_35
+    Scenario: gptransfer with non public schema to public schema
+        Given the database is running
+        And database "destdb" exists
+        And database "srcdb" is created if not exists on host "GPTRANSFER_SOURCE_HOST" with port "GPTRANSFER_SOURCE_PORT" with user "GPTRANSFER_SOURCE_USER"
+        And the user runs "psql -p $GPTRANSFER_SOURCE_PORT -h $GPTRANSFER_SOURCE_HOST -U $GPTRANSFER_SOURCE_USER -f gppylib/test/behave/mgmt_utils/steps/data/gptransfer/one_level_list_prt_1_with_namespace.sql -d srcdb"
+        And the user runs "psql -p $GPTRANSFER_SOURCE_PORT -h $GPTRANSFER_SOURCE_HOST -U $GPTRANSFER_SOURCE_USER -f gppylib/test/behave/mgmt_utils/steps/data/gptransfer/insert_into_employee_with_namespace.sql -d srcdb"
+        And the user runs "psql -p $GPTRANSFER_DEST_PORT -h $GPTRANSFER_DEST_HOST -U $GPTRANSFER_DEST_USER -f gppylib/test/behave/mgmt_utils/steps/data/gptransfer/one_level_list_prt_1.sql -d destdb"
+        And there is a file "input_file" with tables "srcdb.schema1.employee_1_prt_boys, destdb.public.employee_1_prt_boys"
+        When the user runs "gptransfer -f input_file --partition-transfer --source-port $GPTRANSFER_SOURCE_PORT --source-host $GPTRANSFER_SOURCE_HOST --source-user $GPTRANSFER_SOURCE_USER --dest-user $GPTRANSFER_SOURCE_USER --dest-port $GPTRANSFER_SOURCE_PORT --dest-host $GPTRANSFER_SOURCE_HOST --source-map-file $GPTRANSFER_MAP_FILE -a"
+        Then gptransfer should return a return code of 0
+        And verify that table "public.employee_1_prt_boys" in "destdb" has "1" rows
+
     @T339833
     Scenario: gptransfer full, source cluster -> source cluster
         Given the database is running
@@ -1620,7 +2053,7 @@ Feature: gptransfer tests
         Then psql should return a return code of 0 
         And the user runs "gptransfer -t 'gptransfer_test_db.public.t1' --source-port $GPTRANSFER_SOURCE_PORT --source-host $GPTRANSFER_SOURCE_HOST --source-user $GPTRANSFER_SOURCE_USER --dest-user $GPTRANSFER_DEST_USER --dest-port $GPTRANSFER_DEST_PORT --dest-host $GPTRANSFER_DEST_HOST --source-map-file $GPTRANSFER_MAP_FILE -a"
         Then gptransfer should return a return code of 0 
-        And verify that table "t1" in "gptransfer_test_db" has same data on source and destination system with order by "id" 
+        And verify that table "t1" in database "gptransfer_test_db" of source system has same data with table "t1" in database "gptransfer_test_db" of destination system with order by "id"
 
     Scenario: Empty spaces in NOT NULL columns and NULL values are getting transferred correctly in CSV format
         Given the database is running
@@ -1629,7 +2062,7 @@ Feature: gptransfer tests
         Then psql should return a return code of 0 
         And the user runs "gptransfer -t 'gptransfer_test_db_one.public.table1' --source-port $GPTRANSFER_SOURCE_PORT --source-host $GPTRANSFER_SOURCE_HOST --source-user $GPTRANSFER_SOURCE_USER --dest-user $GPTRANSFER_DEST_USER --dest-port $GPTRANSFER_DEST_PORT --dest-host $GPTRANSFER_DEST_HOST --source-map-file $GPTRANSFER_MAP_FILE -a"
         Then gptransfer should return a return code of 0 
-        And verify that table "table1" in "gptransfer_test_db_one" has same data on source and destination system with order by "id" 
+        And verify that table "table1" in database "gptransfer_test_db_one" of source system has same data with table "table1" in database "gptransfer_test_db_one" of destination system with order by "id" 
         And verify that the query "select count(*) from table1 where address is NULL" in database "gptransfer_test_db_one" returns "1"
         And verify that the query "select count(*) from table1 where address=''" in database "gptransfer_test_db_one" returns "1"
 
@@ -1640,7 +2073,7 @@ Feature: gptransfer tests
         Then psql should return a return code of 0 
         And the user runs "gptransfer -t 'gptransfer_test_db_one.public.table1' --source-port $GPTRANSFER_SOURCE_PORT --source-host $GPTRANSFER_SOURCE_HOST --source-user $GPTRANSFER_SOURCE_USER --dest-user $GPTRANSFER_DEST_USER --dest-port $GPTRANSFER_DEST_PORT --dest-host $GPTRANSFER_DEST_HOST --source-map-file $GPTRANSFER_MAP_FILE -a --delimiter '\001' --format=text"
         Then gptransfer should return a return code of 0 
-        And verify that table "table1" in "gptransfer_test_db_one" has same data on source and destination system with order by "id"
+        And verify that table "table1" in database "gptransfer_test_db_one" of source system has same data with table "tabl1" in database "gptransfer_test_db_one" of destination system with order by "id"
         And verify that the query "select count(*) from table1 where address is NULL" in database "gptransfer_test_db_one" returns "1"
         And verify that the query "select count(*) from table1 where address=''" in database "gptransfer_test_db_one" returns "1"
 
