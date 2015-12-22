@@ -523,7 +523,7 @@ Feature: Validate command line arguments
     @meta
     Scenario: Metadata-only restore
         Given the database is running
-        And database "fullbkdb" is created if not exists
+        And database "fullbkdb" is created if not exists on host "None" with port "PGPORT" with user "None"
         And there is schema "schema_heap" exists in "fullbkdb"
         And there is a "heap" table "schema_heap.heap_table" with compression "None" in "fullbkdb" with data
         When the user runs "gpcrondump -a -x fullbkdb"
@@ -539,7 +539,7 @@ Feature: Validate command line arguments
     @meta
     Scenario: Metadata-only restore with global objects (-G)
         Given the database is running
-        And database "fullbkdb" is created if not exists
+        And database "fullbkdb" is created if not exists on host "None" with port "PGPORT" with user "None"
         And there is schema "schema_heap" exists in "fullbkdb"
         And there is a "heap" table "schema_heap.heap_table" with compression "None" in "fullbkdb" with data
         And the user runs "psql -c 'CREATE ROLE foo_user' fullbkdb"
@@ -4031,7 +4031,7 @@ Feature: Validate command line arguments
         And there is a "heap" table "heap_table" with compression "None" in "fullbkdb" with data
         And there is a "ao" partition table "ao_part_table" with compression "quicklz" in "fullbkdb" with data
         And there is a "co" partition table "co_part_table" with compression "None" in "fullbkdb" with data
-        And there is a file "include_file_with_whitespace" with tables "public.heap_table   |public.ao_part_table" 
+        And there is a file "include_file_with_whitespace" with tables "public.heap_table   |public.ao_part_table"
         And there is a backupfile of tables "heap_table,ao_part_table" in "fullbkdb" exists for validation
         When the user runs "gpcrondump -a -x fullbkdb --table-file include_file_with_whitespace"
         Then gpcrondump should return a return code of 0
