@@ -4031,7 +4031,7 @@ Feature: Validate command line arguments
         And there is a "heap" table "heap_table" with compression "None" in "fullbkdb" with data
         And there is a "ao" partition table "ao_part_table" with compression "quicklz" in "fullbkdb" with data
         And there is a "co" partition table "co_part_table" with compression "None" in "fullbkdb" with data
-        And there is a file "include_file_with_whitespace" with tables "public.heap_table|public.ao_part_table" 
+        And there is a file "include_file_with_whitespace" with tables "public.heap_table   |public.ao_part_table" 
         And there is a backupfile of tables "heap_table,ao_part_table" in "fullbkdb" exists for validation
         When the user runs "gpcrondump -a -x fullbkdb --table-file include_file_with_whitespace"
         Then gpcrondump should return a return code of 0
@@ -6115,7 +6115,6 @@ Feature: Validate command line arguments
         And verify that there is a table "schema_new1.ao_part_table" of "ao" type in "fullbkdb" with same data as table "schema_ao.ao_part_table"
 
     @filter
-    @jason
     Scenario: Incremental Backup and Restore with option --change-schema
         Given the database is running
         And the database "fullbkdb" does not exist

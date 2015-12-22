@@ -2869,7 +2869,7 @@ class GpTransfer(object):
 
         if (self._options.partition_transfer and self._options.schema_only):
             raise ProgramArgumentValidationException('--partition-transfer option cannot be used '
-                                                     'with --schema-only option, please create partition'
+                                                     'with --schema-only option, please create partition '
                                                      'table in other ways')
 
         if (self._options.partition_transfer and (self._options.exclude_tables or self._options.exclude_input_file)):
@@ -3220,7 +3220,7 @@ class GpTransfer(object):
                                          self._options.source_user,
                                          databases_full_transfer,
                                          False,
-                                         True if self._options.partition_transfer else False):
+                                         self._options.partition_transfer):
                 source_tables.append(table)
 
             del databases[:]
@@ -3318,6 +3318,8 @@ class GpTransfer(object):
 
                 # populate the mapping between source and destination table pair
                 src_table, dest_table = src_table.strip(), dest_table.strip()
+                if src_table == '' or dest_table == '':
+                    raise Exception('Can not specify empty table names')
                 if src_table == dest_table and self._options.source_host == self._options.dest_host:
                     raise Exception('Can not transfer between same partition table %s' % src_table)
                 if (src_table in self.src_dest_partition_table_mapping and
@@ -3648,7 +3650,7 @@ class GpTransfer(object):
     def _has_same_partition_criteria(self, table_pair):
         #verify the current subpartition pair:
         logger.debug('Verifying that partition table transfer pair has same partition criteria')
-        source_dest_info = 'Source partition table %s and destination partition table %s' % (str(table_pair.source), str(table_pair.dest))
+        source_dest_info = 'source partition table %s and destination partition table %s' % (str(table_pair.source), str(table_pair.dest))
         if not self._has_same_partition_levels(table_pair):
             logger.error('Max levels of partition is not same between %s' % source_dest_info)
             return False
@@ -3781,19 +3783,16 @@ class GpTransfer(object):
                                                                                 src_table, dest_db, 
                                                                                 dest_schema, dest_table)
         part_type = source_partition_info['partitiontype']
-        if source_partition_info['parruleord'] != dest_partition_info['parruleord']:
-            logger.error('Range partition rank mismatch between %s' % part_transfer_pair_msg)
-            return False
         if source_partition_info['parisdefault'] != dest_partition_info['parisdefault']:
             logger.error('One of the subpartition table is a default partition, %s' % part_transfer_pair_msg)
             return False
 
         if part_type == 'list':
-               return self._has_same_list_partition_value(source_partition_info, dest_partition_info, part_transfer_pair_msg)
+            return self._has_same_list_partition_value(source_partition_info, dest_partition_info, part_transfer_pair_msg)
         elif part_type == 'range':
-               return self._has_same_range_partition_value(source_partition_info, dest_partition_info, part_transfer_pair_msg)
+            return self._has_same_range_partition_value(source_partition_info, dest_partition_info, part_transfer_pair_msg)
         else:
-               raise Exception('Unknown partitioning type %s found, %s' % (part_type, part_transfer_pair_msg))
+            raise Exception('Unknown partitioning type %s found, %s' % (part_type, part_transfer_pair_msg))
 
     def _has_same_range_partition_value(self, source_partition_info, dest_partition_info, part_transfer_pair_msg):
         if (source_partition_info['parrangestartincl'] != dest_partition_info['parrangestartincl'] or
