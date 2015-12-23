@@ -460,6 +460,9 @@ OPTIONS
 
  fully_qualified_source_table_name, fully_qualified_destination_table_name
 
+ If only one table name is specified in the input file, source table name and
+ destination table name will be the same.
+
  Wildcard characters are not supported.
 
  If the table is not a leaf child partition, the utility returns an error and
