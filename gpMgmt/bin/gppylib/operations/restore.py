@@ -23,7 +23,7 @@ from gppylib.operations.backup_utils import check_backup_type, check_dir_writabl
                                             generate_partition_list_filename, generate_pgstatlastoperation_filename, generate_plan_filename, generate_report_filename, \
                                             generate_segment_config_filename, get_all_segment_addresses, get_backup_directory, get_full_timestamp_for_incremental, \
                                             get_full_timestamp_for_incremental_with_nbu, get_lines_from_file, restore_file_with_nbu, run_pool_command, scp_file_to_hosts, \
-                                            verify_lines_in_file, write_lines_to_file
+                                            verify_lines_in_file, write_lines_to_file, smart_split
 from gppylib.operations.unix import CheckFile, CheckRemoteDir, MakeRemoteDir, CheckRemotePath
 from re import compile, search, sub
 
