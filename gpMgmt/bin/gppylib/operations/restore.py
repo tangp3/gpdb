@@ -404,7 +404,7 @@ def truncate_restore_tables(restore_tables, master_port, dbname):
             schema, table = smart_split(restore_table)
 
             if table == '*':
-                get_all_tables_qry = 'select schemaname || \'.\' || tablename from pg_tables where schemaname = \'%s\';' % schema
+                get_all_tables_qry = 'select \'"\' || schemaname || \'"\' || \'.\' || \'"\' tablename || \'"\' from pg_tables where schemaname = \'%s\';' % pg.escape_string(schema)
                 relations = execSQL(conn, get_all_tables_qry)
                 for relation in relations:
                     truncate_list.append(relation[0])
@@ -413,7 +413,7 @@ def truncate_restore_tables(restore_tables, master_port, dbname):
 
         for t in truncate_list:
             try:
-                qry = 'Truncate %s' % t
+                qry = 'Truncate \'%s\'' % pg.escape_string(t)
                 execSQL(conn, qry)
             except Exception as e:
                 raise Exception("Could not truncate table %s.%s: %s" % (dbname, t, str(e).replace('\n', '')))
@@ -498,7 +498,7 @@ class RestoreDatabase(Operation):
         full_restore = is_full_restore(self.master_datadir, self.backup_dir, self.dump_dir, self.dump_prefix, self.restore_timestamp, self.ddboost)
         begin_incremental = is_begin_incremental_run(self.master_datadir, self.backup_dir, self.dump_dir, self.dump_prefix, self.restore_timestamp, self.no_plan, self.ddboost)
 
-        if (full_restore and self.restore_tables is not None and not self.no_plan) or begin_incremental or self.metadata_only:
+        if (full_restore and len(self.restore_tables) > 0 and not self.no_plan) or begin_incremental or self.metadata_only:
             if full_restore and not self.no_plan:
                 full_restore_with_filter = True
 
@@ -547,9 +547,9 @@ class RestoreDatabase(Operation):
                 self.remove_filter_file(table_filter_file)
 
         if not self.metadata_only:
-            if (not self.no_analyze) and (self.restore_tables is None):
+            if (not self.no_analyze) and (len(self.restore_tables) == 0):
                 self._analyze(restore_db, self.master_port)
-            elif (not self.no_analyze) and self.restore_tables:
+            elif (not self.no_analyze) and len(self.restore_tables) > 0:
                 self._analyze_restore_tables(restore_db, self.restore_tables, self.change_schema)
         if self.restore_stats:
             self._restore_stats(restore_timestamp, self.master_datadir, self.backup_dir, self.master_port, restore_db, self.restore_tables)
@@ -584,10 +584,10 @@ class RestoreDatabase(Operation):
                     table = pg.escape_string(tablename)
                     if change_schema:
                         schema = pg.escape_string(change_schema)
-                        restore_table = "%s.%s" % (schema, table)
+                        restore_table = '"%s"."%s"' % (schema, table)
 
                     if table == '*':
-                        get_all_tables_qry = 'select schemaname || \'.\' || tablename from pg_tables where schemaname = \'%s\';' % schema
+                        get_all_tables_qry = 'select \'"\' || schemaname || \'"\' || \'.\' || \'"\' || tablename || \'"\' from pg_tables where schemaname = \'%s\';' % pg.escape_string(schema)
                         relations = execSQL(conn, get_all_tables_qry)
                         for relation in relations:
                             analyze_list.append(relation[0])
@@ -616,7 +616,7 @@ class RestoreDatabase(Operation):
         return batch_count
 
     def create_filter_file(self):
-        if self.restore_tables is None:
+        if len(self.restore_tables) == 0:
             return None
 
         table_filter_file = create_temp_file_with_tables(self.restore_tables)
@@ -694,7 +694,7 @@ class RestoreDatabase(Operation):
 
         # We need to replace existing starelid's in file to match starelid of tables in database in case they're different
         # First, map each schemaname.tablename to its corresponding starelid
-        query = """SELECT t.schemaname || '.' || t.tablename, c.oid FROM pg_class c join pg_tables t ON c.relname = t.tablename
+        query = """SELECT '"' || t.schemaname || '"' || '.' || '"' || t.tablename || '"', c.oid FROM pg_class c join pg_tables t ON c.relname = t.tablename
                          WHERE t.schemaname NOT IN ('pg_toast', 'pg_bitmapindex', 'pg_temp_1', 'pg_catalog', 'information_schema', 'gp_toolkit')"""
         relids = {}
         rows = execute_sql(query, master_port, restore_db)
@@ -715,8 +715,8 @@ class RestoreDatabase(Operation):
                 for line in infile:
                     matches = search(table_pattern, line)
                     if matches:
-                        tablename = "%s.%s" % (matches.group(1), matches.group(2))
-                        if not restore_tables or tablename in restore_tables:
+                        tablename = '"%s"."%s"' % (matches.group(1), matches.group(2))
+                        if len(restore_tables) == 0 or tablename in restore_tables:
                             try:
                                 new_oid = relids[tablename]
                                 print_toggle = True

@@ -99,7 +99,7 @@ class GpdbRestore(Operation):
         else:
             self.dump_prefix = options.local_dump_prefix
 
-        if self.truncate and not (self.restore_tables or self.table_file):
+        if self.truncate and not (len(self.restore_tables) > 0 or self.table_file):
             raise Exception('--truncate can be specified only with -T or --table-file option')
 
         if self.truncate and self.drop_db:
@@ -108,10 +108,10 @@ class GpdbRestore(Operation):
         if self.restore_stats == "only" and self.drop_db:
             raise Exception('Cannot specify --restore-stats only and -e together')
 
-        if self.table_file and self.restore_tables:
+        if self.table_file and len(self.restore_tables) > 0:
             raise Exception('Cannot specify -T and --table-file together')
 
-        if self.list_backup and self.restore_tables:
+        if self.list_backup and len(self.restore_tables) > 0:
             raise Exception('Cannot specify -T and --list-backup together')
 
         if self.metadata_only and self.no_plan:
@@ -120,11 +120,8 @@ class GpdbRestore(Operation):
         if self.metadata_only and self.no_analyze:
             raise Exception('Cannot specify --noanalyze and -m together.')
 
-        if self.change_schema and not (self.restore_tables or self.table_file):
+        if self.change_schema and not (len(self.restore_tables) > 0 or self.table_file):
             raise Exception('-T or --table-file option must be specified with the --change-schema option')
-
-        if self.restore_tables is not None:
-            self.restore_tables = self.restore_tables.split(',')
 
         if self.table_file is not None:
             self.restore_tables = get_restore_tables_from_table_file(self.table_file)
@@ -213,11 +210,11 @@ class GpdbRestore(Operation):
             restore_type = "Metadata-Only Restore"
 
         elif is_incremental_restore(self.master_datadir, self.backup_dir, self.dump_dir, self.dump_prefix, info['restore_timestamp']):
-            if self.restore_tables is not None:
+            if len(self.restore_tables) > 0:
                 restore_type = "Incremental Table Restore"
             else:
                 restore_type = "Incremental Restore"
-        elif self.restore_tables is not None:
+        elif len(self.restore_tables) > 0:
             restore_type = "Table Restore"
         else:
             restore_type = "Full Database"
@@ -254,7 +251,7 @@ class GpdbRestore(Operation):
         if not is_incremental_restore(self.master_datadir, self.backup_dir, self.dump_dir, self.dump_prefix, info['restore_timestamp']) and self.list_backup:
             raise Exception('--list-backup is not supported for restore with full timestamps')
 
-        if self.restore_tables and self.truncate:
+        if len(self.restore_tables) > 0 and self.truncate:
             if self.redirected_restore_db:
                 truncate_restore_tables(self.restore_tables, self.master_port, self.redirected_restore_db)
             else:
@@ -305,7 +302,7 @@ class GpdbRestore(Operation):
 
         logger.info("Restore type               = %s" % restore_type)
 
-        if self.restore_tables is not None:
+        if len(self.restore_tables) > 0:
             logger.info("Database name              = %s" % info['restore_db'])
             logger.info("------------------------------------------")
             logger.info("Table restore list")
@@ -326,15 +323,15 @@ class GpdbRestore(Operation):
             else:
                 logger.info("Drop and re-create db      = Off")
 
-        if self.db_timestamp is not None and self.restore_tables is None:
+        if self.db_timestamp is not None and len(self.restore_tables) == 0:
             logger.info("Restore method             = Restore specific timestamp")
-        if self.search_for_dbname is not None and self.restore_tables is None:
+        if self.search_for_dbname is not None and len(self.restore_tables) == 0:
             logger.info("Restore method             = Search for latest")
         if self.redirected_restore_db is not None:
             logger.info("Redirect Restore database  = %s" % self.redirected_restore_db)
-        if self.db_date_dir is not None and self.restore_tables is None:
+        if self.db_date_dir is not None and len(self.restore_tables) ==0:
             logger.info("Restore method             = Restore specific date")
-        if self.restore_tables is not None:
+        if len(self.restore_tables) > 0:
             logger.info("Restore method             = Specific table restore")
         if self.db_host_path is not None:
             host, path = self.db_host_path
@@ -430,7 +427,7 @@ class GpdbRestore(Operation):
                 raise ExceptionNoStackTraceNeeded("Database %s does not exist and -e option not supplied" % restore_db)
 
         table_counts = []
-        if self.restore_tables is not None:
+        if len(self.restore_tables) > 0:
             self.restore_tables = validate_tablenames(self.restore_tables)
 
         if not self.db_host_path and not self.ddboost:
@@ -612,7 +609,7 @@ def create_parser():
                      help="Dispatches work to segment hosts in batches of specified size [default: %s]" % DEFAULT_NUM_WORKERS)
     addTo.add_option('-G', dest='restore_global', action="callback", callback=restore_global_callback,
                      help="Restore global objects dump file if found in target dumpset. The global objects file is secured via the gpcrondump -G options, and has a filename of the form gp_global_1_1_<timestamp>. Specify \"-G only\" to only restore the global objects dump file or \"-G include\" to restore globals objects along with a normal restore. Defaults to \"include\" if neither argument is provided.")
-    addTo.add_option('-T', dest='restore_tables', metavar='<schema.tablename>',
+    addTo.add_option('-T', action='append', dest='restore_tables', metavar='<schema.tablename>',
                      help="Restore a single table from a backup set. -T can be provided multiple times to include multiple schema.tablenames. Note, table schema must exist in target database.")
     addTo.add_option('-K', action='store_true', dest='keep_dump_files', default=False,
                      help="Retain temporary generated table dump files.")

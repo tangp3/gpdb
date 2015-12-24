@@ -67,8 +67,8 @@ def convert_parents_to_leafs(dbname, parents):
 #output: same list but parent tables converted to leafs
 def expand_partition_tables(dbname, filter_tables):
 
-    if filter_tables is None:
-        return None
+    if len(filter_tables) == 0:
+        return filter_tables
     parent_tables = list()
     non_parent_tables = list()
     expanded_list = list()
@@ -96,7 +96,7 @@ def get_batch_from_list(length, batch_size):
     return indices
 
 def create_temp_file_from_list(entries, prefix):
-    if entries is None:
+    if len(entries) == 0:
         return None
 
     fd = tempfile.NamedTemporaryFile(mode='w', prefix=prefix, delete=False)
