@@ -1,6 +1,8 @@
 #!/usr/bin/env python
 
 from gppylib.gpparseopts import OptParser, OptChecker
+from gppylib.operations.backup_utils import smart_split, checkAndRemoveEnclosingDoubleQuote
+import re
 import sys
 
 search_path_expr = 'SET search_path = '
@@ -18,20 +20,41 @@ drop_expr = 'DROP '
 
 comment_start_expr = '-- '
 comment_expr = '-- Name: '
+type_expr = '; Type: '
+schema_expr = '; Schema: '
+owner_expr = '; Owner: '
 comment_data_expr_a = '-- Data: '
 comment_data_expr_b = '-- Data for Name: '
 len_start_comment_expr = len(comment_start_expr)
 
+
 def get_table_info(line):
-    try:
-        temp = line[len_start_comment_expr:]
-        tokens = temp.strip().split(';')
-        name = tokens[0].split(':')[1].strip()
-        type = tokens[1].split(':')[1].strip()
-        schema = tokens[2].split(':')[1].strip()
-    except:
+    """
+    It's complex to split when table name/schema name/user name/ tablespace name
+    contains full expression of one of others', which is very unlikely, but in
+    case it happens, return None.
+
+    Since we only care about table name, type, and schema name, strip the input
+    is safe here.
+    """
+    temp = line.strip()
+    type_start = find_all_expr_start(temp, type_expr)
+    schema_start = find_all_expr_start(temp, schema_expr)
+    owner_start = find_all_expr_start(temp, owner_expr)
+    if (len(type_start) > 1 or len(schema_start) > 1 or
+        len(owner_start) > 1 or len(type_start) == 0 or
+        len(schema_start) == 0 or len(owner_start) == 0):
         return (None, None, None)
-    return (name, type, schema) 
+    name = temp[len(comment_expr) : type_start[0]]
+    type = temp[type_start[0] + len(type_expr) : schema_start[0]]
+    schema = temp[schema_start[0] + len(schema_expr) : owner_start[0]]
+    return (name, type, schema)
+
+def find_all_expr_start(line, expr):
+    """
+    Find all overlapping matches
+    """
+    return [m.start() for m in re.finditer('(?=%s)' % expr, line)]
 
 def process_schema(dump_schemas, dump_tables, fdin, fdout, change_schema):
     """
@@ -55,7 +78,9 @@ def process_schema(dump_schemas, dump_tables, fdin, fdout, change_schema):
     further_investigation_required = False
     search_path = True
     passedDropSchemaSection = False
+    ff = open('/tmp/line', 'w')
     for line in fdin:
+        ff.write('new line is %s\n' % line)
         if search_path and (line[0] == set_start) and line.startswith(search_path_expr):
             further_investigation_required = False
             schema = extract_schema(line)
@@ -86,6 +111,8 @@ def process_schema(dump_schemas, dump_tables, fdin, fdout, change_schema):
             if type in ['TABLE', 'EXTERNAL TABLE']:
                 further_investigation_required = False
                 output = check_valid_table(schema, name, dump_tables)
+                ff.write('line is %s\n' % line)
+                ff.write('output is %s\n' % str(output))
                 if output:
                     search_path = True
             elif type in ['CONSTRAINT']:
@@ -128,6 +155,7 @@ def process_schema(dump_schemas, dump_tables, fdin, fdout, change_schema):
 
         if output:
             fdout.write(line)
+    ff.close()
 
 def check_valid_schema(name, dump_schemas):
     if name in dump_schemas:
@@ -155,27 +183,39 @@ def get_table_schema_set(filename):
         contents = fd.read()
         tables = contents.splitlines()
         for t in tables:
-            parts = t.split('.')
-            if len(parts) != 2:
-                raise Exception("Bad table in filter list")
-            schema = parts[0].strip()
-            table = parts[1].strip()
+            schema, table = smart_split(t)
+            schema = checkAndRemoveEnclosingDoubleQuote(schema.strip())
+            table = checkAndRemoveEnclosingDoubleQuote(table.strip())
             dump_tables.add((schema, table))
             dump_schemas.add(schema)
-
+    with open('/tmp/save', 'w') as fw:
+        fw.write('schemas are %s' % dump_schemas)
+        fw.write('tables are %s' % dump_tables)
     return (dump_schemas, dump_tables)
 
 def extract_schema(line):
+    """
+    Instead of searching ',' in forwarding way, search ', pg_catalog;' 
+    reversely, in case schema name contains comma.
+
+    Remove enclosing double quotes only, in case quote is part of the
+    schema name
+    """
     temp = line[len_search_path_expr:]
-    idx = temp.find(",")
+    idx = temp.rfind(", pg_catalog;")
     if idx == -1:
         return None
     schema = temp[:idx]
-    return schema.strip('"')
+    return checkAndRemoveEnclosingDoubleQuote(schema)
 
 def extract_table(line):
+    """
+    Instead of looking for table name ending index based on
+    empty space, find it in the reverse way based on the ' ('
+    whereas the column definition starts.
+    """
     temp = line[len_copy_expr:]
-    idx = temp.find(" ")
+    idx = temp.rfind(" (")
     if idx == -1:
         return None
     table = temp[:idx]
@@ -204,7 +244,8 @@ def process_data(dump_schemas, dump_tables, fdin, fdout, change_schema):
                 fdout.write(line)
         elif (line[0] == copy_start) and line.startswith(copy_expr) and line.endswith(copy_expr_end):
             table = extract_table(line)
-            table = table.strip('"')
+            # removing the enclosing double quote only, don't do strip('"') in case table name has double quote
+            table = checkAndRemoveEnclosingDoubleQuote(table)
             if table and (schema, table) in dump_tables or (schema, '*') in dump_tables:
                 output = True
         elif output and (line[0] == copy_end_start) and line.startswith(copy_end_expr):

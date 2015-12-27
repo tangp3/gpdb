@@ -1,6 +1,8 @@
 #!/usr/bin/env python
 
 from gppylib.gpparseopts import OptParser, OptChecker
+from gppylib.operations.backup_utils import smart_split, checkAndRemoveEnclosingDoubleQuote
+import re
 import sys
 
 search_path_expr = 'SET search_path = '
@@ -17,13 +19,19 @@ command_start_expr = 'CREATE '
 len_command_start_expr = len(command_start_expr)
 
 def get_type(line):
-    try:
-        temp = line[len_start_comment_expr:]
-        tokens = temp.strip().split(';')
-        type = tokens[1].split(':')[1].strip()
-    except:
+    temp = line.strip()
+    type_start = find_all_expr_start(temp, type_expr)
+    schema_start = find_all_expr_start(temp, schema_expr)
+    if len(type_start) > 1 or len(schema_start) > 1:
         return None
+    type = temp[type_start[0] + len(type_expr) : schema_start[0]]
     return type
+
+def find_all_expr_start(line, expr):
+    """
+    Find all overlapping matches
+    """
+    return [m.start() for m in re.finditer('(?=%s)' % expr, line)]
 
 def process_schema(dump_schemas, dump_tables, fdin, fdout):
     schema = None
@@ -105,24 +113,30 @@ def get_table_schema_set(filename):
         contents = fd.read()
         tables = contents.splitlines()
         for t in tables:
-            parts = t.split('.')
-            if len(parts) != 2:
-                raise Exception("Bad table in filter list")
-            schema = parts[0].strip()
-            table = parts[1].strip()
+            schema, table = smart_split(t)
+            schema = checkAndRemoveEnclosingDoubleQuote(schema.strip())
+            table = checkAndRemoveEnclosingDoubleQuote(table.strip())
             dump_tables.add((schema, table))
             dump_schemas.add(schema)
-
+    with open('/tmp/save_post', 'w') as fw:
+        fw.write('schemas are %s' % dump_schemas)
+        fw.write('tables are %s' % dump_tables)
     return (dump_schemas, dump_tables)
 
 def extract_schema(line):
+    """
+    Instead of searching ',' in forwarding way, search ', pg_catalog;' 
+    reversely, in case schema name contains comma.
+
+    Remove enclosing double quotes only, in case quote is part of the
+    schema name
+    """
     temp = line[len_search_path_expr:]
-    idx = temp.find(",")
+    idx = temp.rfind(", pg_catalog;")
     if idx == -1:
         return None
     schema = temp[:idx]
-    return schema.strip('"')
-
+    return checkAndRemoveEnclosingDoubleQuote(schema)
 
 if __name__ == "__main__":
     parser = OptParser(option_class=OptChecker)
