@@ -573,25 +573,21 @@ class RestoreDatabase(Operation):
     def _analyze_restore_tables(self, restore_db, restore_tables, change_schema):
         logger.info('Commencing analyze of restored tables in \'%s\' database, please wait' % restore_db)
         batch_count = 0
-        ff = open('/tmp/analyze', 'w')
         try:
             with dbconn.connect(dbconn.DbURL(dbname=restore_db, port=self.master_port)) as conn:
                 num_sqls = 0
                 for restore_table in restore_tables:
-                    ff.write('before smart split %s \n' % restore_table)
                     analyze_list = []
                     schemaname, tablename = smart_split(restore_table)
-                    ff.write('After split, schema name is %s \n' % schemaname)
-                    ff.write('After split, table name is %s \n' % tablename)
 
                     if change_schema:
-                        schema = change_schema
+                        schemaname = change_schema
 
                     if tablename == '*':
-                        get_all_tables_qry = 'select \'"\' || schemaname || \'"\' || \'.\' || \'"\' || tablename || \'"\' from pg_tables where schemaname = \'%s\';' % pg.escape_string(change_schema)
+                        get_all_tables_qry = 'select \'"\' || schemaname || \'"\', \'"\' || tablename || \'"\'from pg_tables where schemaname = \'%s\';' % pg.escape_string(schemaname)
                         relations = execSQL(conn, get_all_tables_qry)
                         for relation in relations:
-                            schema, table = smart_split(relation[0])
+                            schema, table = relation[0], relation[1]
                             schema = escapeDoubleQuoteInSQLString(schema)
                             table = escapeDoubleQuoteInSQLString(table)
                             restore_table = '%s.%s' % (schema, table)
@@ -604,7 +600,6 @@ class RestoreDatabase(Operation):
 
                     for tbl in analyze_list:
                         analyze_table = "analyze " + tbl
-                        ff.write('analyze sql %s' % analyze_table)
                         try:
                             execSQL(conn, analyze_table)
                         except Exception as e:
