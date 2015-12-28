@@ -23,7 +23,7 @@ from gppylib.operations.backup_utils import check_backup_type, check_dir_writabl
                                             generate_partition_list_filename, generate_pgstatlastoperation_filename, generate_plan_filename, generate_report_filename, \
                                             generate_segment_config_filename, get_all_segment_addresses, get_backup_directory, get_full_timestamp_for_incremental, \
                                             get_full_timestamp_for_incremental_with_nbu, get_lines_from_file, restore_file_with_nbu, run_pool_command, scp_file_to_hosts, \
-                                            verify_lines_in_file, write_lines_to_file, smart_split
+                                            verify_lines_in_file, write_lines_to_file, smart_split, escapeDoubleQuoteInSQLString
 from gppylib.operations.unix import CheckFile, CheckRemoteDir, MakeRemoteDir, CheckRemotePath
 from re import compile, search, sub
 
@@ -573,29 +573,38 @@ class RestoreDatabase(Operation):
     def _analyze_restore_tables(self, restore_db, restore_tables, change_schema):
         logger.info('Commencing analyze of restored tables in \'%s\' database, please wait' % restore_db)
         batch_count = 0
+        ff = open('/tmp/analyze', 'w')
         try:
             with dbconn.connect(dbconn.DbURL(dbname=restore_db, port=self.master_port)) as conn:
                 num_sqls = 0
                 for restore_table in restore_tables:
-
+                    ff.write('before smart split %s \n' % restore_table)
                     analyze_list = []
                     schemaname, tablename = smart_split(restore_table)
-                    schema = pg.escape_string(schemaname)
-                    table = pg.escape_string(tablename)
-                    if change_schema:
-                        schema = pg.escape_string(change_schema)
-                        restore_table = '"%s"."%s"' % (schema, table)
+                    ff.write('After split, schema name is %s \n' % schemaname)
+                    ff.write('After split, table name is %s \n' % tablename)
 
-                    if table == '*':
-                        get_all_tables_qry = 'select \'"\' || schemaname || \'"\' || \'.\' || \'"\' || tablename || \'"\' from pg_tables where schemaname = \'%s\';' % pg.escape_string(schema)
+                    if change_schema:
+                        schema = change_schema
+
+                    if tablename == '*':
+                        get_all_tables_qry = 'select \'"\' || schemaname || \'"\' || \'.\' || \'"\' || tablename || \'"\' from pg_tables where schemaname = \'%s\';' % pg.escape_string(change_schema)
                         relations = execSQL(conn, get_all_tables_qry)
                         for relation in relations:
-                            analyze_list.append(relation[0])
+                            schema, table = smart_split(relation[0])
+                            schema = escapeDoubleQuoteInSQLString(schema)
+                            table = escapeDoubleQuoteInSQLString(table)
+                            restore_table = '%s.%s' % (schema, table)
+                            analyze_list.append(restore_table)
                     else:
+                        schema = escapeDoubleQuoteInSQLString(schemaname)
+                        table = escapeDoubleQuoteInSQLString(tablename)
+                        restore_table = '%s.%s' % (schema, table)
                         analyze_list.append(restore_table)
 
                     for tbl in analyze_list:
                         analyze_table = "analyze " + tbl
+                        ff.write('analyze sql %s' % analyze_table)
                         try:
                             execSQL(conn, analyze_table)
                         except Exception as e:
