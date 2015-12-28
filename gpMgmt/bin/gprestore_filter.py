@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
 from gppylib.gpparseopts import OptParser, OptChecker
-from gppylib.operations.backup_utils import smart_split, checkAndRemoveEnclosingDoubleQuote
+from gppylib.operations.backup_utils import smart_split, checkAndRemoveEnclosingDoubleQuote, removeEscapingDoubleQuoteInSQLString
 import re
 import sys
 
@@ -36,6 +36,8 @@ def get_table_info(line):
 
     Since we only care about table name, type, and schema name, strip the input
     is safe here.
+
+    line: contains the true (un-escaped) schema name, table name, and user name.
     """
     temp = line.strip()
     type_start = find_all_expr_start(temp, type_expr)
@@ -83,8 +85,9 @@ def process_schema(dump_schemas, dump_tables, fdin, fdout, change_schema):
         ff.write('new line is %s\n' % line)
         if search_path and (line[0] == set_start) and line.startswith(search_path_expr):
             further_investigation_required = False
+            # schema of set search_path is escaped in dump file
             schema = extract_schema(line)
-            if schema in dump_schemas:
+            if removeEscapingDoubleQuoteInSQLString(schema, False) in dump_schemas:
                 if change_schema:
                     line = line.replace(schema, change_schema)
                 output = True
@@ -142,8 +145,12 @@ def process_schema(dump_schemas, dump_tables, fdin, fdout, change_schema):
         elif further_investigation_required:
             if line.startswith('ALTER TABLE'):
                 further_investigation_required = False
-                name = line.split()[-1]
-                output = check_valid_table(schema, name, dump_tables)
+                # Get the full qualified table name with the correct split
+                full_table_name = line.split()[2]
+                schemaname, tablename = smart_split(full_table_name)
+                schemaname, tablename = checkAndRemoveEnclosingDoubleQuote(schemaname), checkAndRemoveEnclosingDoubleQuote(tablename)
+                schemaname, tablename = removeEscapingDoubleQuoteInSQLString(schemaname, False), removeEscapingDoubleQuoteInSQLString(tablename, False)
+                output = check_valid_table(schemaname, tablename, dump_tables)
                 if output:
                     if line_buff:
                         fdout.write(line_buff)
@@ -176,6 +183,9 @@ def check_valid_table(schema, name, dump_tables):
     return output
 
 def get_table_schema_set(filename):
+    """
+    filename: file with true schema and table name (none escaped)
+    """
     dump_schemas = set()
     dump_tables = set()
 
@@ -219,7 +229,7 @@ def extract_table(line):
     if idx == -1:
         return None
     table = temp[:idx]
-    return table
+    return checkAndRemoveEnclosingDoubleQuote(table)
 
 def check_dropped_table(line, dump_tables):
     """
@@ -238,14 +248,16 @@ def process_data(dump_schemas, dump_tables, fdin, fdout, change_schema):
     for line in fdin:
         if (line[0] == set_start) and line.startswith(search_path_expr):
             schema = extract_schema(line)
-            if schema and schema in dump_schemas:
+            if schema and removeEscapingDoubleQuoteInSQLString(schema) in dump_schemas:
                 if change_schema:
                     line = line.replace(schema, change_schema)
+                else:
+                    schema = removeEscapingDoubleQuoteInSQLString(schema)
                 fdout.write(line)
         elif (line[0] == copy_start) and line.startswith(copy_expr) and line.endswith(copy_expr_end):
             table = extract_table(line)
             # removing the enclosing double quote only, don't do strip('"') in case table name has double quote
-            table = checkAndRemoveEnclosingDoubleQuote(table)
+            table = removeEscapingDoubleQuoteInSQLString(table)
             if table and (schema, table) in dump_tables or (schema, '*') in dump_tables:
                 output = True
         elif output and (line[0] == copy_end_start) and line.startswith(copy_end_expr):

@@ -685,6 +685,17 @@ def escapeDoubleQuoteInSQLString(string, forceDoubleQuote=True):
         string = '"' + string + '"'
     return string
 
+def removeEscapingDoubleQuoteInSQLString(string, forceDoubleQuote=True):
+    """
+    Remove the escaping double quote in database/schema/table name. 
+    """
+    string = checkAndRemoveEnclosingDoubleQuote(string)
+    string = string.replace('""', '"')
+
+    if forceDoubleQuote:
+        string = '"' + string + '"'
+    return string
+
 def formatSQLString(rel_file, isTableName=False):
     """
     Read the full qualified schema or table name, do a split 
