@@ -223,6 +223,8 @@ def extract_table(line):
     Instead of looking for table name ending index based on
     empty space, find it in the reverse way based on the ' ('
     whereas the column definition starts.
+    
+    Removing the enclosing double quote only, don't do strip('"') in case table name has double quote
     """
     temp = line[len_copy_expr:]
     idx = temp.rfind(" (")
@@ -248,17 +250,17 @@ def process_data(dump_schemas, dump_tables, fdin, fdout, change_schema):
     for line in fdin:
         if (line[0] == set_start) and line.startswith(search_path_expr):
             schema = extract_schema(line)
-            if schema and removeEscapingDoubleQuoteInSQLString(schema) in dump_schemas:
+            schema_wo_escaping = removeEscapingDoubleQuoteInSQLString(schema, False)
+            if schema and schema_wo_escaping in dump_schemas:
                 if change_schema:
                     line = line.replace(schema, change_schema)
                 else:
-                    schema = removeEscapingDoubleQuoteInSQLString(schema)
+                    schema = schema_wo_escaping
                 fdout.write(line)
         elif (line[0] == copy_start) and line.startswith(copy_expr) and line.endswith(copy_expr_end):
             table = extract_table(line)
-            # removing the enclosing double quote only, don't do strip('"') in case table name has double quote
-            table = removeEscapingDoubleQuoteInSQLString(table)
-            if table and (schema, table) in dump_tables or (schema, '*') in dump_tables:
+            table = removeEscapingDoubleQuoteInSQLString(table, False)
+            if table and ((schema, table) in dump_tables or (schema, '*') in dump_tables):
                 output = True
         elif output and (line[0] == copy_end_start) and line.startswith(copy_end_expr):
             table = None
@@ -267,7 +269,6 @@ def process_data(dump_schemas, dump_tables, fdin, fdout, change_schema):
 
         if output:
             fdout.write(line)
-
 
 
 if __name__ == "__main__":
