@@ -43,9 +43,7 @@ def get_table_info(line):
     type_start = find_all_expr_start(temp, type_expr)
     schema_start = find_all_expr_start(temp, schema_expr)
     owner_start = find_all_expr_start(temp, owner_expr)
-    if (len(type_start) > 1 or len(schema_start) > 1 or
-        len(owner_start) > 1 or len(type_start) == 0 or
-        len(schema_start) == 0 or len(owner_start) == 0):
+    if len(type_start) != 1 or len(schema_start) != 1 or len(owner_start) != 1:
         return (None, None, None)
     name = temp[len(comment_expr) : type_start[0]]
     type = temp[type_start[0] + len(type_expr) : schema_start[0]]
@@ -80,9 +78,7 @@ def process_schema(dump_schemas, dump_tables, fdin, fdout, change_schema):
     further_investigation_required = False
     search_path = True
     passedDropSchemaSection = False
-    ff = open('/tmp/line', 'w')
     for line in fdin:
-        ff.write('new line is %s\n' % line)
         if search_path and (line[0] == set_start) and line.startswith(search_path_expr):
             further_investigation_required = False
             # schema of set search_path is escaped in dump file
@@ -114,8 +110,6 @@ def process_schema(dump_schemas, dump_tables, fdin, fdout, change_schema):
             if type in ['TABLE', 'EXTERNAL TABLE']:
                 further_investigation_required = False
                 output = check_valid_table(schema, name, dump_tables)
-                ff.write('line is %s\n' % line)
-                ff.write('output is %s\n' % str(output))
                 if output:
                     search_path = True
             elif type in ['CONSTRAINT']:
@@ -162,7 +156,6 @@ def process_schema(dump_schemas, dump_tables, fdin, fdout, change_schema):
 
         if output:
             fdout.write(line)
-    ff.close()
 
 def check_valid_schema(name, dump_schemas):
     if name in dump_schemas:

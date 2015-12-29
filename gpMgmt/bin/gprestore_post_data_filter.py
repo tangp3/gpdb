@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
 from gppylib.gpparseopts import OptParser, OptChecker
-from gppylib.operations.backup_utils import smart_split, checkAndRemoveEnclosingDoubleQuote
+from gppylib.operations.backup_utils import smart_split, checkAndRemoveEnclosingDoubleQuote, removeEscapingDoubleQuoteInSQLString
 import re
 import sys
 
@@ -13,6 +13,8 @@ set_expr = 'SET '
 comment_start_expr = '-- '
 comment_expr = '-- Name: '
 comment_data_expr = '-- Data: '
+type_expr = '; Type: '
+schema_expr = '; Schema: '
 len_start_comment_expr = len(comment_start_expr)
 
 command_start_expr = 'CREATE '
@@ -22,7 +24,7 @@ def get_type(line):
     temp = line.strip()
     type_start = find_all_expr_start(temp, type_expr)
     schema_start = find_all_expr_start(temp, schema_expr)
-    if len(type_start) > 1 or len(schema_start) > 1:
+    if len(type_start) != 1 or len(schema_start) != 1:
         return None
     type = temp[type_start[0] + len(type_expr) : schema_start[0]]
     return type
@@ -46,6 +48,7 @@ def process_schema(dump_schemas, dump_tables, fdin, fdout):
             output = False
             further_investigation_required = False
             schema = extract_schema(line)
+            schema = removeEscapingDoubleQuoteInSQLString(schema, False)
             if schema in dump_schemas:
                 search_path = True
                 schema_buff = line
@@ -84,21 +87,23 @@ def process_schema(dump_schemas, dump_tables, fdin, fdout):
 
 # Given a line like 'ALTER TABLE ONLY tablename\n' and a search_str like ' ONLY ',
 # extract everything between the search_str and the next space or the end of the string, whichever comes first.
-# Handles both 'tablename' and 'schemaname.tablename' cases.
 def check_table(schema, line, search_str, dump_tables):
     try:
         comp_set = set()
         start = line.index(search_str) + len(search_str)
-        end = line.find(' ',start)
+        # table name with special chars is double quoted, so looking for last double quote as ending index
+        end = line.rindex('"')
         if end > 0:
-            table = line[start:end]
+            table = line[start:end+1]
         else:
-            table = line[start:].strip()
-        if table.find('.') > 0:
-            (schemaname, table) = table.split('.')
-            if schemaname != schema:
-                return False
-        comp_set.add((schema, table.strip('"')))
+            end = line.find(' ',start)
+            if end > 0:
+                table = line[start:end]
+            else:
+                table = line[start:].strip()
+        table = checkAndRemoveEnclosingDoubleQuote(table)
+        table = removeEscapingDoubleQuoteInSQLString(table, False)
+        comp_set.add((schema, table))
         if comp_set.issubset(dump_tables):
             return True
         return False
@@ -118,9 +123,6 @@ def get_table_schema_set(filename):
             table = checkAndRemoveEnclosingDoubleQuote(table.strip())
             dump_tables.add((schema, table))
             dump_schemas.add(schema)
-    with open('/tmp/save_post', 'w') as fw:
-        fw.write('schemas are %s' % dump_schemas)
-        fw.write('tables are %s' % dump_tables)
     return (dump_schemas, dump_tables)
 
 def extract_schema(line):
