@@ -95,6 +95,7 @@ class GpCronDump(Operation):
         self.exclude_schema_file = options.exclude_schema_file
         self.exclude_dump_schema = options.exclude_dump_schema
         self.dump_databases = options.dump_databases
+        print 'database to dump is ========= %s ' % self.dump_databases
         self.dump_global = options.dump_global
         self.clear_catalog_dumps = options.clear_catalog_dumps
         self.batch_default = options.batch_default

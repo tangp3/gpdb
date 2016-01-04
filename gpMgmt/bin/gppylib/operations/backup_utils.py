@@ -1,6 +1,7 @@
 import fnmatch
 import glob
 import os
+import re
 import tempfile
 import shutil
 from gppylib import gplog
@@ -187,17 +188,49 @@ def check_cdatabase_exists(dbname, report_file, dump_prefix, ddboost=False, netb
     ff = open("/tmp/dbnames", "w")
     for line in cdatabase_contents:
         if 'CREATE DATABASE' in line:
-            parts = line.split()
-            if len(parts) < 3:
+            dump_dbname = get_dbname_from_cdatabaseline(line)
+            if dump_dbname is None:
                 continue
-            if parts[2] is not None:
-                ff.write("before strip: %s\n" % parts[2])
-                ff.write("after strip: %s\n" % parts[2].strip('"'))
-                ff.write("dbname: %s\n" % dbname)
-                ff.close()
-            if parts[2] is not None and dbname == parts[2].strip('"'):
-                return True
+            else:
+                ff.write("dump dbname: %s\n" % dump_dbname)
+                if dbname == dump_dbname.strip('"'):
+                    return True
+    ff.close()
     return False
+
+def get_dbname_from_cdatabaseline(line):
+    """
+    Line format: CREATE DATABASE "DBNAME" WITH TEMPLATE = template0 ENCODING = 'UTF8' OWNER = gpadmin;
+
+    To get the dbname:
+    substring between the ending index of the first statement: CREATE DATABASE and the starting index
+    of WITH TEMPLATE whichever is not inside any double quotes, based on the fact that double quote
+    inside any name will be escaped by extra double quote, so there's always only one WITH TEMPLATE not
+    inside any doubles, means its previous and post string should have only even number of double
+    quotes.
+    Note: OWER name can also have special characters with double quote.
+    """
+    cdatabase = "CREATE DATABASE "
+    start = line.index(cdatabase)
+    with_template = " WITH TEMPLATE = "
+    all_positions = get_all_occurrences(with_template, line)
+    if all_positions != None:
+        for pos in all_positions:
+            pre_string = line[:pos]
+            post_string = line[pos + len(with_template):]
+            double_quotes_before = get_all_occurrences('"', pre_string)
+            double_quotes_after = get_all_occurrences('"', post_string)
+            num_double_quotes_before = 0 if double_quotes_before is None else len(double_quotes_before)
+            num_double_quotes_after = 0 if double_quotes_after is None else len(double_quotes_after)
+            if num_double_quotes_before % 2 == 0 and num_double_quotes_after % 2 == 0:
+                dbname = line[start+len(cdatabase) : pos]
+                return dbname
+    return None
+
+def get_all_occurrences(substr, line):
+    if substr is None or line is None or len(substr) > len(line):
+        return None
+    return [m.start() for m in re.finditer('(?=%s)' % substr, line)]
 
 def get_type_ts_from_report_file(dbname, report_file, backup_type, dump_prefix, ddboost=False, netbackup_service_host=None, netbackup_block_size=None):
     report_file_contents = get_lines_from_file(report_file)
