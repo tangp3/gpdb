@@ -1,6 +1,8 @@
 #!/usr/bin/env python
 
 from gppylib.gpparseopts import OptParser, OptChecker
+from gppylib.operations.backup_utils import smart_split, checkAndRemoveEnclosingDoubleQuote, removeEscapingDoubleQuoteInSQLString
+import re
 import sys
 
 search_path_expr = 'SET search_path = '
@@ -11,19 +13,27 @@ set_expr = 'SET '
 comment_start_expr = '-- '
 comment_expr = '-- Name: '
 comment_data_expr = '-- Data: '
+type_expr = '; Type: '
+schema_expr = '; Schema: '
 len_start_comment_expr = len(comment_start_expr)
 
 command_start_expr = 'CREATE '
 len_command_start_expr = len(command_start_expr)
 
 def get_type(line):
-    try:
-        temp = line[len_start_comment_expr:]
-        tokens = temp.strip().split(';')
-        type = tokens[1].split(':')[1].strip()
-    except:
+    temp = line.strip()
+    type_start = find_all_expr_start(temp, type_expr)
+    schema_start = find_all_expr_start(temp, schema_expr)
+    if len(type_start) != 1 or len(schema_start) != 1:
         return None
+    type = temp[type_start[0] + len(type_expr) : schema_start[0]]
     return type
+
+def find_all_expr_start(line, expr):
+    """
+    Find all overlapping matches
+    """
+    return [m.start() for m in re.finditer('(?=%s)' % expr, line)]
 
 def process_schema(dump_schemas, dump_tables, fdin, fdout):
     schema = None
@@ -38,6 +48,7 @@ def process_schema(dump_schemas, dump_tables, fdin, fdout):
             output = False
             further_investigation_required = False
             schema = extract_schema(line)
+            schema = removeEscapingDoubleQuoteInSQLString(schema, False)
             if schema in dump_schemas:
                 search_path = True
                 schema_buff = line
@@ -76,21 +87,23 @@ def process_schema(dump_schemas, dump_tables, fdin, fdout):
 
 # Given a line like 'ALTER TABLE ONLY tablename\n' and a search_str like ' ONLY ',
 # extract everything between the search_str and the next space or the end of the string, whichever comes first.
-# Handles both 'tablename' and 'schemaname.tablename' cases.
 def check_table(schema, line, search_str, dump_tables):
     try:
         comp_set = set()
         start = line.index(search_str) + len(search_str)
-        end = line.find(' ',start)
+        # table name with special chars is double quoted, so looking for last double quote as ending index
+        end = line.rindex('"')
         if end > 0:
-            table = line[start:end]
+            table = line[start:end+1]
         else:
-            table = line[start:].strip()
-        if table.find('.') > 0:
-            (schemaname, table) = table.split('.')
-            if schemaname != schema:
-                return False
-        comp_set.add((schema, table.strip('"')))
+            end = line.find(' ',start)
+            if end > 0:
+                table = line[start:end]
+            else:
+                table = line[start:].strip()
+        table = checkAndRemoveEnclosingDoubleQuote(table)
+        table = removeEscapingDoubleQuoteInSQLString(table, False)
+        comp_set.add((schema, table))
         if comp_set.issubset(dump_tables):
             return True
         return False
@@ -105,24 +118,27 @@ def get_table_schema_set(filename):
         contents = fd.read()
         tables = contents.splitlines()
         for t in tables:
-            parts = t.split('.')
-            if len(parts) != 2:
-                raise Exception("Bad table in filter list")
-            schema = parts[0].strip()
-            table = parts[1].strip()
+            schema, table = smart_split(t)
+            schema = checkAndRemoveEnclosingDoubleQuote(schema.strip())
+            table = checkAndRemoveEnclosingDoubleQuote(table.strip())
             dump_tables.add((schema, table))
             dump_schemas.add(schema)
-
     return (dump_schemas, dump_tables)
 
 def extract_schema(line):
+    """
+    Instead of searching ',' in forwarding way, search ', pg_catalog;' 
+    reversely, in case schema name contains comma.
+
+    Remove enclosing double quotes only, in case quote is part of the
+    schema name
+    """
     temp = line[len_search_path_expr:]
-    idx = temp.find(",")
+    idx = temp.rfind(", pg_catalog;")
     if idx == -1:
         return None
     schema = temp[:idx]
-    return schema.strip('"')
-
+    return checkAndRemoveEnclosingDoubleQuote(schema)
 
 if __name__ == "__main__":
     parser = OptParser(option_class=OptChecker)

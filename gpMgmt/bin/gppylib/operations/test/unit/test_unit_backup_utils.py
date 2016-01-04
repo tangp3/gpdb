@@ -909,7 +909,7 @@ class BackupUtilsTestCase(unittest.TestCase):
         self.assertEquals(full_ts, '20130207093000')
 
     def test_check_funny_chars_in_tablenames_00(self):
-        tablenames = ['hello, world', 'correct']
+        tablenames = ['hello! world', 'correct']
         with self.assertRaisesRegexp(Exception, 'Tablename has an invalid character'):
             check_funny_chars_in_tablenames(tablenames)
 
@@ -919,11 +919,6 @@ class BackupUtilsTestCase(unittest.TestCase):
             check_funny_chars_in_tablenames(tablenames)
 
     def test_check_funny_chars_in_tablenames_02(self):
-        tablenames = ['hello:world', 'propertablename']
-        with self.assertRaisesRegexp(Exception, 'Tablename has an invalid character'):
-            check_funny_chars_in_tablenames(tablenames)
-
-    def test_check_funny_chars_in_tablenames_03(self):
         tablenames = ['helloworld', 'propertablename']
         check_funny_chars_in_tablenames(tablenames) #should not raise an exception
 

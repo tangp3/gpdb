@@ -15,6 +15,8 @@
 
 #include "regex/regex.h"
 #include "libpq/libpq-be.h"
+#include "gp-libpq-fe.h"
+#include "gp-libpq-int.h"
 #include "fmgr.h"
 #include "funcapi.h"
 #include "utils/builtins.h"
@@ -58,6 +60,7 @@ static char* parse_prefix_from_params(char *params);
 static char* parse_status_from_params(char *params);
 static char* parse_option_from_params(char *params, char *option);
 static char *queryNBUBackupFilePathName(char *netbackupServiceHost, char *netbackupRestoreFileName);
+static char *shellEscape(const char *shellArg, PQExpBuffer escapeBuf);
 
 
 #ifdef USE_DDBOOST
@@ -189,6 +192,7 @@ gp_backup_launch__(PG_FUNCTION_ARGS)
 	int	   len;
 	int	   instid;			/* dispatch node */
 	bool	   is_compress;
+	FILE		*ff = fopen("/tmp/cdbbk", "w");
 	itimers    savetimers;
 
 	char       *pszThrottleCmd;
@@ -201,6 +205,8 @@ gp_backup_launch__(PG_FUNCTION_ARGS)
 	char		*gpDDBoostCmdLine = NULL;
 	char 		*temp = NULL, *pch = NULL, *pchs = NULL;
 #endif
+
+	//sleep(60);
 
 	verifyGpIdentityIsSet();
 	instid = (GpIdentity.segindex == -1) ? 1 : 0;	/* dispatch node */
@@ -307,6 +313,8 @@ gp_backup_launch__(PG_FUNCTION_ARGS)
 		}
 	}
 
+	PQExpBuffer escapeBuf = createPQExpBuffer();
+
 	pszDBName = NULL;
 	pszUserName = (char *) NULL;
 	if (MyProcPort != NULL)
@@ -317,6 +325,12 @@ gp_backup_launch__(PG_FUNCTION_ARGS)
 
 	if (pszDBName == NULL)
 		pszDBName = "";
+	else
+	{
+		fprintf(ff, "before escape %s\n", pszDBName);
+		pszDBName = shellEscape(pszDBName, escapeBuf);
+		fprintf(ff, "after escape %s\n", pszDBName);
+	}
 	if (pszUserName == NULL)
 		pszUserName = "";
 
@@ -672,6 +686,8 @@ gp_backup_launch__(PG_FUNCTION_ARGS)
 	}
 #endif
 
+	fprintf(ff, "command line is %s\n", pszCmdLine);
+	fclose(ff);
 	elog(LOG, "gp_dump_agent command line: %s", pszCmdLine),
 
 
@@ -2333,3 +2349,62 @@ static char *formDDBoostFileName(char *pszBackupKey, bool isPostData, bool isCom
        return pszBackupFileName;
 }
 #endif
+
+
+/*
+ * shellEscape: Returns a string in which the shell-significant quoted-string characters are
+ * escaped.
+ *
+ * This function escapes the following characters: '"', '$', '`', '\', '!', '''.
+ *
+ * The StringInfo escapeBuf is used for assembling the escaped string and is reset at the
+ * start of this function.
+ *
+ * The return value of this function is the data area from excapeBuf.
+ */
+char *
+shellEscape(const char *shellArg, PQExpBuffer escapeBuf)
+{
+        const char *s = shellArg;
+        const char      escape = '\\';
+	bool		quoted = false;
+
+        resetPQExpBuffer(escapeBuf);
+
+	int len = strlen(shellArg);
+
+	if(len > 2 && shellArg[0] == '\"' && shellArg[len - 1] == '\"')
+	{
+		quoted = true;
+	}
+
+	if (!quoted)
+	{
+		appendPQExpBufferChar(escapeBuf, '\"');
+		
+	}
+        /*
+         * Copy the shellArg into the escapeBuf prepending any characters
+         * requiring an escape with the escape character.
+         */
+        while (*s != '\0')
+        {
+                switch (*s)
+                {
+                        case '"':
+                        case '$':
+                        case '\\':
+                        case '`':
+                        case '!':
+                                appendPQExpBufferChar(escapeBuf, escape);
+                }
+                appendPQExpBufferChar(escapeBuf, *s);
+                s++;
+        }
+
+	if(!quoted)
+	{
+		appendPQExpBufferChar(escapeBuf, '\"');
+	}
+        return escapeBuf->data;
+}
