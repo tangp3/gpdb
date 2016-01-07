@@ -253,6 +253,16 @@ cleanup:
 
 	if (pConn != NULL)
 		PQfinish(pConn);
+	if (dump_prefix != NULL)
+		free(dump_prefix);
+	if (status_file_dir != NULL)
+		free(status_file_dir);
+	if (netbackup_service_host != NULL)
+		free(netbackup_service_host);
+	if (netbackup_block_size != NULL)
+		free(netbackup_block_size);
+	if (change_schema != NULL)
+		free(change_schema);
 
 	return failCount;
 }
@@ -752,8 +762,6 @@ fillInputOptions(int argc, char **argv, InputOptions * pInputOpts)
 			case 17:
 				change_schema = Safe_strdup(optarg);
 				pInputOpts->pszPassThroughParms = addPassThroughLongParm("change-schema", change_schema, pInputOpts->pszPassThroughParms);
-				if (change_schema!= NULL)
-					free(change_schema);
 				break;
 			default:
 				mpp_err_msg_cache(logError, progname, "Try \"%s --help\" for more information.\n", progname);
@@ -1138,6 +1146,11 @@ threadProc(void *arg)
 										 pszKey, sSegDB->dbid, tSegDB->dbid);
 			mpp_err_msg(logError, progname, pParm->pszErrorMsg);
 			PQfinish(pConn);
+			free(pszNotifyRelName);
+			free(pszNotifyRelNameStart);
+			free(pszNotifyRelNameSucceed);
+			free(pszNotifyRelNameFail);
+			free(pollInput);
 			return NULL;
 		}
 
@@ -1148,6 +1161,11 @@ threadProc(void *arg)
 			pParm->pszErrorMsg = MakeString("connection went down for backup key %s, source dbid %d, target dbid %d\n",
 										 pszKey, sSegDB->dbid, tSegDB->dbid);
 			mpp_err_msg(logFatal, progname, pParm->pszErrorMsg);
+			free(pszNotifyRelName);
+			free(pszNotifyRelNameStart);
+			free(pszNotifyRelNameSucceed);
+			free(pszNotifyRelNameFail);
+			free(pollInput);
 			PQfinish(pConn);
 			return NULL;
 		}
@@ -1632,7 +1650,7 @@ reportRestoreResults(const char *pszReportDirectory, const ThreadParm * pMasterP
 		else
 		{
 			/* $MASTER_DATA_DIRECTORY not set. Default to current directory */
-			pszReportDirectory = "./";
+			pszReportDirectory = Safe_strdup("./");
 		}
 	}
 
@@ -1643,6 +1661,11 @@ reportRestoreResults(const char *pszReportDirectory, const ThreadParm * pMasterP
 		pszFormat = "%s%sgp_restore_%s.rpt";
 
 	pszReportPathName = MakeString(pszFormat, pszReportDirectory, DUMP_PREFIX, pOptions->pszKey);
+	if (pszReportPathName == NULL)
+	{
+		mpp_err_msg(logError, progname, "Cannot allocate memory for report file path\n");
+		exit(-1);
+	}
 
 	fRptFile = fopen(pszReportPathName, "w");
 	if (fRptFile == NULL)
@@ -1738,6 +1761,8 @@ reportRestoreResults(const char *pszReportDirectory, const ThreadParm * pMasterP
 
 	if (pszReportPathName != NULL)
 		free(pszReportPathName);
+	if(pszReportDirectory != NULL)
+		free(pszReportDirectory);
 
 	destroyPQExpBuffer(reportBuf);
 
@@ -1800,7 +1825,7 @@ reportMasterError(InputOptions inputopts, const ThreadParm * pMasterParm, const 
 		else
 		{
 			/* $MASTER_DATA_DIRECTORY not set. Default to current directory */
-			pszReportDirectory = "./";
+			pszReportDirectory = Safe_strdup("./");
 		}
 	}
 
@@ -1811,6 +1836,11 @@ reportMasterError(InputOptions inputopts, const ThreadParm * pMasterParm, const 
 		pszFormat = "%sgp_restore_%s.rpt";
 
 	pszReportPathName = MakeString(pszFormat, pszReportDirectory, pOptions->pszKey);
+	if (pszReportPathName == NULL)
+	{
+		mpp_err_msg(logError, progname, "Cannot allocate memory for report file path\n");
+		exit(-1);
+	}
 
 	fRptFile = fopen(pszReportPathName, "w");
 	if (fRptFile == NULL)
@@ -1875,6 +1905,9 @@ reportMasterError(InputOptions inputopts, const ThreadParm * pMasterParm, const 
 
 	if (pszReportPathName != NULL)
 		free(pszReportPathName);
+
+	if (pszReportDirectory != NULL)
+		free(pszReportDirectory);
 
 	destroyPQExpBuffer(reportBuf);
 
