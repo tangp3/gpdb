@@ -389,7 +389,7 @@ def _build_gpdbrestore_cmd_line(ts, table_file, backup_dir, redirected_restore_d
     if netbackup_block_size:
         cmd += " --netbackup-block-size=%s" % netbackup_block_size
     if change_schema:
-        cmd += " --change-schema=%s" % change_schema
+        cmd += " --change-schema=%s" % checkAndAddEnclosingDoubleQuote(shellEscape(change_schema))
 
     return cmd
 
@@ -791,8 +791,9 @@ class RestoreDatabase(Operation):
 
             logger.info("Creating Database %s" % restore_db)
             if count == 0:
-                createdb_qry = 'create database %s ;' % escapeDoubleQuoteInSQLString(restore_db)
-                execSQL(conn, createdb_qry)
+                cmd = Command(name='create database %s' % restore_db,
+                              cmdStr='createdb %s -p %s -T template0' % (checkAndAddEnclosingDoubleQuote(shellEscape(restore_db)), master_port))
+                cmd.run(validateAfter=True)
             logger.info("Created Database %s" % restore_db)
         except ExecutionError, e:
             logger.exception("Could not create database %s" % restore_db)
@@ -891,7 +892,7 @@ class RestoreDatabase(Operation):
         if self.netbackup_block_size:
             restore_line += " --netbackup-block-size=%s" % self.netbackup_block_size
         if change_schema:
-            restore_line += " --change-schema=%s" % change_schema
+            restore_line += " --change-schema=%s" % checkAndAddEnclosingDoubleQuote(shellEscape(change_schema))
 
         return restore_line
 
@@ -971,7 +972,7 @@ class RestoreDatabase(Operation):
         if self.netbackup_block_size:
             restore_line += " --netbackup-block-size=%s" % self.netbackup_block_size
         if self.change_schema:
-            restore_line += " --change-schema=%s" % self.change_schema
+            restore_line += " --change-schema=%s" % checkAndAddEnclosingDoubleQuote(shellEscape(self.change_schema))
 
         return restore_line
 
