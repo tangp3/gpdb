@@ -1015,8 +1015,8 @@ class Psql(Command):
         else:
             raise Exception('Psql must be passed a query or a filename.')    
 
-        # shell escape database in case any funny chars
-        cmdStr += '%s ' % shellEscape(database)
+        # shell escape and force double quote of database in case of any funny chars
+        cmdStr += '"%s" ' % shellEscape(database)
 
         # Need to escape " for REMOTE or it'll interfere with ssh
         if ctxt == REMOTE:

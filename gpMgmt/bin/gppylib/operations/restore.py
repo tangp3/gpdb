@@ -405,7 +405,7 @@ def truncate_restore_tables(restore_tables, master_port, dbname):
         for restore_table in restore_tables:
             schemaname, tablename = smart_split(restore_table)
 
-            if table == '*':
+            if tablename == '*':
                 get_all_tables_qry = 'select \'"\' || schemaname || \'"\', \'"\' || tablename || \'"\' from pg_tables where schemaname = \'%s\';' % pg.escape_string(schemaname)
                 relations = execSQL(conn, get_all_tables_qry)
                 for relation in relations:
@@ -765,12 +765,13 @@ class RestoreDatabase(Operation):
         try:
             dburl = dbconn.DbURL(port=master_port, dbname='template1')
             conn = dbconn.connect(dburl)
-            count = execSQLForSingleton(conn, "select count(*) from pg_database where datname='%s';" % restore_db)
+            count = execSQLForSingleton(conn, "select count(*) from pg_database where datname='%s';" % pg.escape_string(restore_db))
 
             logger.info("Dropping Database %s" % restore_db)
             if count == 1:
-                dropdb_qry = 'drop database %s' % escapeDoubleQuoteInSQLString(restore_db)
-                execSQL(conn, dropdb_qry)
+                cmd = Command(name='drop database %s' % restore_db, 
+                              cmdStr='dropdb %s -p %s' % (checkAndAddEnclosingDoubleQuote(shellEscape(restore_db)), master_port))
+                cmd.run(validateAfter=True)
             logger.info("Dropped Database %s" % restore_db)
         except ExecutionError, e:
             logger.exception("Could not drop database %s" % restore_db)
