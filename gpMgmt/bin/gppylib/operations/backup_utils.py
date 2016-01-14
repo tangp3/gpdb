@@ -687,6 +687,7 @@ def getRows(dbname, exec_sql):
 def check_schema_exists(schema_name, dbname):
     schemaname = pg.escape_string(schema_name)
     schema_check_sql = "select * from pg_catalog.pg_namespace where nspname='%s';" % schemaname
+    logger.info('check schema sql is %s' % schema_check_sql)
     if len(getRows(dbname, schema_check_sql)) < 1:
         return False
     return True

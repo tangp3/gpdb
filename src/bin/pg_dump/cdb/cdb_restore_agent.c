@@ -1015,8 +1015,8 @@ main(int argc, char **argv)
 
 	DestroyStatusOpList(g_pStatusOpList);
 
-    if (change_schema)
-        free(change_schema);
+	if (change_schema)
+		free(change_schema);
 	if (SegDB.pszHost)
 		free(SegDB.pszHost);
 	if (SegDB.pszDBName)
