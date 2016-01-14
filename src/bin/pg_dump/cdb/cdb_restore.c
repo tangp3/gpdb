@@ -18,7 +18,6 @@
 #include "libpq-fe.h"
 #include "fe-auth.h"
 #include "pg_backup.h"
-#include "dumputils.h"
 #include "cdb_table.h"
 #include "cdb_dump_util.h"
 #include "cdb_backup_state.h"
@@ -73,9 +72,6 @@ static char * addPassThroughLongParm(const char *Parm, const char *pszValue, cha
 static char *dump_prefix = NULL;
 static char *status_file = NULL;
 
-PGconn	   *g_conn = NULL;
-PQExpBuffer queryBuf = NULL;
-
 /* NetBackup related variable */
 static char *netbackup_service_host = NULL;
 static char *netbackup_block_size = NULL;
@@ -89,12 +85,12 @@ static int dd_boost_enabled = 0;
 int
 main(int argc, char **argv)
 {
+	PGconn	   *pConn = NULL;
 	int			failCount = -1;
 	int			i;
 	bool		found_master;
 	SegmentDatabase *sourceSegDB = NULL;
 	SegmentDatabase *targetSegDB = NULL;
-	queryBuf = createPQExpBuffer();
 
 	/* This struct holds the values of the command line parameters */
 	InputOptions inputOpts;
@@ -137,10 +133,10 @@ main(int argc, char **argv)
 				StringNotNull(inputOpts.pszPGPort, "5432"),
 				StringNotNull(inputOpts.pszMasterDBName, "?"));
 
-	g_conn = GetMasterConnection(progname, inputOpts.pszMasterDBName, inputOpts.pszPGHost,
+	pConn = GetMasterConnection(progname, inputOpts.pszMasterDBName, inputOpts.pszPGHost,
 								inputOpts.pszPGPort, inputOpts.pszUserName,
 								bForcePassword, bIgnoreVersion, true);
-	if (g_conn == NULL)
+	if (pConn == NULL)
 	{
 		masterParm.pOptionsData = &inputOpts;
 		failCount = reportMasterError(inputOpts, &masterParm,
@@ -151,7 +147,7 @@ main(int argc, char **argv)
 
 	/* Read mpp segment databases configuration from the master */
 	mpp_err_msg(logInfo, progname, "Reading Greenplum Database configuration info from master segment database.\n");
-	if (!GetRestoreSegmentDatabaseArray(g_conn, &restorePairAr, inputOpts.backupLocation, inputOpts.pszRawDumpSet, dataOnly))
+	if (!GetRestoreSegmentDatabaseArray(pConn, &restorePairAr, inputOpts.backupLocation, inputOpts.pszRawDumpSet, dataOnly))
 		goto cleanup;
 
 	/* find master node */
@@ -185,7 +181,7 @@ main(int argc, char **argv)
 	 */
 	if (!dataOnly && found_master && schemaRestore)
 	{
-		if (!restoreMaster(&inputOpts, g_conn, sourceSegDB, targetSegDB, &masterParm))
+		if (!restoreMaster(&inputOpts, pConn, sourceSegDB, targetSegDB, &masterParm))
 		{
 			failCount = reportMasterError(inputOpts, &masterParm, NULL);
 			goto cleanup;
@@ -202,7 +198,7 @@ main(int argc, char **argv)
 			 * Create the threads to talk to each of the databases being
 			 * restored. Wait for them to finish.
 			 */
-			spinOffThreads(g_conn, &inputOpts, &restorePairAr, &parmAr);
+			spinOffThreads(pConn, &inputOpts, &restorePairAr, &parmAr);
 
 			mpp_err_msg(logInfo, progname, "All remote %s programs are finished.\n", pszAgent);
 		}
@@ -211,7 +207,7 @@ main(int argc, char **argv)
 		 * If any AO table data was restored, update the master AO statistics
 		 */
 		if (bAoStats)
-			updateAppendOnlyStats(g_conn);
+			updateAppendOnlyStats(pConn);
 	}
 
 	/*
@@ -231,7 +227,7 @@ main(int argc, char **argv)
 		strcat(newParms, " --post-data-schema-only");
 		inputOpts.pszPassThroughParms = newParms;
 
-		if (!restoreMaster(&inputOpts, g_conn, sourceSegDB, targetSegDB, &masterParm))
+		if (!restoreMaster(&inputOpts, pConn, sourceSegDB, targetSegDB, &masterParm))
 		{
 			failCount = reportMasterError(inputOpts, &masterParm, NULL);
 			goto cleanup;
@@ -255,8 +251,8 @@ cleanup:
 	if (masterParm.pszRemoteBackupPath)
 		free(masterParm.pszRemoteBackupPath);
 
-	if (g_conn != NULL)
-		PQfinish(g_conn);
+	if (pConn != NULL)
+		PQfinish(pConn);
 
 	destroyPQExpBuffer(queryBuf);
 
@@ -757,13 +753,7 @@ fillInputOptions(int argc, char **argv, InputOptions * pInputOpts)
 				break;
 			case 17:
 				change_schema = Safe_strdup(optarg);
-				resetPQExpBuffer(queryBuf);
-				appendStringLiteralConn(queryBuf, change_schema, g_conn);
-				FILE *ff = fopen("/tmp/change_schema", "w");
-				fprintf(ff, "before escape: %s\n", change_schema);
-				fprintf(ff, "after escape: %s\n", queryBuf->data);
-				fclose(ff);
-				pInputOpts->pszPassThroughParms = addPassThroughLongParm("change-schema", queryBuf->data, pInputOpts->pszPassThroughParms);
+				pInputOpts->pszPassThroughParms = addPassThroughLongParm("change-schema", change_schema, pInputOpts->pszPassThroughParms);
 				if (change_schema!= NULL)
 					free(change_schema);
 				break;
