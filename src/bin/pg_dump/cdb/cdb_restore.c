@@ -254,8 +254,6 @@ cleanup:
 	if (pConn != NULL)
 		PQfinish(pConn);
 
-	destroyPQExpBuffer(queryBuf);
-
 	return (failCount == 0 ? 0 : 1);
 }
 
