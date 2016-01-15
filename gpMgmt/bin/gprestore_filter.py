@@ -1,8 +1,10 @@
 #!/usr/bin/env python
 
 from gppylib.gpparseopts import OptParser, OptChecker
-from gppylib.operations.backup_utils import smart_split, checkAndRemoveEnclosingDoubleQuote, removeEscapingDoubleQuoteInSQLString
+from gppylib.operations.backup_utils import smart_split, checkAndRemoveEnclosingDoubleQuote, removeEscapingDoubleQuoteInSQLString,\
+                                            escapeDoubleQuoteInSQLString, checkAndAddEnclosingDoubleQuote 
 import re
+import os
 import sys
 
 search_path_expr = 'SET search_path = '
@@ -85,7 +87,7 @@ def process_schema(dump_schemas, dump_tables, fdin, fdout, change_schema=None):
             schema = extract_schema(line)
             if removeEscapingDoubleQuoteInSQLString(schema, False) in dump_schemas:
                 if change_schema:
-                    line = line.replace(schema, change_schema)
+                    line = line.replace(schema, escapeDoubleQuoteInSQLString(change_schema, False))
                 output = True
                 search_path = False
             else:
@@ -237,7 +239,7 @@ def check_dropped_table(line, dump_tables):
     return False
 
 def process_data(dump_schemas, dump_tables, fdin, fdout, change_schema=None):
-    schema, table = None, None
+    schema, table, schema_wo_escaping = None, None, None
     output = False
     #PYTHON PERFORMANCE IS TRICKY .... THIS CODE IS LIKE THIS BECAUSE ITS FAST
     for line in fdin:
@@ -246,14 +248,14 @@ def process_data(dump_schemas, dump_tables, fdin, fdout, change_schema=None):
             schema_wo_escaping = removeEscapingDoubleQuoteInSQLString(schema, False)
             if schema and schema_wo_escaping in dump_schemas:
                 if change_schema:
-                    line = line.replace(schema, change_schema)
+                    line = line.replace(schema, escapeDoubleQuoteInSQLString(change_schema, False))
                 else:
                     schema = schema_wo_escaping
                 fdout.write(line)
         elif (line[0] == copy_start) and line.startswith(copy_expr) and line.endswith(copy_expr_end):
             table = extract_table(line)
             table = removeEscapingDoubleQuoteInSQLString(table, False)
-            if table and ((schema, table) in dump_tables or (schema, '*') in dump_tables):
+            if table and ((schema_wo_escaping, table) in dump_tables or (schema_wo_escaping, '*') in dump_tables):
                 output = True
         elif output and (line[0] == copy_end_start) and line.startswith(copy_end_expr):
             table = None
@@ -270,20 +272,22 @@ if __name__ == "__main__":
     parser.add_option('-h', '-?', '--help', action='store_true')
     parser.add_option('-t', '--tablefile', type='string', default=None)
     parser.add_option('-m', '--master_only', action='store_true')
-    parser.add_option('-c', '--change_schema', type='string', default=None)
+    parser.add_option('-c', '--change_schema_file', type='string', default=None)
     (options, args) = parser.parse_args()
     if not options.tablefile:
         raise Exception('-t table file name has to be specified')
     (schemas, tables) = get_table_schema_set(options.tablefile)
 
     change_schema = None
-    if options.change_schema:
-        if not os.path.exists(options.change_schema):
-            raise Exception('change schema file path %s does not exist' % options.change_schema)
-        with open(options.change_schema, 'r') as fr:
+    if options.change_schema_file:
+        if not os.path.exists(options.change_schema_file):
+            raise Exception('change schema file path %s does not exist' % options.change_schema_file)
+        with open(options.change_schema_file, 'r') as fr:
             line = fr.read()
             change_schema = line.strip('\n')
-            change_schema = checkAndRemoveEnclosingDoubleQuote(change_schema)
+
+    with open("/tmp/change_schema_in_filter", 'w') as fw:
+        fw.write('changem schema is %s' % change_schema)
 
     if options.master_only:
         process_schema(schemas, tables, sys.stdin, sys.stdout, change_schema)

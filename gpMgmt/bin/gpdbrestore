@@ -88,6 +88,7 @@ class GpdbRestore(Operation):
         self.change_schema = options.change_schema
         self.restore_stats = options.restore_stats
         self.metadata_only = options.metadata_only
+        self.schema_level_restore_list = None
 
         if self.restore_stats:
             self.no_analyze = True
@@ -254,9 +255,9 @@ class GpdbRestore(Operation):
 
         if len(self.restore_tables) > 0 and self.truncate:
             if self.redirected_restore_db:
-                truncate_restore_tables(self.restore_tables, self.master_port, self.redirected_restore_db)
+                truncate_restore_tables(self.restore_tables, self.master_port, self.redirected_restore_db, self.schema_level_restore_list)
             else:
-                truncate_restore_tables(self.restore_tables, self.master_port, info['restore_db'])
+                truncate_restore_tables(self.restore_tables, self.master_port, info['restore_db'], self.schema_level_restore_list)
 
         if is_begin_incremental_run(self.master_datadir, self.backup_dir, self.dump_dir, self.dump_prefix, info['restore_timestamp'], self.no_plan):
             if self.netbackup_service_host:
@@ -287,7 +288,8 @@ class GpdbRestore(Operation):
                         metadata_only = self.metadata_only,
                         netbackup_service_host = self.netbackup_service_host,
                         netbackup_block_size = self.netbackup_block_size,
-                        change_schema = self.change_schema).run()
+                        change_schema = self.change_schema
+                        schema_level_restore_list = self.schema_level_restore_list).run()
 
         if self.no_analyze and not self.restore_stats:
             logger.warn('--------------------------------------------------------------------------------------------------')
@@ -429,7 +431,7 @@ class GpdbRestore(Operation):
 
         table_counts = []
         if len(self.restore_tables) > 0:
-            self.restore_tables = validate_tablenames(self.restore_tables)
+            self.restore_tables, self.schema_level_restore_list = validate_tablenames(self.restore_tables)
 
         if not self.db_host_path and not self.ddboost:
             report_filename = generate_report_filename(self.master_datadir, self.backup_dir, self.dump_dir, self.dump_prefix, restore_timestamp)

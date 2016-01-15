@@ -113,6 +113,9 @@ def create_temp_file_from_list(entries, prefix):
 def create_temp_file_with_tables(table_list):
     return create_temp_file_from_list(table_list, 'table_list_')
 
+def create_temp_file_with_schemas(schema_list):
+    return create_temp_file_from_list(schema_list, 'schema_file_')
+
 def validate_timestamp(timestamp):
     if not timestamp:
         return False
