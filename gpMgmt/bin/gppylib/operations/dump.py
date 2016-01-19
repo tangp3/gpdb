@@ -372,6 +372,8 @@ def write_dirty_file(mdd, dirty_tables, backup_dir, dump_dir, dump_prefix, times
     if dirty_tables is None:
         return None
 
+    logger.info('==========dirty tables are %s ==========' % dirty_tables)
+
     dirty_list_file = generate_dirtytable_filename(mdd, backup_dir, dump_dir, dump_prefix, timestamp_key, ddboost)
     write_lines_to_file(dirty_list_file, dirty_tables)
 
@@ -535,12 +537,14 @@ def filter_dirty_tables(dirty_tables, dump_database, master_datadir, backup_dir,
     filter_file = get_filter_file(dump_database, master_datadir, backup_dir, dump_dir, dump_prefix, ddboost, netbackup_service_host, netbackup_block_size)
     if filter_file:
         tables_to_filter = get_lines_from_file(filter_file)
+        logger.info('=============== Tables to filter are %s =============' % tables_to_filter)
         dirty_copy = dirty_tables[:]
         for table in dirty_copy:
             if table not in tables_to_filter:
                 if os.path.exists(schema_filename):
                     schemas_to_filter = get_lines_from_file(schema_filename)
-                    table_schema = smart_split(table)[0].strip()
+                    logger.info('============ Schemas to filter are %s ==============' % schemas_to_filter)
+                    table_schema = smart_split(table)[0]
                     if table_schema not in schemas_to_filter:
                         dirty_tables.remove(table)
                 else:

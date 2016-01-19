@@ -97,12 +97,16 @@ def get_batch_from_list(length, batch_size):
     return indices
 
 def create_temp_file_from_list(entries, prefix):
+    """
+    When writing the entries into temp file, don't do any strip as there might be
+    white space in schema name and table name.
+    """
     if len(entries) == 0:
         return None
 
     fd = tempfile.NamedTemporaryFile(mode='w', prefix=prefix, delete=False)
     for entry in entries:
-        fd.write(entry.rstrip() + '\n')
+        fd.write(entry + '\n')
     tmp_file_name = fd.name
     fd.close()
 
@@ -273,6 +277,9 @@ def check_backup_type(report_file_contents, backup_type):
     return False
 
 def get_lines_from_file(fname, ddboost=None):
+    """
+    Don't strip white space here as it may be part of schema name and table name
+    """
     content = []
     if ddboost:
         contents = get_lines_from_dd_file(fname)
@@ -280,16 +287,24 @@ def get_lines_from_file(fname, ddboost=None):
     else:
         with open(fname) as fd:
             for line in fd:
-                content.append(line.rstrip())
+                content.append(line.strip('\n'))
         return content
 
 def write_lines_to_file(filename, lines):
+    """
+    Don't do strip in line for white space in case it is part of schema name or table name
+    """
+
     with open(filename, 'w') as fp:
         for line in lines:
-            fp.write("%s\n" % line.rstrip())
+            fp.write("%s\n" % line)
 
 def verify_lines_in_file(fname, expected):
     lines = get_lines_from_file(fname)
+
+    logger.info('lines from file %s\n' % lines)
+    logger.info('lines expected from file %s\n' % expected)
+
     if lines != expected:
         raise Exception("After writing file '%s' contents not as expected, suspected IO error" % fname)
 

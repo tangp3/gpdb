@@ -174,11 +174,8 @@ def is_incremental_restore(master_datadir, backup_dir, dump_dir, dump_prefix, ti
         logger.warn('Report file %s does not exist for restore timestamp %s' % (filename, timestamp))
         return False
 
-    logger.info('report file path is %s' % filename)
     report_file_contents = get_lines_from_file(filename)
-    logger.info('file content is %s ' % report_file_contents)
     if check_backup_type(report_file_contents, 'Incremental'):
-        logger.info('is this incremental ????????? %s, yeath')
         return True
     return False
 
@@ -196,7 +193,6 @@ def is_full_restore(master_datadir, backup_dir, dump_dir, dump_prefix, timestamp
 
 def is_begin_incremental_run(master_datadir, backup_dir, dump_dir, dump_prefix, timestamp, noplan, ddboost=False):
     if is_incremental_restore(master_datadir, backup_dir, dump_dir, dump_prefix, timestamp, ddboost) and not noplan:
-        logger.info('++++++++++++++, incremental is true')
         return True
     else:
         return False
@@ -620,6 +616,7 @@ class RestoreDatabase(Operation):
 
                 for tbl in analyze_list:
                     analyze_table = "analyze " + tbl
+                    logger.info('analyze table statement is %s' % analyze_table)
                     try:
                         execSQL(conn, analyze_table)
                     except Exception as e:

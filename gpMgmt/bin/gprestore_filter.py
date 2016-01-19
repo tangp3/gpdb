@@ -163,7 +163,7 @@ def process_schema(dump_schemas, dump_tables, fdin, fdout, change_schema=None, s
             fdout.write(line)
 
 def check_valid_schema(name, dump_schemas, schema_level_restore_list):
-    if name in schema_level_restore_list or name in dump_schemas:
+    if (schema_level_restore_list and name in schema_level_restore_list) or (name in dump_schemas):
         return True
     return False
 
@@ -172,7 +172,7 @@ def check_valid_table(schema, name, dump_tables, schema_level_restore_list):
     check if table is valid (can be from schema level restore)
     """
 
-    if schema in schema_level_restore_list or (schema, name) in dump_tables:
+    if (schema_level_restore_list and schema in schema_level_restore_list) or ((schema, name) in dump_tables):
         return True
     return False
 
