@@ -570,11 +570,12 @@ def check_funny_chars_in_tablenames(tablenames):
     '\n' inside table name makes it hard to specify the object name in shell command line,
     this may be worked around by using table file, but currently we read input line by line.
     '!' inside table name will mess up with the shell history expansion.     
+    ',' is used for separating tables in plan file during incremental restore.
     """
 
     for tablename in tablenames:
-        if '\n' in tablename or '!' in tablename:
-            raise Exception('Tablename has an invalid character "\\n": "!": "%s"' % tablename)
+        if '\t' in tablename or '\n' in tablename or '!' in tablename or ',' in tablename or tablename.count('.') > 1:
+            raise Exception('Tablename has an invalid character "\\t" "\\n" "!" "," ".": "%s"' % tablename)
 
 #Form and run command line to backup individual file with NBU
 def backup_file_with_nbu(netbackup_service_host, netbackup_policy, netbackup_schedule, netbackup_block_size, netbackup_keyword, netbackup_filepath, hostname=None):

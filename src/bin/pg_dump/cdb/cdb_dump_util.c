@@ -1058,7 +1058,7 @@ formSegmentPsqlCommandLine(char** retVal, const char* inputFileSpec, bool compUs
 							const char* filter_script, const char* table_filter_file, 
 							int role, const char* psqlPg, const char* catPg,
 							const char* gpNBURestorePg, const char* netbackupServiceHost, const char* netbackupBlockSize,
-							const char* change_schema_file)
+							const char* change_schema_file, const char *schema_level_file)
 {
 	char* pszCmdLine = *retVal;
 	if (compUsed)
@@ -1128,6 +1128,11 @@ formSegmentPsqlCommandLine(char** retVal, const char* inputFileSpec, bool compUs
 		{
 			strcat(pszCmdLine, " -c ");
 			strcat(pszCmdLine, change_schema_file);
+		}
+		if (schema_level_file)
+		{
+			strcat(pszCmdLine, " -s ");
+			strcat(pszCmdLine, schema_level_file);
 		}
 	}
 

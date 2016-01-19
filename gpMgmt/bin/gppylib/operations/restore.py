@@ -174,10 +174,12 @@ def is_incremental_restore(master_datadir, backup_dir, dump_dir, dump_prefix, ti
         logger.warn('Report file %s does not exist for restore timestamp %s' % (filename, timestamp))
         return False
 
+    logger.info('report file path is %s' % filename)
     report_file_contents = get_lines_from_file(filename)
+    logger.info('file content is %s ' % report_file_contents)
     if check_backup_type(report_file_contents, 'Incremental'):
+        logger.info('is this incremental ????????? %s, yeath')
         return True
-
     return False
 
 def is_full_restore(master_datadir, backup_dir, dump_dir, dump_prefix, timestamp, ddboost=False):
@@ -194,6 +196,7 @@ def is_full_restore(master_datadir, backup_dir, dump_dir, dump_prefix, timestamp
 
 def is_begin_incremental_run(master_datadir, backup_dir, dump_dir, dump_prefix, timestamp, noplan, ddboost=False):
     if is_incremental_restore(master_datadir, backup_dir, dump_dir, dump_prefix, timestamp, ddboost) and not noplan:
+        logger.info('++++++++++++++, incremental is true')
         return True
     else:
         return False
@@ -210,23 +213,34 @@ def get_plan_file_contents(master_datadir, backup_dir, timestamp, dump_dir, dump
     for line in plan_file_lines:
         if ':' not in line:
             raise Exception('Invalid plan file format')
-        parts = line.split(':')
-        plan_file_items.append((parts[0].strip(), parts[1].strip()))
+        # timestamp is of length 14, don't split by ':' in case table name contains ':'
+        ts, table_list = line[:14], line[15:]
+        plan_file_items.append((ts.strip(), table_list.strip()))
     return plan_file_items
 
 def get_restore_table_list(table_list, restore_tables):
+    restore_table_set = set()
     restore_list = []
 
-    if restore_tables is None:
+    if len(restore_tables) == 0:
         restore_list = table_list
     else:
-        for table in table_list:
-            if table.strip() in restore_tables:
-                restore_list.append(table.strip())
+        for restore_table in restore_tables:
+            schema, table = smart_split(restore_table)
+            schema = checkAndRemoveEnclosingDoubleQuote(schema)
+            table = checkAndRemoveEnclosingDoubleQuote(table)
+            restore_table_set.add((schema, table))
+        for tbl in table_list:
+            schema, table = smart_split(tbl)
+            schema = checkAndRemoveEnclosingDoubleQuote(schema)
+            table = checkAndRemoveEnclosingDoubleQuote(table)
 
+            if (schema, table) in restore_table_set:
+                restore_list.append(tbl.strip())
+
+    logger.info('========= restore table list is %s =========' % restore_list )
     if restore_list == []:
         return None
-
     return create_temp_file_with_tables(restore_list)
 
 def validate_restore_tables_list(plan_file_contents, restore_tables):
@@ -246,6 +260,7 @@ def validate_restore_tables_list(plan_file_contents, restore_tables):
         comp_set.add(table)
         if not comp_set.issubset(table_set):
             invalid_tables.append(table)
+            comp_set.remove(table)
 
     if invalid_tables != []:
         raise Exception('Invalid tables for -T option: The following tables were not found in plan file : "%s"' % (invalid_tables))
@@ -426,11 +441,6 @@ def truncate_restore_tables(restore_tables, master_port, dbname, schema_level_re
     except Exception as e:
         raise Exception("Failure from truncating tables, %s" % (str(e).replace('\n', '')))
 
-def validate_tablenames(table_list):
-    for restore_table in table_list:
-        if '.' not in restore_table:
-            raise Exception("No schema name supplied for %s, removing from list of tables to restore" % restore_table)
-
 class RestoreDatabase(Operation):
     def __init__(self, restore_timestamp, no_analyze, drop_db, restore_global, master_datadir, backup_dir,
                  master_port, dump_dir, dump_prefix, no_plan, restore_tables, batch_default, no_ao_stats,
@@ -505,6 +515,11 @@ class RestoreDatabase(Operation):
 
         table_filter_file = self.create_filter_file() # returns None if nothing to filter
         change_schema_file = self.create_change_schema_file() # returns None if nothing to filter
+        schema_level_restore_file = self.create_schema_level_file()
+
+        logger.info('--------------- len restore tables is %s -----------' % len(self.restore_tables))
+        logger.info('--------------- restore tables is %s -----------' % self.restore_tables)
+        logger.info('--------------- begin incremental restore is %s -----------' % str(begin_incremental))
 
         if (full_restore and len(self.restore_tables) > 0 and not self.no_plan) or begin_incremental or self.metadata_only:
             if full_restore and not self.no_plan:
@@ -517,7 +532,8 @@ class RestoreDatabase(Operation):
                                                                 metadata_file,
                                                                 table_filter_file,
                                                                 full_restore_with_filter,
-                                                                change_schema_file)
+                                                                change_schema_file,
+                                                                schema_level_restore_file)
             logger.info("Running metadata restore")
             logger.info("Invoking commandline: %s" % restore_line)
             Command('Invoking gp_restore', restore_line).run(validateAfter=True)
@@ -534,7 +550,7 @@ class RestoreDatabase(Operation):
                                                         self.master_port,
                                                         self.no_plan, table_filter_file,
                                                         self.no_ao_stats, full_restore_with_filter,
-                                                        change_schema_file)
+                                                        change_schema_file, schema_level_restore_file)
                 logger.info('gp_restore commandline: %s: ' % restore_line)
                 Command('Invoking gp_restore', restore_line).run(validateAfter=True)
 
@@ -548,10 +564,10 @@ class RestoreDatabase(Operation):
                 logger.info('gp_restore commandline: %s: ' % restore_line)
                 Command('Invoking gp_restore', restore_line).run(validateAfter=True)
 
-            if table_filter_file:
-                self.remove_filter_file(table_filter_file)
-            if change_schema_file:
-                self.remove_filter_file(change_schema_file)
+            #if table_filter_file:
+            #    self.remove_filter_file(table_filter_file)
+            #if change_schema_file:
+            #    self.remove_filter_file(change_schema_file)
 
         if not self.metadata_only:
             if (not self.no_analyze) and (len(self.restore_tables) == 0):
@@ -584,6 +600,7 @@ class RestoreDatabase(Operation):
             with dbconn.connect(dbconn.DbURL(dbname=restore_db, port=self.master_port)) as conn:
                 num_sqls = 0
                 analyze_list = []
+                # need to find out all tables under the schema and construct the new schema.table to analyze
                 if change_schema and self.schema_level_restore_list:
                     schemaname = change_schema
                     analyze_list = self.get_full_tables_in_schema(conn, schemaname)
@@ -634,6 +651,18 @@ class RestoreDatabase(Operation):
             res.append(restore_table)
         return res
 
+    def create_schema_level_file(self):
+        if not self.schema_level_restore_list:
+            return None
+
+        schema_level_restore_file = create_temp_file_with_schemas(list(self.schema_level_restore_list))
+
+        addresses = get_all_segment_addresses(self.master_port)
+
+        scp_file_to_hosts(addresses, schema_level_restore_file, self.batch_default)
+
+        return schema_level_restore_file
+
     def create_change_schema_file(self):
         if not self.change_schema:
             return None
@@ -674,13 +703,18 @@ class RestoreDatabase(Operation):
         plan_file_items = get_plan_file_contents(self.master_datadir, self.backup_dir,
                                                  self.restore_timestamp, self.dump_dir,
                                                  self.dump_prefix)
+        logger.info('=========== plan file items are %s ================' % plan_file_items)
         table_file = None
         table_files = []
         restored_tables = []
 
+        logger.info('==========restore tables are %s========' % self.restore_tables)
+
         validate_restore_tables_list(plan_file_items, self.restore_tables)
 
         for (ts, table_list) in plan_file_items:
+            logger.info('time stampe is %s ' % ts)
+            logger.info('table list for  the stamp is %s ' % table_list)
             if table_list:
                 restore_data = True
                 table_file = get_restore_table_list(table_list.split(','), self.restore_tables)
@@ -870,7 +904,7 @@ class RestoreDatabase(Operation):
         return True
 
     def _build_restore_line(self, restore_timestamp, restore_db, compress, master_port, no_plan,
-                            table_filter_file, no_stats, full_restore_with_filter, change_schema_file):
+                            table_filter_file, no_stats, full_restore_with_filter, change_schema_file, schema_level_restore_file):
 
         user = getpass.getuser()
         hostname = socket.gethostname()    # TODO: can this just be localhost? bash was using `hostname`
@@ -913,6 +947,8 @@ class RestoreDatabase(Operation):
             restore_line += " --netbackup-block-size=%s" % self.netbackup_block_size
         if change_schema_file:
             restore_line += " --change-schema-file=%s" % change_schema_file
+        if schema_level_restore_file:
+            restore_line += " --schema-level-file=%s" % schema_level_restore_file
 
         return restore_line
 
@@ -957,7 +993,8 @@ class RestoreDatabase(Operation):
         return restore_line
 
     def _build_schema_only_restore_line(self, restore_timestamp, restore_db, compress, master_port,
-                                        metadata_filename, table_filter_file, full_restore_with_filter, change_schema_file):
+                                        metadata_filename, table_filter_file, full_restore_with_filter, 
+                                        change_schema_file, schema_level_restore_file):
         user = getpass.getuser()
         hostname = socket.gethostname()    # TODO: can this just be localhost? bash was using `hostname`
         (gpr_path, status_path, gpd_path) = self.get_restore_line_paths(restore_timestamp[0:8])
@@ -993,6 +1030,8 @@ class RestoreDatabase(Operation):
             restore_line += " --netbackup-block-size=%s" % self.netbackup_block_size
         if change_schema_file:
             restore_line += " --change-schema-file=%s" % change_schema_file
+        if schema_level_restore_file:
+            restore_line += " --schema-level-file=%s" % schema_level_restore_file
 
         return restore_line
 
@@ -1103,23 +1142,31 @@ def validate_tablenames(table_list):
     """
     verify table list and resolve overlaps
     """
-    wildcard_schemas = set()
+
+    logger.info('=======table list from input is %s ==========' % table_list)
+    wildcard_schemas = None
     restore_table_list = []
     table_set = set()
     for restore_table in table_list:
+        if '.' not in restore_table:
+            raise Exception("No schema name supplied for %s, removing from list of tables to restore" % restore_table)
         schema, table = smart_split(restore_table)
         # if table part is a '*' and not quoted, we treat it as wildcard (schema level)
-        if table == '*'
+        if table == '*':
             schema = checkAndRemoveEnclosingDoubleQuote(schema)
+            if not wildcard_schemas:
+                wildcard_schemas = set()
             wildcard_schemas.add(schema)
 
     for restore_table in table_list:
         schema, table = smart_split(restore_table)
         schema = checkAndRemoveEnclosingDoubleQuote(schema)
         table = checkAndRemoveEnclosingDoubleQuote(table)
-        if (schema, table) not in table_set and schema not in wildcard_schemas:
+        if (schema, table) not in table_set:
                 table_set.add((schema, table))
                 restore_table_list.append(restore_table)
+    logger.info('--------restore table list is %s-----------' % table_list)
+    logger.info('--------table set is %s------------' % table_set)
 
     return restore_table_list, wildcard_schemas
 

@@ -19,6 +19,8 @@ copy_end_start = '\\'
 set_expr = 'SET '
 drop_start = 'D'
 drop_expr = 'DROP '
+drop_table_expr = 'DROP TABLE '
+len_drop_table_expr = len(drop_table_expr)
 
 comment_start_expr = '-- '
 comment_expr = '-- Name: '
@@ -58,7 +60,7 @@ def find_all_expr_start(line, expr):
     """
     return [m.start() for m in re.finditer('(?=%s)' % expr, line)]
 
-def process_schema(dump_schemas, dump_tables, fdin, fdout, change_schema=None):
+def process_schema(dump_schemas, dump_tables, fdin, fdout, change_schema=None, schema_level_restore_list=None):
     """
     Filter the dump file line by line from restore
     dump_schemas: set of schemas to restore
@@ -80,13 +82,14 @@ def process_schema(dump_schemas, dump_tables, fdin, fdout, change_schema=None):
     further_investigation_required = False
     search_path = True
     passedDropSchemaSection = False
+
     for line in fdin:
         if search_path and (line[0] == set_start) and line.startswith(search_path_expr):
             further_investigation_required = False
             # schema of set search_path is escaped in dump file
             schema = extract_schema(line)
             if removeEscapingDoubleQuoteInSQLString(schema, False) in dump_schemas:
-                if change_schema:
+                if change_schema and len(change_schema) > 0:
                     line = line.replace(schema, escapeDoubleQuoteInSQLString(change_schema, False))
                 output = True
                 search_path = False
@@ -99,7 +102,7 @@ def process_schema(dump_schemas, dump_tables, fdin, fdout, change_schema=None):
                 if passedDropSchemaSection:
                     output = False
                 else:
-                    output = check_dropped_table(line, dump_tables)
+                    output = check_dropped_table(line, dump_tables, schema_level_restore_list)
             else:
                 output = False
         elif line[:3] == comment_start_expr and line.startswith(comment_expr):
@@ -111,7 +114,7 @@ def process_schema(dump_schemas, dump_tables, fdin, fdout, change_schema=None):
             passedDropSchemaSection = True
             if type in ['TABLE', 'EXTERNAL TABLE']:
                 further_investigation_required = False
-                output = check_valid_table(schema, name, dump_tables)
+                output = check_valid_table(schema, name, dump_tables, schema_level_restore_list)
                 if output:
                     search_path = True
             elif type in ['CONSTRAINT']:
@@ -119,11 +122,11 @@ def process_schema(dump_schemas, dump_tables, fdin, fdout, change_schema=None):
                 if schema in dump_schemas:
                     line_buff = line 
             elif type in ['ACL']:
-                output = check_valid_table(schema, name, dump_tables)
+                output = check_valid_table(schema, name, dump_tables, schema_level_restore_list)
                 if output:
                     search_path = True
             elif type in ['SCHEMA']:
-                output = check_valid_schema(name, dump_schemas)
+                output = check_valid_schema(name, dump_schemas, schema_level_restore_list)
                 if output:
                     search_path = True
             elif type in ['FUNCTION']:
@@ -133,7 +136,7 @@ def process_schema(dump_schemas, dump_tables, fdin, fdout, change_schema=None):
             further_investigation_required = False
             name, type, schema = get_table_info(line)
             if type == 'TABLE DATA':
-                output = check_valid_table(schema, name, dump_tables)
+                output = check_valid_table(schema, name, dump_tables, schema_level_restore_list)
                 if output:
                     search_path = True
             else:
@@ -146,7 +149,7 @@ def process_schema(dump_schemas, dump_tables, fdin, fdout, change_schema=None):
                 schemaname, tablename = smart_split(full_table_name)
                 schemaname, tablename = checkAndRemoveEnclosingDoubleQuote(schemaname), checkAndRemoveEnclosingDoubleQuote(tablename)
                 schemaname, tablename = removeEscapingDoubleQuoteInSQLString(schemaname, False), removeEscapingDoubleQuoteInSQLString(tablename, False)
-                output = check_valid_table(schemaname, tablename, dump_tables)
+                output = check_valid_table(schemaname, tablename, dump_tables, schema_level_restore_list)
                 if output:
                     if line_buff:
                         fdout.write(line_buff)
@@ -159,23 +162,19 @@ def process_schema(dump_schemas, dump_tables, fdin, fdout, change_schema=None):
         if output:
             fdout.write(line)
 
-def check_valid_schema(name, dump_schemas):
-    if name in dump_schemas:
-        output = True
-    else:
-        output = False
-    return output
+def check_valid_schema(name, dump_schemas, schema_level_restore_list):
+    if name in schema_level_restore_list or name in dump_schemas:
+        return True
+    return False
 
-def check_valid_table(schema, name, dump_tables):
+def check_valid_table(schema, name, dump_tables, schema_level_restore_list):
     """
     check if table is valid (can be from schema level restore)
     """
 
-    if (schema, name) in dump_tables or (schema, '*') in dump_tables:
-        output = True
-    else:
-        output = False
-    return output
+    if schema in schema_level_restore_list or (schema, name) in dump_tables:
+        return True
+    return False
 
 def get_table_schema_set(filename):
     """
@@ -209,7 +208,7 @@ def extract_schema(line):
     temp = line[len_search_path_expr:]
     idx = temp.rfind(", pg_catalog;")
     if idx == -1:
-        return None
+        raise Exception('Failed to extract schema name from line %s' % line)
     schema = temp[:idx]
     return checkAndRemoveEnclosingDoubleQuote(schema)
 
@@ -224,21 +223,23 @@ def extract_table(line):
     temp = line[len_copy_expr:]
     idx = temp.rfind(" (")
     if idx == -1:
-        return None
+        raise Exception('Failed to extract table name from line %s' % line)
     table = temp[:idx]
     return checkAndRemoveEnclosingDoubleQuote(table)
 
-def check_dropped_table(line, dump_tables):
+def check_dropped_table(line, dump_tables, schema_level_restore_list):
     """
     check if table to drop is valid (can be dropped from schema level restore)
     """
-    temp = line.split()[-1][:-1]
-    (schema, table) = temp.split('.')
-    if (schema, table) in dump_tables or (schema, '*') in dump_tables:
+    temp = line[len_drop_table_expr:][:-1]
+    (schema, table) = smart_split(temp)
+    schema = removeEscapingDoubleQuoteInSQLString(checkAndRemoveEnclosingDoubleQuote(schema)) 
+    table = removeEscapingDoubleQuoteInSQLString(checkAndRemoveEnclosingDoubleQuote(table)) 
+    if schema in schema_level_restore_list or (schema, table) in dump_tables:
         return True
     return False
 
-def process_data(dump_schemas, dump_tables, fdin, fdout, change_schema=None):
+def process_data(dump_schemas, dump_tables, fdin, fdout, change_schema=None, schema_level_restore_list=None):
     schema, table, schema_wo_escaping = None, None, None
     output = False
     #PYTHON PERFORMANCE IS TRICKY .... THIS CODE IS LIKE THIS BECAUSE ITS FAST
@@ -246,7 +247,7 @@ def process_data(dump_schemas, dump_tables, fdin, fdout, change_schema=None):
         if (line[0] == set_start) and line.startswith(search_path_expr):
             schema = extract_schema(line)
             schema_wo_escaping = removeEscapingDoubleQuoteInSQLString(schema, False)
-            if schema and schema_wo_escaping in dump_schemas:
+            if schema_wo_escaping in dump_schemas:
                 if change_schema:
                     line = line.replace(schema, escapeDoubleQuoteInSQLString(change_schema, False))
                 else:
@@ -255,7 +256,7 @@ def process_data(dump_schemas, dump_tables, fdin, fdout, change_schema=None):
         elif (line[0] == copy_start) and line.startswith(copy_expr) and line.endswith(copy_expr_end):
             table = extract_table(line)
             table = removeEscapingDoubleQuoteInSQLString(table, False)
-            if table and ((schema_wo_escaping, table) in dump_tables or (schema_wo_escaping, '*') in dump_tables):
+            if (schema_wo_escaping, table) in dump_tables or schema_wo_escaping in schema_level_restore_list:
                 output = True
         elif output and (line[0] == copy_end_start) and line.startswith(copy_end_expr):
             table = None
@@ -265,6 +266,23 @@ def process_data(dump_schemas, dump_tables, fdin, fdout, change_schema=None):
         if output:
             fdout.write(line)
 
+def get_schema_level_restore_list(schema_level_restore_file=None):
+    if not os.path.exists(schema_level_restore_file):
+            raise Exception('schema level restore file path %s does not exist' % schema_level_restore_file)
+    schema_level_restore_list = []
+    with open(schema_level_restore_file) as fr:
+        schema_entries = fr.read()
+        schema_level_restore_list = schema_entries.splitlines()
+    return schema_level_restore_list
+
+def get_change_schema_name(change_schema_file):
+    if not os.path.exists(change_schema_file):
+        raise Exception('change schema file path %s does not exist' % change_schema_file)
+    change_schema_name = None
+    with open(change_schema_file) as fr:
+        line = fr.read()
+        change_schema_name = line.strip('\n')
+    return change_schema_name
 
 if __name__ == "__main__":
     parser = OptParser(option_class=OptChecker)
@@ -272,25 +290,26 @@ if __name__ == "__main__":
     parser.add_option('-h', '-?', '--help', action='store_true')
     parser.add_option('-t', '--tablefile', type='string', default=None)
     parser.add_option('-m', '--master_only', action='store_true')
-    parser.add_option('-c', '--change_schema_file', type='string', default=None)
+    parser.add_option('-c', '--change-schema-file', type='string', default=None)
+    parser.add_option('-s', '--schema-level-file', type='string', default=None)
     (options, args) = parser.parse_args()
     if not options.tablefile:
         raise Exception('-t table file name has to be specified')
     (schemas, tables) = get_table_schema_set(options.tablefile)
 
-    change_schema = None
+    change_schema_name = None
     if options.change_schema_file:
-        if not os.path.exists(options.change_schema_file):
-            raise Exception('change schema file path %s does not exist' % options.change_schema_file)
-        with open(options.change_schema_file, 'r') as fr:
-            line = fr.read()
-            change_schema = line.strip('\n')
+        change_schema_name = get_change_schema_name(options.change_schema_file)
 
     with open("/tmp/change_schema_in_filter", 'w') as fw:
-        fw.write('changem schema is %s' % change_schema)
+        fw.write('changem schema is %s' % change_schema_name)
+
+    schema_level_restore_list = None
+    if options.schema_level_file:
+        schema_level_restore_list = get_schema_level_restore_list(options.schema_level_file)
 
     if options.master_only:
-        process_schema(schemas, tables, sys.stdin, sys.stdout, change_schema)
+        process_schema(schemas, tables, sys.stdin, sys.stdout, change_schema_name, schema_level_restore_list)
     else:
-        process_data(schemas, tables, sys.stdin, sys.stdout, change_schema)
+        process_data(schemas, tables, sys.stdin, sys.stdout, change_schema_name, schema_level_restore_list)
 

@@ -77,6 +77,7 @@ static char *netbackup_service_host = NULL;
 static char *netbackup_block_size = NULL;
 
 static char *change_schema_file = NULL;
+static char *schema_level_file = NULL;
 
 #ifdef USE_DDBOOST
 static int dd_boost_enabled = 0;
@@ -296,6 +297,7 @@ usage(void)
 	printf(("  --gp-f=FILE             FILE, present on all machines, with tables to include in restore\n"));
 	printf(("  --prefix=PREFIX         PREFIX of the dump files to be restored\n"));
 	printf(("  --change-schema-file=SCHEMA_FILE  Schema file containing the name of the schema to which tables are to be restored\n"));
+	printf(("  --schema-level-file=SCHEMA_FILE  Schema file containing the name of the schemas under which all tables are to be restored\n"));
 }
 
 bool
@@ -373,6 +375,7 @@ fillInputOptions(int argc, char **argv, InputOptions * pInputOpts)
 		{"netbackup-service-host", required_argument, NULL, 15},
 		{"netbackup-block-size", required_argument, NULL, 16},
 		{"change-schema-file", required_argument, NULL, 17},
+		{"schema-level-file", required_argument, NULL, 18},
 		{NULL, 0, NULL, 0}
 	};
 
@@ -755,6 +758,13 @@ fillInputOptions(int argc, char **argv, InputOptions * pInputOpts)
 				if (change_schema_file != NULL)
 					free(change_schema_file);
 				break;
+			case 18:
+				schema_level_file = Safe_strdup(optarg);
+				pInputOpts->pszPassThroughParms = addPassThroughLongParm("schema-level-file", schema_level_file, pInputOpts->pszPassThroughParms);
+				if (schema_level_file != NULL)
+					free(schema_level_file);
+				break;
+
 
 			default:
 				mpp_err_msg_cache(logError, progname, "Try \"%s --help\" for more information.\n", progname);

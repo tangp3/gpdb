@@ -151,6 +151,7 @@ static char *netbackup_service_host = NULL;
 static char *netbackup_block_size = NULL;
 
 static char *change_schema_file = NULL;
+static char *schema_level_file = NULL;
 
 int
 main(int argc, char **argv)
@@ -241,6 +242,7 @@ main(int argc, char **argv)
 		{"netbackup-service-host", required_argument, NULL, 15},
 		{"netbackup-block-size", required_argument, NULL, 16},
 		{"change-schema-file", required_argument, NULL, 17},
+		{"schema-level-file", required_argument, NULL, 18},
 		{NULL, 0, NULL, 0}
 	};
 
@@ -453,8 +455,9 @@ main(int argc, char **argv)
 			case 17:
 				change_schema_file = strdup(optarg);
 				break;
-
-
+			case 18:
+				schema_level_file = strdup(optarg);
+				break;
 			default:
 				fprintf(stderr, _("Try \"%s --help\" for more information.\n"), progname);
 				exit(1);
@@ -819,7 +822,8 @@ main(int argc, char **argv)
 					formSegmentPsqlCommandLine(&pszCmdLine, inputFileSpec, bCompUsed, g_compPg,
 							filterScript, table_filter_file,
 							g_role, psqlPg, catPg,
-							gpNBURestorePg, netbackup_service_host, netbackup_block_size, change_schema_file);
+							gpNBURestorePg, netbackup_service_host, netbackup_block_size,
+                                                        change_schema_file, schema_level_file);
 				}
 #ifdef USE_DDBOOST
 			}
@@ -1017,6 +1021,8 @@ main(int argc, char **argv)
 
 	if (change_schema_file)
 		free(change_schema_file);
+	if (schema_level_file)
+		free(schema_level_file);
 	if (SegDB.pszHost)
 		free(SegDB.pszHost);
 	if (SegDB.pszDBName)

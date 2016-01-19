@@ -288,7 +288,7 @@ class GpdbRestore(Operation):
                         metadata_only = self.metadata_only,
                         netbackup_service_host = self.netbackup_service_host,
                         netbackup_block_size = self.netbackup_block_size,
-                        change_schema = self.change_schema
+                        change_schema = self.change_schema,
                         schema_level_restore_list = self.schema_level_restore_list).run()
 
         if self.no_analyze and not self.restore_stats:
@@ -432,6 +432,7 @@ class GpdbRestore(Operation):
         table_counts = []
         if len(self.restore_tables) > 0:
             self.restore_tables, self.schema_level_restore_list = validate_tablenames(self.restore_tables)
+            logger.info('-------------schema level restore list is %s ----------' % self.schema_level_restore_list)
 
         if not self.db_host_path and not self.ddboost:
             report_filename = generate_report_filename(self.master_datadir, self.backup_dir, self.dump_dir, self.dump_prefix, restore_timestamp)
