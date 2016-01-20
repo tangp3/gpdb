@@ -17,6 +17,8 @@ logger = gplog.get_default_logger()
 def expand_partitions_and_populate_filter_file(dbname, partition_list, file_prefix):
     expanded_partitions = expand_partition_tables(dbname, partition_list)
     dump_partition_list = list(set(expanded_partitions + partition_list))
+    with open('/tmp/dump_partition_list', 'w') as fw:
+        fw.write('%s' % dump_partition_list)
     return create_temp_file_from_list(dump_partition_list, file_prefix)
 
 def populate_filter_tables(table, rows, non_partition_tables, partition_leaves):
@@ -756,18 +758,18 @@ def formatSQLString(rel_file, isTableName=False):
     escape the double quote inside the name properly.
     """
     relnames = []
-    print rel_file
     if rel_file and os.path.exists(rel_file):
         with open(rel_file, 'r') as fr:
-            line = fr.readline().strip('\n')
-            if isTableName:
-                schema, table = smart_split(line)
-                schema = escapeDoubleQuoteInSQLString(schema)
-                table = escapeDoubleQuoteInSQLString(table)
-                relnames.append(schema + '.' + table)
-            else:
-                schema = escapeDoubleQuoteInSQLString(line)
-                relnames.append(schema)
+            lines = fr.read().strip('\n').split('\n')
+            for line in lines:
+                if isTableName:
+                    schema, table = smart_split(line)
+                    schema = escapeDoubleQuoteInSQLString(schema)
+                    table = escapeDoubleQuoteInSQLString(table)
+                    relnames.append(schema + '.' + table)
+                else:
+                    schema = escapeDoubleQuoteInSQLString(line)
+                    relnames.append(schema)
         if len(relnames) > 0:
             tmp_file = create_temp_file_from_list(relnames, os.path.basename(rel_file))
             shutil.move(tmp_file, rel_file)

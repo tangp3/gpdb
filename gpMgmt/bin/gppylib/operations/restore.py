@@ -43,8 +43,9 @@ POST_DATA_SUFFIX = '_post_data'
 
 # TODO: use CLI-agnostic custom exceptions instead of ExceptionNoStackTraceNeeded
 
-def update_ao_stat_func(conn, ao_table, counter, batch_size):
-    qry = "SELECT * FROM gp_update_ao_master_stats('%s')" % pg.escape_string(ao_table)
+def update_ao_stat_func(conn, ao_schema, ao_table, counter, batch_size):
+    qry = "SELECT * FROM gp_update_ao_master_stats('%s.%s')" % (pg.escape_string(escapeDoubleQuoteInSQLString(ao_schema)), 
+                                                                pg.escape_string(escapeDoubleQuoteInSQLString(ao_table)))
     rows = execSQLForSingleton(conn, qry)
     if counter % batch_size == 0:
         conn.commit()
@@ -57,17 +58,21 @@ def update_ao_statistics(master_port, dbname, restored_tables):
 
     conn = None
     counter = 1
+    restored_ao_tables = set()
     try:
         results = execute_sql(qry, master_port, dbname)
-        ao_tables = ['%s.%s' % (sch, tbl) for (tbl, sch) in results]
-        restored_ao_tables = set(ao_tables).intersection(restored_tables)
-        if not restored_ao_tables:
+        for (tbl, sch) in results:
+            tblname = '%s.%s' % (sch, tbl)
+            if tblname in restored_tables:
+                restored_ao_tables.add((sch, tbl))
+
+        if len(restored_ao_tables) == 0:
             logger.info("No AO/CO tables restored, skipping statistics update...")
             return
 
         with dbconn.connect(dbconn.DbURL(port=master_port, dbname=dbname)) as conn:
-            for ao_table in sorted(restored_ao_tables):
-                update_ao_stat_func(conn, ao_table, counter, batch_size=1000)
+            for (ao_schema, ao_table) in sorted(restored_ao_tables):
+                update_ao_stat_func(conn, ao_schema, ao_table, counter, batch_size=1000)
                 counter = counter + 1
             conn.commit()
     except Exception as e:
@@ -227,12 +232,13 @@ def get_restore_table_list(table_list, restore_tables):
             table = checkAndRemoveEnclosingDoubleQuote(table)
             restore_table_set.add((schema, table))
         for tbl in table_list:
+            # may not need to remove the double quote
             schema, table = smart_split(tbl)
             schema = checkAndRemoveEnclosingDoubleQuote(schema)
             table = checkAndRemoveEnclosingDoubleQuote(table)
 
             if (schema, table) in restore_table_set:
-                restore_list.append(tbl.strip())
+                restore_list.append(tbl)
 
     logger.info('========= restore table list is %s =========' % restore_list )
     if restore_list == []:
@@ -714,7 +720,7 @@ class RestoreDatabase(Operation):
             logger.info('table list for  the stamp is %s ' % table_list)
             if table_list:
                 restore_data = True
-                table_file = get_restore_table_list(table_list.split(','), self.restore_tables)
+                table_file = get_restore_table_list(table_list.strip('\n').split(','), self.restore_tables)
                 if table_file is None:
                     continue
                 cmd = _build_gpdbrestore_cmd_line(ts, table_file, self.backup_dir,

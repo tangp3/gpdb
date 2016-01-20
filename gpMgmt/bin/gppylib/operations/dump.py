@@ -217,7 +217,9 @@ def get_partition_state(master_port, dbname, catalog_schema, partition_info):
             if modcount:
                 modcount = modcount.strip()
             validate_modcount(schemaname, partition_name, modcount)
-            partition_list.append('%s, %s, %s' %(schemaname, partition_name, modcount))
+
+            #Don't put space after comma, which can mess up with the space in schema and table name
+            partition_list.append('%s,%s,%s' %(schemaname, partition_name, modcount))
 
     return partition_list
 
@@ -300,7 +302,8 @@ def create_partition_dict(partition_list):
         fields = partition.split(',')
         if len(fields) != 3:
             raise Exception('Invalid state file format %s' % partition)
-        key = '%s.%s' % (fields[0].strip(), fields[1].strip())
+        # retain the space in schema name: filed[0] and table name: filed[1]
+        key = '%s.%s' % (fields[0], fields[1])
         table_dict[key] = fields[2].strip()
 
     return table_dict
@@ -349,6 +352,9 @@ def get_dirty_tables(master_port, dbname, master_datadir, backup_dir, dump_dir, 
 
     dirty_metadata_set = get_tables_with_dirty_metadata(master_datadir, backup_dir, dump_dir, dump_prefix, fulldump_ts, last_operation_data,
                                                         netbackup_service_host, netbackup_block_size)
+
+    logger.info('-----------dirty_co_tables-------- %s' % dirty_co_tables)
+
 
     return list(dirty_heap_tables | dirty_ao_tables | dirty_co_tables | dirty_metadata_set)
 
@@ -744,8 +750,9 @@ class DumpDatabase(Operation):
 
         # Format sql strings for all schema and table names
         print "include table is", self.include_dump_tables_file
+        print "exclude table is", self.exclude_dump_tables_file
         for table_file in [self.include_dump_tables_file, self.exclude_dump_tables_file]:
-            print table_file
+            print 'Hama is %s' % table_file
             formatSQLString(rel_file=table_file, isTableName=True)
 
         formatSQLString(rel_file=self.include_schema_file, isTableName=False)

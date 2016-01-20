@@ -822,6 +822,13 @@ class GpCronDump(Operation):
                                            self.netbackup_schedule, self.netbackup_block_size, self.netbackup_keyword)
                     dirty_partitions = filter_dirty_tables(dirty_partitions, dump_database, self.master_datadir, self.backup_dir, self.dump_dir, self.dump_prefix,
                                                            self.ddboost, self.netbackup_service_host, self.netbackup_block_size)
+
+                    # jason
+                    with open('/tmp/dirty_parititions', 'w') as fw:
+                        fw.write('%s' % co_partition_list)
+
+
+                    logger.info('============dirty partitions in gpcrondump is %s =========' % dirty_partitions)
                     dirty_file = write_dirty_file_to_temp(dirty_partitions)
 
                 schema_file = self.get_schema_list_file(dump_database)
@@ -831,6 +838,7 @@ class GpCronDump(Operation):
                     include_file = self.generate_include_table_list_from_schema_file(dump_database, schema_file)
 
                 print 'include file is', include_file
+                #shutil.copyfile(include_file, '/tmp/table_file_save')
 
                 dump_outcome = DumpDatabase(dump_database = dump_database,
                                             dump_schema = self.dump_schema,
@@ -898,15 +906,18 @@ class GpCronDump(Operation):
                     if os.path.isfile(dirty_file):
                         if self.ddboost:
                             time.sleep(5)
-                        os.remove(dirty_file)
-                        remove_file_from_segments(self.master_port, dirty_file)
+                        # jason
+                        # comment here for debug
+                        #os.remove(dirty_file)
+                        #remove_file_from_segments(self.master_port, dirty_file)
                     write_dirty_file(self.master_datadir, dirty_partitions, self.backup_dir, self.dump_dir, self.dump_prefix, None, self.ddboost)
                     if self.netbackup_service_host:
                         backup_dirty_file_with_nbu(self.master_datadir, self.backup_dir, self.dump_dir, self.dump_prefix, self.netbackup_service_host, self.netbackup_policy, self.netbackup_schedule, self.netbackup_block_size, self.netbackup_keyword)
 
-                if include_file is not None and os.path.exists(include_file):
-                    os.remove(include_file)
-                    remove_file_from_segments(self.master_port, include_file)
+                # jason, comment for debugging
+                #if include_file is not None and os.path.exists(include_file):
+                #    os.remove(include_file)
+                #    remove_file_from_segments(self.master_port, include_file)
                 if exclude_file is not None and os.path.exists(exclude_file):
                     os.remove(exclude_file)
                     remove_file_from_segments(self.master_port, exclude_file)
