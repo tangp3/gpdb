@@ -88,7 +88,7 @@ class GpdbRestore(Operation):
         self.change_schema = options.change_schema
         self.restore_stats = options.restore_stats
         self.metadata_only = options.metadata_only
-        self.schema_level_restore_list = None
+        self.schema_level_restore_list = options.restore_schemas
 
         if self.restore_stats:
             self.no_analyze = True
@@ -124,6 +124,9 @@ class GpdbRestore(Operation):
 
         if self.change_schema and not (len(self.restore_tables) > 0 or self.table_file):
             raise Exception('-T or --table-file option must be specified with the --change-schema option')
+
+        if self.change_schema and len(self.schema_level_restore_list) > 0:
+            raise Exception('-S schema level restore does not work with --change-schema option')
 
         if self.table_file is not None:
             self.restore_tables = get_restore_tables_from_table_file(self.table_file)
@@ -431,7 +434,7 @@ class GpdbRestore(Operation):
 
         table_counts = []
         if len(self.restore_tables) > 0:
-            self.restore_tables, self.schema_level_restore_list = validate_tablenames(self.restore_tables)
+            self.restore_tables, self.schema_level_restore_list = validate_tablenames(self.restore_tables, self.schema_level_restore_list)
             logger.info('-------------schema level restore list is %s ----------' % self.schema_level_restore_list)
 
         if not self.db_host_path and not self.ddboost:
@@ -615,6 +618,8 @@ def create_parser():
                      help="Dispatches work to segment hosts in batches of specified size [default: %s]" % DEFAULT_NUM_WORKERS)
     addTo.add_option('-G', dest='restore_global', action="callback", callback=restore_global_callback,
                      help="Restore global objects dump file if found in target dumpset. The global objects file is secured via the gpcrondump -G options, and has a filename of the form gp_global_1_1_<timestamp>. Specify \"-G only\" to only restore the global objects dump file or \"-G include\" to restore globals objects along with a normal restore. Defaults to \"include\" if neither argument is provided.")
+    addTo.add_option('-S', action='append', dest='restore_schemas', default=[], metavar='<schema name>',
+                     help="Perform schema level restore from a backup set. -S can be provided multiple times to include multiple schema names.")
     addTo.add_option('-T', action='append', dest='restore_tables', default=[], metavar='<schema.tablename>',
                      help="Restore a single table from a backup set. -T can be provided multiple times to include multiple schema.tablenames. Note, table schema must exist in target database.")
     addTo.add_option('-K', action='store_true', dest='keep_dump_files', default=False,

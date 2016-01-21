@@ -749,19 +749,20 @@ class DumpDatabase(Operation):
                                                         include_schema_file = self.include_schema_file).run()
 
         # Format sql strings for all schema and table names
-        print "include table is", self.include_dump_tables_file
-        print "exclude table is", self.exclude_dump_tables_file
+        # to refactor, jason
         for table_file in [self.include_dump_tables_file, self.exclude_dump_tables_file]:
-            print 'Hama is %s' % table_file
             formatSQLString(rel_file=table_file, isTableName=True)
 
         formatSQLString(rel_file=self.include_schema_file, isTableName=False)
 
-        if self.incremental and self.dump_prefix \
-                            and get_filter_file(self.dump_database, self.master_datadir, self.backup_dir, self.dump_dir, self.dump_prefix, self.ddboost, self.netbackup_service_host):
+        if (self.incremental and self.dump_prefix and 
+            get_filter_file(self.dump_database, self.master_datadir, self.backup_dir, self.dump_dir,
+                            self.dump_prefix, self.ddboost, self.netbackup_service_host)):
+
             filtered_dump_line = self.create_filtered_dump_string(getUserName(), DUMP_DATE, TIMESTAMP_KEY)
             (start, end, rc) = self.perform_dump('Dump process', filtered_dump_line)
             return self.create_dump_outcome(start, end, rc)
+
         dump_line = self.create_dump_string(getUserName(), DUMP_DATE, TIMESTAMP_KEY)
         (start, end, rc) = self.perform_dump('Dump process', dump_line)
         if self.dump_prefix and self.include_dump_tables_file and not self.incremental:

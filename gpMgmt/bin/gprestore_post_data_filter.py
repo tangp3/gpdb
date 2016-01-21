@@ -35,7 +35,16 @@ def find_all_expr_start(line, expr):
     """
     return [m.start() for m in re.finditer('(?=%s)' % expr, line)]
 
-def process_schema(dump_schemas, dump_tables, fdin, fdout):
+def process_schema(dump_schemas, dump_tables, fdin, fdout, change_schema_name, schema_level_restore_list):
+    """
+    Filter the dump file line by line from restore
+    dump_schemas: set of schemas to restore
+    dump_tables: set of (schema, table) tuple to restore
+    fdin: stdin from dump file
+    fdout: to write filtered content to stdout
+    change_schema_name: different schema name to restore
+    schema_level_restore_list: list of schemas to restore all tables under them
+    """
     schema = None
     type = None
     schema_buff = ''
@@ -47,9 +56,17 @@ def process_schema(dump_schemas, dump_tables, fdin, fdout):
         if (line[0] == set_start) and line.startswith(search_path_expr):
             output = False
             further_investigation_required = False
+            # schema in set search_path line is already escaped in dump file
             schema = extract_schema(line)
-            schema = removeEscapingDoubleQuoteInSQLString(schema, False)
-            if schema in dump_schemas:
+            if removeEscapingDoubleQuoteInSQLString(schema, False) in dump_schemas:
+                if change_schema and len(change_schema) > 0:
+                    # change schema name can contain special chars including white space, double quote that.
+                    # if original schema name is already quoted, replaced it with quoted change schema name
+                    quoted_schema = '"' + schema + '"'
+                    if quoted_schema in line:
+                        line = line.replace(quoted_schema, escapeDoubleQuoteInSQLString(change_schema))
+                    else:
+                        line = line.replace(schema, escapeDoubleQuoteInSQLString(change_schema))
                 search_path = True
                 schema_buff = line
         elif (line[0] == set_start) and line.startswith(set_expr):
@@ -111,6 +128,10 @@ def check_table(schema, line, search_str, dump_tables):
         return False
 
 def get_table_schema_set(filename):
+    """
+    filename: file with true schema and table name (none escaped), don't strip white space
+    on schema and table name in case it's part of the name
+    """
     dump_schemas = set()
     dump_tables = set()
 
@@ -119,8 +140,8 @@ def get_table_schema_set(filename):
         tables = contents.splitlines()
         for t in tables:
             schema, table = smart_split(t)
-            schema = checkAndRemoveEnclosingDoubleQuote(schema.strip())
-            table = checkAndRemoveEnclosingDoubleQuote(table.strip())
+            schema = checkAndRemoveEnclosingDoubleQuote(schema)
+            table = checkAndRemoveEnclosingDoubleQuote(table)
             dump_tables.add((schema, table))
             dump_schemas.add(schema)
     return (dump_schemas, dump_tables)
@@ -145,9 +166,21 @@ if __name__ == "__main__":
     parser.remove_option('-h')
     parser.add_option('-h', '-?', '--help', action='store_true')
     parser.add_option('-t', '--tablefile', type='string', default=None)
+    parser.add_option('-c', '--change-schema-file', type='string', default=None)
+    parser.add_option('-s', '--schema-level-file', type='string', default=None)
     (options, args) = parser.parse_args()
-    if not options.tablefile:
-        raise Exception('-t table file name has to be specified')
-    (schemas, tables) = get_table_schema_set(options.tablefile)
-    process_schema(schemas, tables, sys.stdin, sys.stdout)
+    if not (options.tablefile or options.schema_level_file):
+        raise Exception('-t table file name or -s schema level file name must be specified')
+    elif options.schema_level_file and options.change_schema_file:
+        raise Exception('-s schema level file option can not be specified with -c change schema file option')
 
+    (schemas, tables) = get_table_schema_set(options.tablefile)
+
+    change_schema_name = None
+    if options.change_schema_file:
+        change_schema_name = get_change_schema_name(options.change_schema_file)
+
+    schema_level_restore_list = None
+    if options.schema_level_file:
+        schema_level_restore_list = get_schema_level_restore_list(options.schema_level_file)
+    process_schema(schemas, tables, sys.stdin, sys.stdout, change_schema_name, schema_level_restore_list)

@@ -985,7 +985,8 @@ void
 formPostDataSchemaOnlyPsqlCommandLine(char** retVal, const char* inputFileSpec, bool compUsed, const char* compProg,
 									const char* post_data_filter_script, const char* table_filter_file, 
 									const char* psqlPg, const char* catPg,
-									const char* gpNBURestorePg, const char* netbackupServiceHost, const char* netbackupBlockSize)
+									const char* gpNBURestorePg, const char* netbackupServiceHost, const char* netbackupBlockSize,
+									const char* change_schema_file, const char *schema_level_file)
 {
 	char* pszCmdLine = *retVal;
 	if (compUsed)
@@ -1014,13 +1015,7 @@ formPostDataSchemaOnlyPsqlCommandLine(char** retVal, const char* inputFileSpec, 
 			strcat(pszCmdLine, compProg);
 		}
 
-		if (table_filter_file)
-		{
-			strcat(pszCmdLine, " | ");
-			strcat(pszCmdLine, post_data_filter_script);
-			strcat(pszCmdLine, " -t ");
-			strcat(pszCmdLine, table_filter_file);
-		}
+		formPostDataFilterCommandLine(&pszCmdLine, post_data_filter_script, table_filter_file, change_schema_file, schema_level_file);
 
 		strcat(pszCmdLine, " | ");
 		strcat(pszCmdLine, psqlPg);
@@ -1039,14 +1034,22 @@ formPostDataSchemaOnlyPsqlCommandLine(char** retVal, const char* inputFileSpec, 
 				strncat(pszCmdLine, " --netbackup-block-size ", strlen(" --netbackup-block-size "));
 				strncat(pszCmdLine, netbackupBlockSize, strlen(netbackupBlockSize));
 			}
+
+			formPostDataFilterCommandLine(&pszCmdLine, post_data_filter_script, table_filter_file, change_schema_file, schema_level_file);
+
 			strncat(pszCmdLine, " | ", strlen(" | "));
 			strncat(pszCmdLine, psqlPg, strlen(psqlPg));
 		}
 		else
 		{
-			strcat(pszCmdLine, psqlPg);
-			strcat(pszCmdLine, " -f ");
+			strcpy(pszCmdLine, catPg);	/* add 'cat' command */
+			strcat(pszCmdLine, " ");
 			strcat(pszCmdLine, inputFileSpec);
+
+			formPostDataFilterCommandLine(&pszCmdLine, post_data_filter_script, table_filter_file, change_schema_file, schema_level_file);
+
+			strcat(pszCmdLine, " | ");
+			strcat(pszCmdLine, psqlPg);
 		}
 	} 
 }
@@ -1110,7 +1113,20 @@ formSegmentPsqlCommandLine(char** retVal, const char* inputFileSpec, bool compUs
 		}
 	}
 
-	if (table_filter_file)
+	formFilterCommandLine(&pszCmdLine, filter_script, table_filter_file, role, change_schema_file, schema_level_file);
+
+	strcat(pszCmdLine, " | ");
+	strcat(pszCmdLine, psqlPg);
+}
+
+/* Build command line with gprestore_filter.py and its passed through parameters */
+void 
+formFilterCommandLine(char** retVal, const char* filter_script, const char* table_filter_file, 
+			int role, const char* change_schema_file, const char *schema_level_file)
+{
+	char* pszCmdLine = *retVal;
+
+	if (table_filter_file || schema_level_file)
 	{
 		strcat(pszCmdLine, " | ");
 		strcat(pszCmdLine, filter_script);
@@ -1121,9 +1137,12 @@ formSegmentPsqlCommandLine(char** retVal, const char* inputFileSpec, bool compUs
 		if (role == ROLE_MASTER)
 			strcat(pszCmdLine, " -m");
 
-		/* Add filter option with table file to filter data only for specified tables. */
-		strcat(pszCmdLine, " -t ");
-		strcat(pszCmdLine, table_filter_file);
+		/* Add filter option with table file to filter specified tables. */
+		if (table_filter_file)
+		{
+			strcat(pszCmdLine, " -t ");
+			strcat(pszCmdLine, table_filter_file);
+		}
 		if (change_schema_file)
 		{
 			strcat(pszCmdLine, " -c ");
@@ -1135,11 +1154,42 @@ formSegmentPsqlCommandLine(char** retVal, const char* inputFileSpec, bool compUs
 			strcat(pszCmdLine, schema_level_file);
 		}
 	}
-
-    strcat(pszCmdLine, " | ");
-    strcat(pszCmdLine, psqlPg);
 }
-	
+
+/* Build command line with gprestore_post_data_filter.py and its passed through parameters */
+void 
+formPostDataFilterCommandLine(char** retVal, const char* post_data_filter_script, const char* table_filter_file, 
+			const char* change_schema_file, const char *schema_level_file)
+{
+	char* pszCmdLine = *retVal;
+
+	if (table_filter_file || schema_level_file)
+	{
+		strcat(pszCmdLine, " | ");
+		strcat(pszCmdLine, post_data_filter_script);
+
+		/* Add filter option for gprestore_post_data_filter.py to
+		 * process schemas only (no data) on master.
+		 */
+
+		/* Add filter option with table file to filter specified tables. */
+		if (table_filter_file)
+		{
+			strcat(pszCmdLine, " -t ");
+			strcat(pszCmdLine, table_filter_file);
+		}
+		if (change_schema_file)
+		{
+			strcat(pszCmdLine, " -c ");
+			strcat(pszCmdLine, change_schema_file);
+		}
+		if (schema_level_file)
+		{
+			strcat(pszCmdLine, " -s ");
+			strcat(pszCmdLine, schema_level_file);
+		}
+	}
+}
 
 #ifdef USE_DDBOOST
 #include <dlfcn.h>
@@ -1777,7 +1827,8 @@ void
 formDDBoostPsqlCommandLine(char** retVal, bool compUsed, const char* ddboostPg, const char* compProg, 
 							const char* ddp_file_name, const char* dd_boost_buf_size,
 							const char* filter_script, const char* table_filter_file, 
-							int role, const char* psqlPg, bool postSchemaOnly)
+							int role, const char* psqlPg, bool postSchemaOnly,
+							const char* change_schema_file, const char *schema_level_file)
 {
 	char* pszCmdLine = *retVal;
 
@@ -1800,17 +1851,11 @@ formDDBoostPsqlCommandLine(char** retVal, bool compUsed, const char* ddboostPg, 
 		strcat(pszCmdLine, compProg);
 	}
 
-	if (table_filter_file) 
-	{
-		strcat(pszCmdLine, " | ");
-		strcat(pszCmdLine, filter_script);
-		if (role == ROLE_MASTER && !postSchemaOnly)
-		{
-			strcat(pszCmdLine, " -m");
-		}
-		strcat(pszCmdLine, " -t ");
-		strcat(pszCmdLine, table_filter_file);
-	}
+	if (postSchemaOnly)
+		formPostDataFilterCommandLine(&pszCmdLine, filter_script, table_filter_file, change_schema_file, schema_level_file);
+	else	
+		formFilterCommandLine(&pszCmdLine, filter_script, table_filter_file, role, change_schema_file, schema_level_file);
+
 	strcat(pszCmdLine, " | ");
 	strcat(pszCmdLine, psqlPg);
 }

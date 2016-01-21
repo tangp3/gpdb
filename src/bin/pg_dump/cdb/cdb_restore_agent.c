@@ -804,8 +804,8 @@ main(int argc, char **argv)
 			{
 				formDDBoostPsqlCommandLine(&pszCmdLine, bCompUsed, ddboostPg, g_compPg,
 						ddp_file_name, dd_boost_buf_size,
-						filterScript, table_filter_file,
-						g_role, psqlPg, postDataSchemaOnly);
+						postDataSchemaOnly? postDataFilterScript : filterScript, table_filter_file,
+						g_role, psqlPg, postDataSchemaOnly, change_schema_file, schema_level_file);
 			}
 			else
 			{
@@ -814,7 +814,8 @@ main(int argc, char **argv)
 				{
 					formPostDataSchemaOnlyPsqlCommandLine(&pszCmdLine, inputFileSpec, bCompUsed, g_compPg,
 							postDataFilterScript, table_filter_file, psqlPg, catPg,
-							gpNBURestorePg, netbackup_service_host, netbackup_block_size);
+							gpNBURestorePg, netbackup_service_host, netbackup_block_size,
+							change_schema_file, schema_level_file);
 				}
 				else
 				{

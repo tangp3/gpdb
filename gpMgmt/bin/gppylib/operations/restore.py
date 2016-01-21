@@ -215,8 +215,9 @@ def get_plan_file_contents(master_datadir, backup_dir, timestamp, dump_dir, dump
         if ':' not in line:
             raise Exception('Invalid plan file format')
         # timestamp is of length 14, don't split by ':' in case table name contains ':'
+        # don't strip white space on table_list, schema and table name may contain white space
         ts, table_list = line[:14], line[15:]
-        plan_file_items.append((ts.strip(), table_list.strip()))
+        plan_file_items.append((ts.strip(), table_list))
     return plan_file_items
 
 def get_restore_table_list(table_list, restore_tables):
@@ -245,7 +246,13 @@ def get_restore_table_list(table_list, restore_tables):
         return None
     return create_temp_file_with_tables(restore_list)
 
-def validate_restore_tables_list(plan_file_contents, restore_tables):
+def validate_restore_tables_list(plan_file_contents, restore_tables, schema_level_restore_list):
+    """
+    Check if the tables in plan file match any of the restore tables.
+
+    For schema level restore, check if tables in plan file match the
+    wildcard expression of schemas.
+    """
     if restore_tables is None:
         return
 
@@ -713,7 +720,7 @@ class RestoreDatabase(Operation):
 
         logger.info('==========restore tables are %s========' % self.restore_tables)
 
-        validate_restore_tables_list(plan_file_items, self.restore_tables)
+        validate_restore_tables_list(plan_file_items, self.restore_tables, self.schema_level_restore_list)
 
         for (ts, table_list) in plan_file_items:
             logger.info('time stampe is %s ' % ts)
@@ -1141,37 +1148,31 @@ class ValidateSegments(Operation):
                 if not exists:
                     raise ExceptionNoStackTraceNeeded("No dump file on %s at %s" % (seg.getSegmentHostName(), path))
 
-def validate_tablenames(table_list):
+def validate_tablenames(table_list, schema_level_restore_list):
     """
-    verify table list and resolve overlaps
+    verify table list, and schema list, resolve duplicates and overlaps
     """
 
     logger.info('=======table list from input is %s ==========' % table_list)
-    wildcard_schemas = None
     restore_table_list = []
     table_set = set()
+    schema_level_restore_list = list(set(schema_level_restore_list))
+
     for restore_table in table_list:
         if '.' not in restore_table:
             raise Exception("No schema name supplied for %s, removing from list of tables to restore" % restore_table)
         schema, table = smart_split(restore_table)
-        # if table part is a '*' and not quoted, we treat it as wildcard (schema level)
-        if table == '*':
-            schema = checkAndRemoveEnclosingDoubleQuote(schema)
-            if not wildcard_schemas:
-                wildcard_schemas = set()
-            wildcard_schemas.add(schema)
-
-    for restore_table in table_list:
-        schema, table = smart_split(restore_table)
         schema = checkAndRemoveEnclosingDoubleQuote(schema)
         table = checkAndRemoveEnclosingDoubleQuote(table)
-        if (schema, table) not in table_set:
-                table_set.add((schema, table))
-                restore_table_list.append(restore_table)
+        if schema in schema_level_restore_list or (schema, table) in table_set:
+            continue
+        else:
+            table_set.add((schema, table))
+            restore_table_list.append(restore_table)
     logger.info('--------restore table list is %s-----------' % table_list)
     logger.info('--------table set is %s------------' % table_set)
 
-    return restore_table_list, wildcard_schemas
+    return restore_table_list, schema_level_restore_list 
 
 class ValidateRestoreTables(Operation):
     def __init__(self, restore_tables, restore_db, master_port):

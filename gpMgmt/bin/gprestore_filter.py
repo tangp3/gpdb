@@ -67,7 +67,8 @@ def process_schema(dump_schemas, dump_tables, fdin, fdout, change_schema=None, s
     dump_tables: set of (schema, table) tuple to restore
     fdin: stdin from dump file
     fdout: to write filtered content to stdout
-    change_schema: different schema name to restore
+    change_schema_name: different schema name to restore
+    schema_level_restore_list: list of schemas to restore all tables under them
     """
 
     schema, table = None, None
@@ -86,11 +87,17 @@ def process_schema(dump_schemas, dump_tables, fdin, fdout, change_schema=None, s
     for line in fdin:
         if search_path and (line[0] == set_start) and line.startswith(search_path_expr):
             further_investigation_required = False
-            # schema of set search_path is escaped in dump file
+            # schema in set search_path line is already escaped in dump file
             schema = extract_schema(line)
             if removeEscapingDoubleQuoteInSQLString(schema, False) in dump_schemas:
                 if change_schema and len(change_schema) > 0:
-                    line = line.replace(schema, escapeDoubleQuoteInSQLString(change_schema, False))
+                    # change schema name can contain special chars including white space, double quote that.
+                    # if original schema name is already quoted, replaced it with quoted change schema name
+                    quoted_schema = '"' + schema + '"'
+                    if quoted_schema in line:
+                        line = line.replace(quoted_schema, escapeDoubleQuoteInSQLString(change_schema))
+                    else:
+                        line = line.replace(schema, escapeDoubleQuoteInSQLString(change_schema))
                 output = True
                 search_path = False
             else:
@@ -178,7 +185,8 @@ def check_valid_table(schema, name, dump_tables, schema_level_restore_list):
 
 def get_table_schema_set(filename):
     """
-    filename: file with true schema and table name (none escaped)
+    filename: file with true schema and table name (none escaped), don't strip white space
+    on schema and table name in case it's part of the name
     """
     dump_schemas = set()
     dump_tables = set()
@@ -188,13 +196,10 @@ def get_table_schema_set(filename):
         tables = contents.splitlines()
         for t in tables:
             schema, table = smart_split(t)
-            schema = checkAndRemoveEnclosingDoubleQuote(schema.strip())
-            table = checkAndRemoveEnclosingDoubleQuote(table.strip())
+            schema = checkAndRemoveEnclosingDoubleQuote(schema)
+            table = checkAndRemoveEnclosingDoubleQuote(table)
             dump_tables.add((schema, table))
             dump_schemas.add(schema)
-    with open('/tmp/save', 'w') as fw:
-        fw.write('schemas are %s' % dump_schemas)
-        fw.write('tables are %s' % dump_tables)
     return (dump_schemas, dump_tables)
 
 def extract_schema(line):
@@ -249,7 +254,13 @@ def process_data(dump_schemas, dump_tables, fdin, fdout, change_schema=None, sch
             schema_wo_escaping = removeEscapingDoubleQuoteInSQLString(schema, False)
             if schema_wo_escaping in dump_schemas:
                 if change_schema:
-                    line = line.replace(schema, escapeDoubleQuoteInSQLString(change_schema, False))
+                    # change schema name can contain special chars including white space, double quote that.
+                    # if original schema name is already quoted, replaced it with quoted change schema name
+                    quoted_schema = '"' + schema + '"'
+                    if quoted_schema in line:
+                        line = line.replace(quoted_schema, escapeDoubleQuoteInSQLString(change_schema))
+                    else:
+                        line = line.replace(schema, escapeDoubleQuoteInSQLString(change_schema))
                 else:
                     schema = schema_wo_escaping
                 fdout.write(line)
@@ -267,6 +278,9 @@ def process_data(dump_schemas, dump_tables, fdin, fdout, change_schema=None, sch
             fdout.write(line)
 
 def get_schema_level_restore_list(schema_level_restore_file=None):
+    """
+    Note: white space in schema and table name is supported now, don't do strip on them
+    """
     if not os.path.exists(schema_level_restore_file):
             raise Exception('schema level restore file path %s does not exist' % schema_level_restore_file)
     schema_level_restore_list = []
@@ -276,6 +290,10 @@ def get_schema_level_restore_list(schema_level_restore_file=None):
     return schema_level_restore_list
 
 def get_change_schema_name(change_schema_file):
+    """
+    Only strip the '\n' as it is one of the non-supported chars to be part
+    of the schema or table name 
+    """
     if not os.path.exists(change_schema_file):
         raise Exception('change schema file path %s does not exist' % change_schema_file)
     change_schema_name = None
@@ -293,16 +311,16 @@ if __name__ == "__main__":
     parser.add_option('-c', '--change-schema-file', type='string', default=None)
     parser.add_option('-s', '--schema-level-file', type='string', default=None)
     (options, args) = parser.parse_args()
-    if not options.tablefile:
-        raise Exception('-t table file name has to be specified')
+    if not (options.tablefile or options.schema_level_file):
+        raise Exception('-t table file name or -s schema level file name must be specified')
+    elif options.schema_level_file and options.change_schema_file:
+        raise Exception('-s schema level file option can not be specified with -c change schema file option')
+
     (schemas, tables) = get_table_schema_set(options.tablefile)
 
     change_schema_name = None
     if options.change_schema_file:
         change_schema_name = get_change_schema_name(options.change_schema_file)
-
-    with open("/tmp/change_schema_in_filter", 'w') as fw:
-        fw.write('changem schema is %s' % change_schema_name)
 
     schema_level_restore_list = None
     if options.schema_level_file:

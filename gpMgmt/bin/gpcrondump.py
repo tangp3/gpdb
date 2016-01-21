@@ -640,6 +640,10 @@ class GpCronDump(Operation):
         return create_temp_file_from_list(table_list, 'include_dump_tables_file')
 
     def get_include_exclude_for_dump_database(self, dirty_file, dbname):
+        """
+        This is to empty the self.include_dump_tables and self.exclude_dump_tables, write all
+        include tables and exclude tables into include tables file and exclude tables file respectively.
+        """
         include_file = None
         exclude_file = None
 
