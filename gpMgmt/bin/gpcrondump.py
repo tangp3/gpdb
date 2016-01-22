@@ -764,7 +764,6 @@ class GpCronDump(Operation):
         final_exit_status = current_exit_status = 0
 
         for dump_database in self.dump_databases:
-            dump_database = checkAndRemoveEnclosingDoubleQuote(dump_database)
             print 'dump_database is', dump_database
             timestamp = self._get_timestamp_object(self.timestamp_key)
             timestamp_str = timestamp.strftime('%Y%m%d%H%M%S')
@@ -1508,7 +1507,7 @@ def create_parser():
                      help="Exclude the specified schema's, in database specified through -x, from the dump.")
     addTo.add_option('--exclude-schema-file', dest='exclude_schema_file', metavar="<filename>",
                      help="Exclude the schemas named in this file from the dump. Option can be used only once.")
-    addTo.add_option('-x', type='string', default=[], action='append', dest='dump_databases', metavar="<database name,...>",
+    addTo.add_option('-x', default=[], action='append', dest='dump_databases', metavar="<database name>",
                      help="Database name(s) to dump. Multiple database names will preclude the schema and table options.")
     addTo.add_option('-g', action='store_true', dest='dump_config', default=False,
                      help="Dump configuration files: postgresql.conf, pg_ident.conf, and pg_hba.conf.")
