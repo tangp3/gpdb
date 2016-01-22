@@ -26,7 +26,7 @@ from gppylib.operations.backup_utils import check_backup_type, check_dir_writabl
                                             get_full_timestamp_for_incremental_with_nbu, get_lines_from_file, restore_file_with_nbu, run_pool_command, scp_file_to_hosts, \
                                             verify_lines_in_file, write_lines_to_file, smart_split, escapeDoubleQuoteInSQLString, get_dbname_from_cdatabaseline, \
                                             checkAndRemoveEnclosingDoubleQuote, checkAndAddEnclosingDoubleQuote, removeEscapingDoubleQuoteInSQLString, \
-                                            create_temp_file_with_schemas
+                                            create_temp_file_with_schemas, check_funny_chars_in_names
 from gppylib.operations.unix import CheckFile, CheckRemoteDir, MakeRemoteDir, CheckRemotePath
 from re import compile, search, sub
 
@@ -397,7 +397,7 @@ def statistics_file_dumped(master_datadir, backup_dir, dump_dir, dump_prefix, re
     return check_file_dumped_with_nbu(netbackup_service_host, statistics_filename)
 
 def _build_gpdbrestore_cmd_line(ts, table_file, backup_dir, redirected_restore_db, report_status_dir, dump_prefix, ddboost=False, netbackup_service_host=None,
-                                netbackup_block_size=None, change_schema=None):
+                                netbackup_block_size=None, change_schema=None, schema_level_restore_file=None):
     cmd = 'gpdbrestore -t %s --table-file %s -a -v --noplan --noanalyze --noaostats' % (ts, table_file)
     if backup_dir is not None:
         cmd += " -u %s" % backup_dir
@@ -415,6 +415,8 @@ def _build_gpdbrestore_cmd_line(ts, table_file, backup_dir, redirected_restore_d
         cmd += " --netbackup-block-size=%s" % netbackup_block_size
     if change_schema:
         cmd += " --change-schema=%s" % checkAndAddEnclosingDoubleQuote(shellEscape(change_schema))
+    if schema_level_restore_file:
+        cmd += " --schema-level-file=%s" % schema_level_restore_file
 
     return cmd
 
@@ -568,7 +570,8 @@ class RestoreDatabase(Operation):
                                                                               restore_db, compress,
                                                                               self.master_port,
                                                                               table_filter_file,
-                                                                              full_restore_with_filter)
+                                                                              full_restore_with_filter,
+                                                                              change_schema_file, schema_level_restore_file)
                 logger.info("Running post data restore")
                 logger.info('gp_restore commandline: %s: ' % restore_line)
                 Command('Invoking gp_restore', restore_line).run(validateAfter=True)
@@ -963,7 +966,8 @@ class RestoreDatabase(Operation):
         return restore_line
 
     def _build_post_data_schema_only_restore_line(self, restore_timestamp, restore_db, compress, master_port,
-                                                  table_filter_file, full_restore_with_filter):
+                                                  table_filter_file, full_restore_with_filter, 
+                                                  change_schema_file=None, schema_level_restore_file=None):
         user = getpass.getuser()
         hostname = socket.gethostname()    # TODO: can this just be localhost? bash was using `hostname`
         path = os.path.join(self.dump_dir, restore_timestamp[0:8])
@@ -989,6 +993,10 @@ class RestoreDatabase(Operation):
             restore_line += " --prefix=%s" % self.dump_prefix
         if table_filter_file:
             restore_line += " --gp-f=%s" % table_filter_file
+        if change_schema_file:
+            restore_line += " --change-schema-file=%s" % change_schema_file
+        if schema_level_restore_file:
+            restore_line += " --schema-level-file=%s" % schema_level_restore_file
         if compress:
             restore_line += " --gp-c"
         restore_line += " -d %s" % checkAndAddEnclosingDoubleQuote(shellEscape(restore_db))
@@ -1153,9 +1161,12 @@ def validate_tablenames(table_list, schema_level_restore_list):
     verify table list, and schema list, resolve duplicates and overlaps
     """
 
-    logger.info('=======table list from input is %s ==========' % table_list)
     restore_table_list = []
     table_set = set()
+
+    check_funny_chars_in_names(schema_level_restore_list, is_full_qualified_name = False)
+    check_funny_chars_in_names(table_list)
+
     schema_level_restore_list = list(set(schema_level_restore_list))
 
     for restore_table in table_list:

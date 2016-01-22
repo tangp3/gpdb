@@ -16,7 +16,7 @@ from gppylib.operations.backup_utils import generate_report_filename, validate_t
                                             check_backup_type, get_timestamp_val, get_dump_dirs, get_latest_full_dump_timestamp, \
                                             generate_pgstatlastoperation_filename, get_latest_report_timestamp, get_latest_report_in_dir, \
                                             create_temp_file_from_list, get_timestamp_from_increments_filename, get_full_timestamp_for_incremental,\
-                                            check_funny_chars_in_tablenames, expand_partition_tables, populate_filter_tables, expand_partitions_and_populate_filter_file, \
+                                            check_funny_chars_in_names, expand_partition_tables, populate_filter_tables, expand_partitions_and_populate_filter_file, \
                                             generate_files_filename, generate_pipes_filename, generate_master_config_filename, generate_segment_config_filename, \
                                             generate_global_prefix, generate_master_dbdump_prefix, get_ddboost_backup_directory, \
                                             generate_master_status_prefix, generate_seg_dbdump_prefix, generate_seg_status_prefix, \
@@ -908,19 +908,19 @@ class BackupUtilsTestCase(unittest.TestCase):
         full_ts = get_full_timestamp_for_incremental(backup_dir, self.dump_dir, self.dump_prefix, ts)
         self.assertEquals(full_ts, '20130207093000')
 
-    def test_check_funny_chars_in_tablenames_00(self):
+    def test_check_funny_chars_in_names_00(self):
         tablenames = ['hello! world', 'correct']
         with self.assertRaisesRegexp(Exception, 'Tablename has an invalid character'):
-            check_funny_chars_in_tablenames(tablenames)
+            check_funny_chars_in_names(tablenames)
 
-    def test_check_funny_chars_in_tablenames_01(self):
+    def test_check_funny_chars_in_names_01(self):
         tablenames = ['hello\nworld', 'propertablename']
         with self.assertRaisesRegexp(Exception, 'Tablename has an invalid character'):
-            check_funny_chars_in_tablenames(tablenames)
+            check_funny_chars_in_names(tablenames)
 
-    def test_check_funny_chars_in_tablenames_02(self):
+    def test_check_funny_chars_in_names_02(self):
         tablenames = ['helloworld', 'propertablename']
-        check_funny_chars_in_tablenames(tablenames) #should not raise an exception
+        check_funny_chars_in_names(tablenames) #should not raise an exception
 
     def test_expand_partition_tables_00(self):
         self.assertEqual(expand_partition_tables('foo', None), None)

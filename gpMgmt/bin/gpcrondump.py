@@ -29,7 +29,7 @@ try:
     from gppylib.gparray import GpArray
     from gppylib.gpparseopts import OptParser, OptChecker
     from gppylib.operations import Operation
-    from gppylib.operations.backup_utils import check_funny_chars_in_tablenames, create_temp_file_from_list, expand_partitions_and_populate_filter_file, \
+    from gppylib.operations.backup_utils import check_funny_chars_in_names, create_temp_file_from_list, expand_partitions_and_populate_filter_file, \
                                                 generate_files_filename, generate_pipes_filename, generate_schema_filename, get_backup_directory, \
                                                 get_latest_full_dump_timestamp, get_latest_full_ts_with_nbu, get_lines_from_file, remove_file_from_segments, \
                                                 validate_timestamp, verify_lines_in_file, write_lines_to_file, formatSQLString, checkAndRemoveEnclosingDoubleQuote
@@ -1250,7 +1250,7 @@ class GpCronDump(Operation):
 
         tablenames = set(tablenames)
 
-        check_funny_chars_in_tablenames(tablenames)
+        check_funny_chars_in_names(tablenames)
 
     def _prompt_continue(self, dump_database):
         logger.info("---------------------------------------------------")

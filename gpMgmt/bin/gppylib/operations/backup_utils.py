@@ -582,17 +582,19 @@ def run_pool_command(host_list, cmd_str, batch_default, check_results=True):
     if check_results:
         pool.check_results()
 
-def check_funny_chars_in_tablenames(tablenames):
+def check_funny_chars_in_names(names, is_full_qualified_name=True):
     """
     '\n' inside table name makes it hard to specify the object name in shell command line,
     this may be worked around by using table file, but currently we read input line by line.
     '!' inside table name will mess up with the shell history expansion.     
     ',' is used for separating tables in plan file during incremental restore.
+    '.' dot is currently being used for full qualified table name in format: schema.table
     """
 
-    for tablename in tablenames:
-        if '\t' in tablename or '\n' in tablename or '!' in tablename or ',' in tablename or tablename.count('.') > 1:
-            raise Exception('Tablename has an invalid character "\\t" "\\n" "!" "," ".": "%s"' % tablename)
+    for name in names:
+        if ('\t' in name or '\n' in name or '!' in name or ',' in name or
+           (is_full_qualified_name and name.count('.') > 1) or (not is_full_qualified_name and name.count('.') > 0)):
+            raise Exception('Name has an invalid character "\\t" "\\n" "!" "," ".": "%s"' % name)
 
 #Form and run command line to backup individual file with NBU
 def backup_file_with_nbu(netbackup_service_host, netbackup_policy, netbackup_schedule, netbackup_block_size, netbackup_keyword, netbackup_filepath, hostname=None):
