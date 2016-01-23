@@ -32,7 +32,7 @@ try:
     from gppylib.operations.backup_utils import check_funny_chars_in_names, create_temp_file_from_list, expand_partitions_and_populate_filter_file, \
                                                 generate_files_filename, generate_pipes_filename, generate_schema_filename, get_backup_directory, \
                                                 get_latest_full_dump_timestamp, get_latest_full_ts_with_nbu, get_lines_from_file, remove_file_from_segments, \
-                                                validate_timestamp, verify_lines_in_file, write_lines_to_file, formatSQLString, checkAndRemoveEnclosingDoubleQuote
+                                                validate_timestamp, verify_lines_in_file, write_lines_to_file, formatSQLString
     from gppylib.operations.dump import CreateIncrementsFile, DeleteCurrentDump, DeleteOldestDumps, DumpConfig, DumpDatabase, DumpGlobal, DumpStats, \
                                         MailDumpEvent, PostDumpDatabase, UpdateHistoryTable, VacuumDatabase, ValidateDatabaseExists, ValidateGpToolkit, \
                                         ValidateSchemaExists, backup_cdatabase_file_with_nbu, backup_config_files_with_nbu, backup_dirty_file_with_nbu, \

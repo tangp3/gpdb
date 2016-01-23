@@ -2,7 +2,7 @@
 
 from gppylib.gpparseopts import OptParser, OptChecker
 from gppylib.operations.backup_utils import smart_split, checkAndRemoveEnclosingDoubleQuote, removeEscapingDoubleQuoteInSQLString,\
-                                            escapeDoubleQuoteInSQLString, checkAndAddEnclosingDoubleQuote 
+                                            escapeDoubleQuoteInSQLString 
 import re
 import os
 import sys
@@ -21,6 +21,8 @@ drop_start = 'D'
 drop_expr = 'DROP '
 drop_table_expr = 'DROP TABLE '
 len_drop_table_expr = len(drop_table_expr)
+alter_table_only_expr = 'ALTER TABLE ONLY '
+alter_table_expr = 'ALTER TABLE '
 
 comment_start_expr = '-- '
 comment_expr = '-- Name: '
@@ -53,6 +55,27 @@ def get_table_info(line):
     type = temp[type_start[0] + len(type_expr) : schema_start[0]]
     schema = temp[schema_start[0] + len(schema_expr) : owner_start[0]]
     return (name, type, schema)
+
+def get_table_info_from_alter_table(line, alter_expr):
+    """
+    Parse the content and return schema.table from the line.
+    Fact: if schema name or table name contains any special chars, each should be
+    double quoted already in dump file.
+    """
+    if line.find('"') == -1:
+        return line[len(alter_expr):].split()[0]
+    else:
+        dot_separator_idx = line.find('.')
+        last_double_idx = line.rfind('"')
+        if last_double_idx == -1:
+            raise Exception('Not dot separator in line, schema.table format not found %s')
+        elif dot_separator_idx < last_double_idx:
+            # table name is double quoted
+            return line[len(alter_expr) : last_double_idx+1]
+        else:
+            # only schema name double quoted
+            ending_space_idx = line.find(' ', dot_separator_idx)
+            return line[len(alter_expr) : ending_space_idx] 
 
 def find_all_expr_start(line, expr):
     """
@@ -149,10 +172,13 @@ def process_schema(dump_schemas, dump_tables, fdin, fdout, change_schema=None, s
             else:
                 output = False  
         elif further_investigation_required:
-            if line.startswith('ALTER TABLE'):
+            if line.startswith(alter_table_only_expr) or line.startswith(alter_table_expr):
                 further_investigation_required = False
                 # Get the full qualified table name with the correct split
-                full_table_name = line.split()[2]
+                if line.startswith(alter_table_only_expr):
+                    full_table_name = get_table_info_from_alter_table(line, alter_table_only_expr)
+                else:
+                    full_table_name = get_table_info_from_alter_table(line, alter_table_expr)
                 schemaname, tablename = smart_split(full_table_name)
                 schemaname, tablename = checkAndRemoveEnclosingDoubleQuote(schemaname), checkAndRemoveEnclosingDoubleQuote(tablename)
                 schemaname, tablename = removeEscapingDoubleQuoteInSQLString(schemaname, False), removeEscapingDoubleQuoteInSQLString(tablename, False)
@@ -196,8 +222,6 @@ def get_table_schema_set(filename):
         tables = contents.splitlines()
         for t in tables:
             schema, table = smart_split(t)
-            schema = checkAndRemoveEnclosingDoubleQuote(schema)
-            table = checkAndRemoveEnclosingDoubleQuote(table)
             dump_tables.add((schema, table))
             dump_schemas.add(schema)
     return (dump_schemas, dump_tables)

@@ -732,10 +732,9 @@ def checkAndAddEnclosingDoubleQuote(string):
 
 def escapeDoubleQuoteInSQLString(string, forceDoubleQuote=True):
     """
-    Add enclosing double quote after escaping the double quote 
-    inside the table or schema name
+    Accept true database name, schema name, table name, escape the double quote
+    inside the name, add enclosing double quote by default.
     """
-    string = checkAndRemoveEnclosingDoubleQuote(string)
     string = string.replace('"', '""')
 
     if forceDoubleQuote:
@@ -746,7 +745,6 @@ def removeEscapingDoubleQuoteInSQLString(string, forceDoubleQuote=True):
     """
     Remove the escaping double quote in database/schema/table name. 
     """
-    string = checkAndRemoveEnclosingDoubleQuote(string)
     string = string.replace('""', '"')
 
     if forceDoubleQuote:

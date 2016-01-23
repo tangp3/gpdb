@@ -140,8 +140,6 @@ def get_table_schema_set(filename):
         tables = contents.splitlines()
         for t in tables:
             schema, table = smart_split(t)
-            schema = checkAndRemoveEnclosingDoubleQuote(schema)
-            table = checkAndRemoveEnclosingDoubleQuote(table)
             dump_tables.add((schema, table))
             dump_schemas.add(schema)
     return (dump_schemas, dump_tables)

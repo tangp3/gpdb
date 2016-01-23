@@ -25,8 +25,7 @@ try:
     from gppylib.gpparseopts import OptParser, OptChecker
     from gppylib.operations import Operation
     from gppylib.operations.backup_utils import check_dir_writable, generate_createdb_prefix, generate_master_dbdump_prefix, \
-                                                generate_report_filename, get_lines_from_file, check_schema_exists, checkAndRemoveEnclosingDoubleQuote, \
-                                                check_funny_chars_in_names
+                                                generate_report_filename, get_lines_from_file, check_schema_exists, check_funny_chars_in_names
     from gppylib.operations.restore import GetDbName, GetDumpTables, RecoverRemoteDumps, RestoreDatabase, ValidateTimestamp, \
                                            config_files_dumped, create_restore_plan, get_restore_dir, get_restore_tables_from_table_file, \
                                            global_file_dumped, is_begin_incremental_run, is_incremental_restore, restore_cdatabase_file_with_nbu, \
@@ -71,7 +70,7 @@ class GpdbRestore(Operation):
         self.list_tables = options.list_tables
         self.db_date_dir = options.db_date_dir
         self.db_host_path = options.db_host_path
-        self.search_for_dbname = checkAndRemoveEnclosingDoubleQuote(options.search_for_dbname) if options.search_for_dbname else None
+        self.search_for_dbname = options.search_for_dbname
         self.drop_db = options.drop_db
         self.restore_global = options.restore_global
         self.restore_tables = options.restore_tables
@@ -536,7 +535,7 @@ class GpdbRestore(Operation):
             raise ExceptionNoStackTraceNeeded("No %s* files located with database %s" % (generate_createdb_prefix(self.dump_prefix), self.search_for_dbname))
         restore_timestamp = str(max(timestamps))
         logger.info("Identified latest dump timestamp for %s as %s" %  (self.search_for_dbname, restore_timestamp))
-        restore_db = checkAndRemoveEnclosingDoubleQuote(self.search_for_dbname)
+        restore_db = self.search_for_dbname
         compressed_file = os.path.join(get_restore_dir(self.master_datadir, self.backup_dir), self.dump_dir, restore_timestamp[0:8], "%s%s.gz" % (generate_master_dbdump_prefix(self.dump_prefix), restore_timestamp))
         compress = CheckFile(compressed_file).run()
         return (restore_timestamp, restore_db, compress)

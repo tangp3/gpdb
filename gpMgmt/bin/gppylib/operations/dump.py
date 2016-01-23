@@ -26,7 +26,7 @@ from gppylib.operations.backup_utils import backup_file_with_nbu, check_file_dum
                                             generate_pgstatlastoperation_filename, generate_report_filename, generate_schema_filename, generate_seg_dbdump_prefix, \
                                             generate_seg_status_prefix, generate_segment_config_filename, get_incremental_ts_from_report_file, \
                                             get_latest_full_dump_timestamp, get_latest_full_ts_with_nbu, get_latest_report_timestamp, get_lines_from_file, \
-                                            restore_file_with_nbu, validate_timestamp, verify_lines_in_file, write_lines_to_file, isDoubleQuoted, formatSQLString, checkAndRemoveEnclosingDoubleQuote, checkAndAddEnclosingDoubleQuote, smart_split
+                                            restore_file_with_nbu, validate_timestamp, verify_lines_in_file, write_lines_to_file, isDoubleQuoted, formatSQLString, checkAndAddEnclosingDoubleQuote, smart_split
 
 logger = gplog.get_default_logger()
 
@@ -117,7 +117,6 @@ def get_include_schema_list_from_exclude_schema(exclude_schema_list, catalog_sch
     Don't do strip, that will remove white space inside schema name
     """
     include_schema_list = []
-    exclude_schema_list = [checkAndRemoveEnclosingDoubleQuote(exclude_schema) for exclude_schema in exclude_schema_list]
     schema_list = execute_sql(GET_ALL_SCHEMAS_SQL, master_port, dbname)
     for schema in schema_list:
         if schema[0] not in exclude_schema_list and schema[0] not in catalog_schema_list:
@@ -1127,7 +1126,7 @@ class ValidateDumpDatabase(Operation):
 
         for schema in dump_schemas:
             ValidateSchemaExists(database = self.dump_database,
-                                 schema = checkAndRemoveEnclosingDoubleQuote(schema),
+                                 schema = schema,
                                  master_port = self.master_port).run()
 
         ValidateCluster(master_port = self.master_port).run()
@@ -1394,7 +1393,6 @@ class ValidateIncludeTargets(Operation):
             if '.' not in dump_table:
                 raise ExceptionNoStackTraceNeeded("No schema name supplied for table %s" % dump_table)
             schema, table = smart_split(dump_table)
-            schema, table = checkAndRemoveEnclosingDoubleQuote(schema), checkAndRemoveEnclosingDoubleQuote(table)
             exists = CheckTableExists(schema = schema,
                                       table = table,
                                       database = self.dump_database,
@@ -1436,7 +1434,6 @@ class ValidateExcludeTargets(Operation):
             if '.' not in dump_table:
                 raise ExceptionNoStackTraceNeeded("No schema name supplied for exclude table %s" % dump_table)
             schema, table = smart_split(dump_table)
-            schema, table = checkAndRemoveEnclosingDoubleQuote(schema), checkAndRemoveEnclosingDoubleQuote(table)
             exists = CheckTableExists(schema = schema,
                                       table = table,
                                       database = self.dump_database,
@@ -1459,14 +1456,12 @@ class ValidateDatabaseExists(Operation):
     """ TODO: move this to gppylib.operations.common? """
     def __init__(self, database, master_port):
         self.master_port = master_port
-        #self.database = checkAndRemoveEnclosingDoubleQuote(database)
         self.database = database
 
     def execute(self):
         with open("/tmp/database", "w") as fw:
             fw.write(self.database + '\n')
             fw.write(pg.escape_string(self.database))
-        self.database = checkAndRemoveEnclosingDoubleQuote(self.database)
         conn = None
         try:
             dburl = dbconn.DbURL(port=self.master_port)
@@ -1487,7 +1482,6 @@ class ValidateSchemaExists(Operation):
         self.master_port = master_port
 
     def execute(self):
-        self.schema = checkAndRemoveEnclosingDoubleQuote(self.schema)
         with open("/tmp/schema", "w") as fw:
             fw.write(self.schema + '\n')
             fw.write(pg.escape_string(self.schema))

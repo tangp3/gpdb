@@ -229,15 +229,10 @@ def get_restore_table_list(table_list, restore_tables):
     else:
         for restore_table in restore_tables:
             schema, table = smart_split(restore_table)
-            schema = checkAndRemoveEnclosingDoubleQuote(schema)
-            table = checkAndRemoveEnclosingDoubleQuote(table)
             restore_table_set.add((schema, table))
         for tbl in table_list:
             # may not need to remove the double quote
             schema, table = smart_split(tbl)
-            schema = checkAndRemoveEnclosingDoubleQuote(schema)
-            table = checkAndRemoveEnclosingDoubleQuote(table)
-
             if (schema, table) in restore_table_set:
                 restore_list.append(tbl)
 
@@ -1173,8 +1168,6 @@ def validate_tablenames(table_list, schema_level_restore_list):
         if '.' not in restore_table:
             raise Exception("No schema name supplied for %s, removing from list of tables to restore" % restore_table)
         schema, table = smart_split(restore_table)
-        schema = checkAndRemoveEnclosingDoubleQuote(schema)
-        table = checkAndRemoveEnclosingDoubleQuote(table)
         if schema in schema_level_restore_list or (schema, table) in table_set:
             continue
         else:
