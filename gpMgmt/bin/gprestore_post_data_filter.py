@@ -58,7 +58,8 @@ def process_schema(dump_schemas, dump_tables, fdin, fdout, change_schema_name, s
             # schema in set search_path line is already escaped in dump file
             schema = extract_schema(line)
             schema_wo_escaping = removeEscapingDoubleQuoteInSQLString(schema, False)
-            if schema_wo_escaping in dump_schemas or (schema_level_restore_list and schema_wo_escaping in schema_level_restore_list):
+            if ((dump_schemas and schema_wo_escaping in dump_schemas) or 
+                (schema_level_restore_list and schema_wo_escaping in schema_level_restore_list)):
                 if change_schema_name and len(change_schema_name) > 0:
                     # change schema name can contain special chars including white space, double quote that.
                     # if original schema name is already quoted, replaced it with quoted change schema name
@@ -101,30 +102,32 @@ def process_schema(dump_schemas, dump_tables, fdin, fdout, change_schema_name, s
 def check_table(schema, line, search_str, dump_tables, schema_level_restore_list):
     if schema_level_restore_list and schema in schema_level_restore_list:
         return True
-    try:
-        comp_set = set()
-        start = line.index(search_str) + len(search_str)
-        # table name with special chars is double quoted, so looking for last double quote as ending index
-        end = line.rfind('"')
-        if end > 0:
-            table = line[start:end+1]
-        else:
-            end = line.find(' ',start)
+
+    if dump_tables:
+        try:
+            comp_set = set()
+            start = line.index(search_str) + len(search_str)
+            # table name with special chars is double quoted, so looking for last double quote as ending index
+            end = line.rfind('"')
+            # THIS SHOULD BE FURTHRE CORRECTED!!!
             if end > 0:
-                table = line[start:end]
+                table = line[start:end+1]
             else:
+                end = line.find(' ',start)
+                if end > 0:
+                    table = line[start:end]
+                else:
                 table = line[start:].strip()
-        table = checkAndRemoveEnclosingDoubleQuote(table)
-        table = removeEscapingDoubleQuoteInSQLString(table, False)
-        comp_set.add((schema, table))
+            table = checkAndRemoveEnclosingDoubleQuote(table)
+            table = removeEscapingDoubleQuoteInSQLString(table, False)
+            comp_set.add((schema, table))
 
-        with open('/tmp/check_tables', 'w') as fw:
-            fw.write('schema ant table is %s, %s' % (schema, table))
-
-        if comp_set.issubset(dump_tables):
-            return True
-        return False
-    except:
+            if comp_set.issubset(dump_tables):
+                return True
+            return False
+        except:
+            return False
+    else:
         return False
 
 def get_table_schema_set(filename):
@@ -198,12 +201,9 @@ if __name__ == "__main__":
     elif options.schema_level_file and options.change_schema_file:
         raise Exception('-s schema level file option can not be specified with -c change schema file option')
 
-    (schemas, tables) = get_table_schema_set(options.tablefile)
-    with open('/tmp/post_schemas', 'w') as fw:
-        fw.write("schemas are: %s\n" % schemas)
-
-    with open('/tmp/post_tables', 'w') as fw:
-        fw.write("tables are: %s\n" % tables)
+    schemas, tables = None, None
+    if options.tablefile:
+        (schemas, tables) = get_table_schema_set(options.tablefile)
 
     change_schema_name = None
     if options.change_schema_file:
@@ -214,4 +214,3 @@ if __name__ == "__main__":
         schema_level_restore_list = get_schema_level_restore_list(options.schema_level_file)
 
     process_schema(schemas, tables, sys.stdin, sys.stdout, change_schema_name, schema_level_restore_list)
-

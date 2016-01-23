@@ -112,7 +112,9 @@ def process_schema(dump_schemas, dump_tables, fdin, fdout, change_schema=None, s
             further_investigation_required = False
             # schema in set search_path line is already escaped in dump file
             schema = extract_schema(line)
-            if removeEscapingDoubleQuoteInSQLString(schema, False) in dump_schemas:
+            schema_wo_escaping = removeEscapingDoubleQuoteInSQLString(schema, False)
+            if (dump_schemas and schema_wo_escaping in dump_schemas or
+                schema_level_restore_list and schema_wo_escaping in schema_level_restore_list):
                 if change_schema and len(change_schema) > 0:
                     # change schema name can contain special chars including white space, double quote that.
                     # if original schema name is already quoted, replaced it with quoted change schema name
@@ -149,7 +151,7 @@ def process_schema(dump_schemas, dump_tables, fdin, fdout, change_schema=None, s
                     search_path = True
             elif type in ['CONSTRAINT']:
                 further_investigation_required = True
-                if schema in dump_schemas:
+                if (dump_schemas and schema in dump_schemas) or (schema_level_restore_list and schema in schema_level_restore_list):
                     line_buff = line 
             elif type in ['ACL']:
                 output = check_valid_table(schema, name, dump_tables, schema_level_restore_list)
@@ -196,7 +198,8 @@ def process_schema(dump_schemas, dump_tables, fdin, fdout, change_schema=None, s
             fdout.write(line)
 
 def check_valid_schema(name, dump_schemas, schema_level_restore_list):
-    if (schema_level_restore_list and name in schema_level_restore_list) or (name in dump_schemas):
+    if ((schema_level_restore_list and name in schema_level_restore_list) or
+        (dump_schemas and name in dump_schemas)):
         return True
     return False
 
@@ -205,7 +208,8 @@ def check_valid_table(schema, name, dump_tables, schema_level_restore_list):
     check if table is valid (can be from schema level restore)
     """
 
-    if (schema_level_restore_list and schema in schema_level_restore_list) or ((schema, name) in dump_tables):
+    if ((schema_level_restore_list and schema in schema_level_restore_list) or
+       (dump_tables and (schema, name) in dump_tables)):
         return True
     return False
 
@@ -276,7 +280,8 @@ def process_data(dump_schemas, dump_tables, fdin, fdout, change_schema=None, sch
         if (line[0] == set_start) and line.startswith(search_path_expr):
             schema = extract_schema(line)
             schema_wo_escaping = removeEscapingDoubleQuoteInSQLString(schema, False)
-            if schema_wo_escaping in dump_schemas:
+            if ((dump_schemas and schema_wo_escaping in dump_schemas) or
+                (schema_level_restore_list and schema_wo_escaping in schema_level_restore_list)):
                 if change_schema:
                     # change schema name can contain special chars including white space, double quote that.
                     # if original schema name is already quoted, replaced it with quoted change schema name
@@ -340,7 +345,9 @@ if __name__ == "__main__":
     elif options.schema_level_file and options.change_schema_file:
         raise Exception('-s schema level file option can not be specified with -c change schema file option')
 
-    (schemas, tables) = get_table_schema_set(options.tablefile)
+    schemas, tables = None, None
+    if options.tablefile:
+        (schemas, tables) = get_table_schema_set(options.tablefile)
 
     change_schema_name = None
     if options.change_schema_file:
