@@ -433,7 +433,7 @@ class BackupUtilsTestCase(unittest.TestCase):
         write_lines_to_file(filename, lines)
         self.assertTrue(os.path.isfile(filename))
         content = get_lines_from_file(filename)
-        expected_output = [s.rstrip() for s in lines]
+        expected_output = [s.strip('\n') for s in lines]
         self.assertEquals(expected_output, content)
         os.remove(filename)
 
@@ -910,12 +910,12 @@ class BackupUtilsTestCase(unittest.TestCase):
 
     def test_check_funny_chars_in_names_00(self):
         tablenames = ['hello! world', 'correct']
-        with self.assertRaisesRegexp(Exception, 'Tablename has an invalid character'):
+        with self.assertRaisesRegexp(Exception, 'Name has an invalid character'):
             check_funny_chars_in_names(tablenames)
 
     def test_check_funny_chars_in_names_01(self):
         tablenames = ['hello\nworld', 'propertablename']
-        with self.assertRaisesRegexp(Exception, 'Tablename has an invalid character'):
+        with self.assertRaisesRegexp(Exception, 'Name has an invalid character'):
             check_funny_chars_in_names(tablenames)
 
     def test_check_funny_chars_in_names_02(self):
@@ -989,7 +989,7 @@ class BackupUtilsTestCase(unittest.TestCase):
     @patch('gppylib.operations.backup_utils.expand_partition_tables', return_value=[])
     def test_expand_partitions_and_populate_filter_file03(self, mock):
         dbname = 'testdb'
-        partition_list = []
+        partition_list = ['part_table']
         file_prefix = 'exclude_dump_tables_file'
         result = expand_partitions_and_populate_filter_file(dbname, partition_list, file_prefix)
         self.assertTrue(os.path.basename(result).startswith(file_prefix))

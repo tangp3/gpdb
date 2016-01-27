@@ -37,7 +37,7 @@ len_start_comment_expr = len(comment_start_expr)
 def get_table_info(line):
     """
     It's complex to split when table name/schema name/user name/ tablespace name
-    contains full expression of one of others', which is very unlikely, but in
+    contains full context of one of others', which is very unlikely, but in
     case it happens, return None.
 
     Since we only care about table name, type, and schema name, strip the input
@@ -56,26 +56,38 @@ def get_table_info(line):
     schema = temp[schema_start[0] + len(schema_expr) : owner_start[0]]
     return (name, type, schema)
 
-def get_table_info_from_alter_table(line, alter_expr):
+def get_table_from_alter_table(line, alter_expr):
     """
-    Parse the content and return schema.table from the line.
+    Parse the content and return full qualified schema.table from the line if
+    schema provided, else return the table name.
     Fact: if schema name or table name contains any special chars, each should be
     double quoted already in dump file.
     """
-    if line.find('"') == -1:
-        return line[len(alter_expr):].split()[0]
+
+    dot_separator_idx = line.find('.')
+    last_double_quote_idx = line.rfind('"')
+
+    has_schema_table_fmt = True if dot_separator_idx != -1 else False
+    has_special_chars = True if last_double_quote_idx != -1 else False
+
+    if not has_schema_table_fmt and not has_special_chars:
+        line[len(alter_expr):].split()[0]
+    elif has_schema_table_fmt and not has_special_chars:
+        full_table_name = line[len(alter_expr):].split()[0]
+        _, table = smart_split(full_table_name)
+        return table
+    elif not has_schema_table_fmt and has_special_chars:
+        return line[len(alter_expr) : last_double_quote_idx + 1]
     else:
-        dot_separator_idx = line.find('.')
-        last_double_idx = line.rfind('"')
-        if last_double_idx == -1:
-            raise Exception('Not dot separator in line, schema.table format not found %s')
-        elif dot_separator_idx < last_double_idx:
+        if dot_separator_idx < last_double_quote_idx:
             # table name is double quoted
-            return line[len(alter_expr) : last_double_idx+1]
+            full_table_name = line[len(alter_expr) : last_double_idx + 1]
         else:
             # only schema name double quoted
             ending_space_idx = line.find(' ', dot_separator_idx)
-            return line[len(alter_expr) : ending_space_idx] 
+            full_table_name = line[len(alter_expr) : ending_space_idx]
+        _, table = smart_split(full_table_name)
+        return table
 
 def find_all_expr_start(line, expr):
     """
@@ -178,13 +190,12 @@ def process_schema(dump_schemas, dump_tables, fdin, fdout, change_schema=None, s
                 further_investigation_required = False
                 # Get the full qualified table name with the correct split
                 if line.startswith(alter_table_only_expr):
-                    full_table_name = get_table_info_from_alter_table(line, alter_table_only_expr)
+                    tablename = get_table_from_alter_table(line, alter_table_only_expr)
                 else:
-                    full_table_name = get_table_info_from_alter_table(line, alter_table_expr)
-                schemaname, tablename = smart_split(full_table_name)
-                schemaname, tablename = checkAndRemoveEnclosingDoubleQuote(schemaname), checkAndRemoveEnclosingDoubleQuote(tablename)
-                schemaname, tablename = removeEscapingDoubleQuoteInSQLString(schemaname, False), removeEscapingDoubleQuoteInSQLString(tablename, False)
-                output = check_valid_table(schemaname, tablename, dump_tables, schema_level_restore_list)
+                    tablename = get_table_from_alter_table(line, alter_table_expr)
+                tablename = checkAndRemoveEnclosingDoubleQuote(tablename)
+                tablename = removeEscapingDoubleQuoteInSQLString(tablename, False)
+                output = check_valid_table(schema, tablename, dump_tables, schema_level_restore_list)
                 if output:
                     if line_buff:
                         fdout.write(line_buff)
@@ -193,17 +204,16 @@ def process_schema(dump_schemas, dump_tables, fdin, fdout, change_schema=None, s
         else:
             further_investigation_required = False
 
-
         if output:
             fdout.write(line)
 
-def check_valid_schema(name, dump_schemas, schema_level_restore_list):
+def check_valid_schema(name, dump_schemas, schema_level_restore_list=None):
     if ((schema_level_restore_list and name in schema_level_restore_list) or
         (dump_schemas and name in dump_schemas)):
         return True
     return False
 
-def check_valid_table(schema, name, dump_tables, schema_level_restore_list):
+def check_valid_table(schema, name, dump_tables, schema_level_restore_list=None):
     """
     check if table is valid (can be from schema level restore)
     """
@@ -260,7 +270,7 @@ def extract_table(line):
     table = temp[:idx]
     return checkAndRemoveEnclosingDoubleQuote(table)
 
-def check_dropped_table(line, dump_tables, schema_level_restore_list):
+def check_dropped_table(line, dump_tables, schema_level_restore_list=None):
     """
     check if table to drop is valid (can be dropped from schema level restore)
     """

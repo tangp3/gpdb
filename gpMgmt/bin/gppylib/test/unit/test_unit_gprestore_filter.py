@@ -21,8 +21,8 @@ class GpRestoreFilterTestCase(unittest.TestCase):
             fd.write(' pepper.ao2   \n')
 
         (sc, tb) = get_table_schema_set(fname)
-        self.assertEquals(sc, set(['public', 'pepper']))
-        self.assertEquals(tb, set([('public','ao1'), ('pepper','ao2')]))
+        self.assertEquals(sc, set(['public', ' pepper']))
+        self.assertEquals(tb, set([('public','ao1'), (' pepper','ao2  ')]))
 
         os.remove(fname)
 
@@ -32,7 +32,7 @@ class GpRestoreFilterTestCase(unittest.TestCase):
             fd.write('publicao1\n')
             fd.write(' pepper.ao2   \n')
 
-        with self.assertRaisesRegexp(Exception, "Bad table in filter list"):
+        with self.assertRaisesRegexp(Exception, "Found no valid split options, publicao1"):
             get_table_schema_set(fname)
 
         os.remove(fname)
@@ -55,8 +55,8 @@ class GpRestoreFilterTestCase(unittest.TestCase):
 
     def test_extract_schema01(self):
         line = 'SET search_path = pepper pg_catalog;'
-        schema = extract_schema(line)
-        self.assertEquals(schema, None)
+        with self.assertRaisesRegexp(Exception, "Failed to extract schema name"):
+            schema = extract_schema(line)
 
     def test_extract_table00(self):
         line = 'COPY ao_table (column1, column2, column3) FROM stdin;'
@@ -65,8 +65,8 @@ class GpRestoreFilterTestCase(unittest.TestCase):
 
     def test_extract_table01(self):
         line = 'COPYao_table(column1column2column3)FROMstdin;'
-        table = extract_table(line)
-        self.assertEqual(table, None)
+        with self.assertRaisesRegexp(Exception, "Failed to extract table name"):
+            table = extract_table(line)
 
     def test_process_data00(self):
 
@@ -488,9 +488,7 @@ COPY "测试" (column1, column2, column3) FROM stdin;
         self.assertEquals(schema, None)
 
     def test_get_table_info01(self):
-        line = """--
--- Name: public; Type: ACL; Schema: -; Owner: root
---"""
+        line = '-- Name: public; Type: ACL; Schema: -; Owner: root'
         (name, type, schema) = get_table_info(line)
         self.assertEquals(name, 'public')
         self.assertEquals(type, 'ACL')
@@ -917,7 +915,7 @@ SET default_tablespace = '';
 -- Name: ao_part_table_constraint; Type: CONSTRAINT; Schema: public; Owner: dcddev; Tablespace: 
 --
 
-ALTER TABLE ONLY ao_part_table
+ALTER TABLE ONLY public.ao_part_table
     ADD CONSTRAINT constraint_name PRIMARY KEY (name);
 
 --
@@ -958,7 +956,7 @@ SET default_tablespace = '';
 
 --
 -- Name: ao_part_table_constraint; Type: CONSTRAINT; Schema: public; Owner: dcddev; Tablespace: 
-ALTER TABLE ONLY ao_part_table
+ALTER TABLE ONLY public.ao_part_table
     ADD CONSTRAINT constraint_name PRIMARY KEY (name);
 
 --
@@ -1006,7 +1004,7 @@ SET default_tablespace = '';
 -- Name: ao_part_table_constraint; Type: CONSTRAINT; Schema: public; Owner: dcddev; Tablespace: 
 --
 
-ALTER TABLE ONLY ao_part_table
+ALTER TABLE ONLY public.ao_part_table
     ADD CONSTRAINT constraint_name PRIMARY KEY (name);
 
 --
@@ -1090,7 +1088,7 @@ SET default_tablespace = '';
 -- Name: ao_part_table_constraint; Type: CONSTRAINT; Schema: public; Owner: dcddev; Tablespace: 
 --
 
-ALTER TABLE ONLY ao_part_table
+ALTER TABLE ONLY public.ao_part_table
     ADD CONSTRAINT constraint_name PRIMARY KEY (name);
 
 --
@@ -1135,7 +1133,7 @@ SET default_tablespace = '';
 
 --
 -- Name: ao_part_table_constraint; Type: CONSTRAINT; Schema: public; Owner: dcddev; Tablespace: 
-ALTER TABLE ONLY ao_part_table
+ALTER TABLE ONLY public.ao_part_table
     ADD CONSTRAINT constraint_name PRIMARY KEY (name);
 
 --
@@ -1187,7 +1185,7 @@ SET default_tablespace = '';
 -- Name: ao_part_table_constraint; Type: CONSTRAINT; Schema: public; Owner: dcddev; Tablespace: 
 --
 
-ALTER TABLE ONLY ao_part_table
+ALTER TABLE ONLY public.ao_part_table
     ADD CONSTRAINT constraint_name PRIMARY KEY (name);
 
 --
@@ -1232,7 +1230,7 @@ SET default_tablespace = '';
 
 --
 -- Name: ao_part_table_constraint; Type: CONSTRAINT; Schema: public; Owner: dcddev; Tablespace: 
-ALTER TABLE ONLY ao_part_table
+ALTER TABLE ONLY public.ao_part_table
     ADD CONSTRAINT constraint_name PRIMARY KEY (name);
 
 --
@@ -1284,7 +1282,7 @@ SET default_tablespace = '';
 -- Name: ao_part_table_constraint; Type: CONSTRAINT; Schema: public; Owner: dcddev; Tablespace: 
 --
 
-ALTER TABLE ONLY ao_part_table
+ALTER TABLE ONLY public.ao_part_table
     ADD CONSTRAINT constraint_name PRIMARY KEY (name);
 
 --
@@ -1325,7 +1323,7 @@ SET default_tablespace = '';
 
 --
 -- Name: ao_part_table_constraint; Type: CONSTRAINT; Schema: public; Owner: dcddev; Tablespace: 
-ALTER TABLE ONLY ao_part_table
+ALTER TABLE ONLY public.ao_part_table
     ADD CONSTRAINT constraint_name PRIMARY KEY (name);
 
 --
@@ -1373,7 +1371,7 @@ SET default_tablespace = '';
 -- Name: ao_part_table_constraint; Type: CONSTRAINT; Schema: public; Owner: dcddev; Tablespace: 
 --
 
-ALTER TABLE ONLY ao_part_table
+ALTER TABLE ONLY public.ao_part_table
     ADD CONSTRAINT constraint_name PRIMARY KEY (name);
 
 --
@@ -1426,7 +1424,7 @@ SET default_tablespace = '';
 
 --
 -- Name: ao_part_table_constraint; Type: CONSTRAINT; Schema: public; Owner: dcddev; Tablespace: 
-ALTER TABLE ONLY ao_part_table
+ALTER TABLE ONLY public.ao_part_table
     ADD CONSTRAINT constraint_name PRIMARY KEY (name);
 
 --
@@ -1474,7 +1472,7 @@ SET default_tablespace = '';
 -- Name: ao_part_table_constraint; Type: CONSTRAINT; Schema: public; Owner: dcddev; Tablespace: 
 --
 
-ALTER TABLE ONLY ao_part_table
+ALTER TABLE ONLY public.ao_part_table
     ADD CONSTRAINT constraint_name PRIMARY KEY (name);
 
 --
@@ -1561,7 +1559,7 @@ SET default_tablespace = '';
 -- Name: ao_part_table_constraint; Type: CONSTRAINT; Schema: public; Owner: dcddev; Tablespace: 
 --
 
-ALTER TABLE ONLY ao_part_table
+ALTER TABLE ONLY public.ao_part_table
     ADD CONSTRAINT constraint_name PRIMARY KEY (name);
 
 --
@@ -1634,7 +1632,7 @@ SET search_path = some_schema, pg_catalog;
 -- Name: ao_part_table_constraint; Type: CONSTRAINT; Schema: some_schema; Owner: dcddev; Tablespace: 
 --
 
-ALTER TABLE ONLY ao_part_table
+ALTER TABLE ONLY public.ao_part_table
     ADD CONSTRAINT constraint_name PRIMARY KEY (name);
 
 
@@ -1771,7 +1769,7 @@ SET search_path = some_schema, pg_catalog;
 -- Name: ao_part_table_constraint; Type: CONSTRAINT; Schema: some_schema; Owner: dcddev; Tablespace: 
 --
 
-ALTER TABLE ONLY ao_part_table
+ALTER TABLE ONLY some_schema.ao_part_table
     ADD CONSTRAINT constraint_name PRIMARY KEY (name);
 
 
@@ -1861,7 +1859,7 @@ SET search_path = some_schema, pg_catalog;
 -- Name: ao_part_table_constraint; Type: CONSTRAINT; Schema: some_schema; Owner: dcddev; Tablespace:
 --
 
-ALTER TABLE ONLY ao_part_table
+ALTER TABLE ONLY some_schema.ao_part_table
     ADD CONSTRAINT constraint_name PRIMARY KEY (name);
 
 
@@ -1965,7 +1963,7 @@ SET search_path = some_schema, pg_catalog;
 -- Name: ao_part_table_constraint; Type: CONSTRAINT; Schema: some_schema; Owner: dcddev; Tablespace: 
 --
 
-ALTER TABLE ONLY ao_part_table
+ALTER TABLE ONLY some_schema.ao_part_table
     ADD CONSTRAINT constraint_name PRIMARY KEY (name);
 
 

@@ -224,14 +224,13 @@ def get_restore_table_list(table_list, restore_tables):
     restore_table_set = set()
     restore_list = []
 
-    if len(restore_tables) == 0:
+    if restore_tables is None or len(restore_tables) == 0:
         restore_list = table_list
     else:
         for restore_table in restore_tables:
             schema, table = smart_split(restore_table)
             restore_table_set.add((schema, table))
         for tbl in table_list:
-            # may not need to remove the double quote
             schema, table = smart_split(tbl)
             if (schema, table) in restore_table_set:
                 restore_list.append(tbl)
@@ -241,12 +240,12 @@ def get_restore_table_list(table_list, restore_tables):
         return None
     return create_temp_file_with_tables(restore_list)
 
-def validate_restore_tables_list(plan_file_contents, restore_tables, schema_level_restore_list):
+def validate_restore_tables_list(plan_file_contents, restore_tables, schema_level_restore_list=None):
     """
     Check if the tables in plan file match any of the restore tables.
 
-    For schema level restore, check if tables in plan file match the
-    wildcard expression of schemas.
+    For schema level restore, check if table schema in plan file match
+    any member of schema list.
     """
     if restore_tables is None:
         return
@@ -261,10 +260,14 @@ def validate_restore_tables_list(plan_file_contents, restore_tables, schema_leve
 
     invalid_tables = []
     for table in restore_tables:
-        comp_set.add(table)
-        if not comp_set.issubset(table_set):
-            invalid_tables.append(table)
-            comp_set.remove(table)
+        schema_name, table_name = smart_split(table)
+        if schema_level_restore_list and schema_name in schema_level_restore_list:
+            continue
+        else:
+            comp_set.add(table)
+            if not comp_set.issubset(table_set):
+                invalid_tables.append(table)
+                comp_set.remove(table)
 
     if invalid_tables != []:
         raise Exception('Invalid tables for -T option: The following tables were not found in plan file : "%s"' % (invalid_tables))
@@ -686,7 +689,7 @@ class RestoreDatabase(Operation):
         return change_schema_file
 
     def create_filter_file(self):
-        if len(self.restore_tables) == 0:
+        if not self.restore_tables or len(self.restore_tables) == 0:
             return None
 
         table_filter_file = create_temp_file_with_tables(self.restore_tables)
@@ -912,7 +915,7 @@ class RestoreDatabase(Operation):
         return True
 
     def _build_restore_line(self, restore_timestamp, restore_db, compress, master_port, no_plan,
-                            table_filter_file, no_stats, full_restore_with_filter, change_schema_file, schema_level_restore_file):
+                            table_filter_file, no_stats, full_restore_with_filter, change_schema_file, schema_level_restore_file=None):
 
         user = getpass.getuser()
         hostname = socket.gethostname()    # TODO: can this just be localhost? bash was using `hostname`
@@ -1007,7 +1010,7 @@ class RestoreDatabase(Operation):
 
     def _build_schema_only_restore_line(self, restore_timestamp, restore_db, compress, master_port,
                                         metadata_filename, table_filter_file, full_restore_with_filter, 
-                                        change_schema_file, schema_level_restore_file):
+                                        change_schema_file=None, schema_level_restore_file=None):
         user = getpass.getuser()
         hostname = socket.gethostname()    # TODO: can this just be localhost? bash was using `hostname`
         (gpr_path, status_path, gpd_path) = self.get_restore_line_paths(restore_timestamp[0:8])
@@ -1151,7 +1154,7 @@ class ValidateSegments(Operation):
                 if not exists:
                     raise ExceptionNoStackTraceNeeded("No dump file on %s at %s" % (seg.getSegmentHostName(), path))
 
-def validate_tablenames(table_list, schema_level_restore_list):
+def validate_tablenames(table_list, schema_level_restore_list=None):
     """
     verify table list, and schema list, resolve duplicates and overlaps
     """
@@ -1162,13 +1165,15 @@ def validate_tablenames(table_list, schema_level_restore_list):
     check_funny_chars_in_names(schema_level_restore_list, is_full_qualified_name = False)
     check_funny_chars_in_names(table_list)
 
-    schema_level_restore_list = list(set(schema_level_restore_list))
+    if schema_level_restore_list:
+        schema_level_restore_list = list(set(schema_level_restore_list))
 
     for restore_table in table_list:
         if '.' not in restore_table:
             raise Exception("No schema name supplied for %s, removing from list of tables to restore" % restore_table)
         schema, table = smart_split(restore_table)
-        if schema in schema_level_restore_list or (schema, table) in table_set:
+        # schema level restore will be handled before specific table restore, treat as duplicate
+        if (schema_level_restore_list and schema in schema_level_restore_list) or (schema, table) in table_set:
             continue
         else:
             table_set.add((schema, table))

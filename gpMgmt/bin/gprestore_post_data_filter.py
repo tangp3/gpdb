@@ -37,7 +37,7 @@ def find_all_expr_start(line, expr):
     """
     return [m.start() for m in re.finditer('(?=%s)' % expr, line)]
 
-def process_schema(dump_schemas, dump_tables, fdin, fdout, change_schema_name, schema_level_restore_list):
+def process_schema(dump_schemas, dump_tables, fdin, fdout, change_schema_name=None, schema_level_restore_list=None):
     """
     Filter the dump file line by line from restore
     dump_schemas: set of schemas to restore
@@ -99,7 +99,7 @@ def process_schema(dump_schemas, dump_tables, fdin, fdout, change_schema_name, s
 
 # Given a line like 'ALTER TABLE ONLY tablename\n' and a search_str like ' ONLY ',
 # extract everything between the search_str and the next space or the end of the string, whichever comes first.
-def check_table(schema, line, search_str, dump_tables, schema_level_restore_list):
+def check_table(schema, line, search_str, dump_tables, schema_level_restore_list=None):
     if schema_level_restore_list and schema in schema_level_restore_list:
         return True
 
@@ -107,17 +107,30 @@ def check_table(schema, line, search_str, dump_tables, schema_level_restore_list
         try:
             comp_set = set()
             start = line.index(search_str) + len(search_str)
-            # table name with special chars is double quoted, so looking for last double quote as ending index
-            end = line.rfind('"')
-            # THIS SHOULD BE FURTHRE CORRECTED!!!
-            if end > 0:
-                table = line[start:end+1]
+
+            dot_separator_idx = line.find('.')
+            last_double_quote_idx = line.rfind('"')
+
+            has_schema_table_fmt = True if dot_separator_idx != -1 else False
+            has_special_chars = True if last_double_quote_idx != -1 else False
+
+            if not has_schema_table_fmt and not has_special_chars:
+                line[start:].split()[0]
+            elif has_schema_table_fmt and not has_special_chars:
+                full_table_name = line[start:].split()[0]
+                _, table = smart_split(full_table_name)
+            elif not has_schema_table_fmt and has_special_chars:
+                table = line[start : last_double_quote_idx + 1]
             else:
-                end = line.find(' ',start)
-                if end > 0:
-                    table = line[start:end]
+                if dot_separator_idx < last_double_quote_idx:
+                    # table name is double quoted
+                    full_table_name = line[start : last_double_idx + 1]
                 else:
-                table = line[start:].strip()
+                    # only schema name double quoted
+                    ending_space_idx = line.find(' ', dot_separator_idx)
+                    full_table_name = line[start : ending_space_idx]
+                _, table = smart_split(full_table_name)
+
             table = checkAndRemoveEnclosingDoubleQuote(table)
             table = removeEscapingDoubleQuoteInSQLString(table, False)
             comp_set.add((schema, table))

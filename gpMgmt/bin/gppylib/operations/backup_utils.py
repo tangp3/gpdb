@@ -70,7 +70,7 @@ def convert_parents_to_leafs(dbname, parents):
 #output: same list but parent tables converted to leafs
 def expand_partition_tables(dbname, filter_tables):
 
-    if len(filter_tables) == 0:
+    if not filter_tables or len(filter_tables) == 0:
         return filter_tables
     parent_tables = list()
     non_parent_tables = list()
@@ -191,7 +191,7 @@ def check_cdatabase_exists(dbname, report_file, dump_prefix, ddboost=False, netb
         restore_file_with_nbu(netbackup_service_host, netbackup_block_size, filename)
         cdatabase_contents = get_lines_from_file(filename)
     else:
-        cdatabase_contents = get_lines_from_file(filename, ddboost)
+        cdatabase_contents = get_lines_from_file(filename)
 
     dbname = escapeDoubleQuoteInSQLString(dbname, forceDoubleQuote=False)
     ff = open("/tmp/dbnames", "w")
@@ -220,7 +220,12 @@ def get_dbname_from_cdatabaseline(line):
     Note: OWER name can also have special characters with double quote.
     """
     cdatabase = "CREATE DATABASE "
-    start = line.index(cdatabase)
+    try:
+        start = line.index(cdatabase)
+    except Exception as e:
+        logger.info('Failed to find substring %s in line %s, error: %s' % (cdatabase, line, str(e)))
+        return None
+
     with_template = " WITH TEMPLATE = "
     all_positions = get_all_occurrences(with_template, line)
     if all_positions != None:
@@ -299,7 +304,7 @@ def write_lines_to_file(filename, lines):
 
     with open(filename, 'w') as fp:
         for line in lines:
-            fp.write("%s\n" % line)
+            fp.write("%s\n" % line.strip('\n'))
 
 def verify_lines_in_file(fname, expected):
     lines = get_lines_from_file(fname)
@@ -590,11 +595,11 @@ def check_funny_chars_in_names(names, is_full_qualified_name=True):
     ',' is used for separating tables in plan file during incremental restore.
     '.' dot is currently being used for full qualified table name in format: schema.table
     """
-
-    for name in names:
-        if ('\t' in name or '\n' in name or '!' in name or ',' in name or
-           (is_full_qualified_name and name.count('.') > 1) or (not is_full_qualified_name and name.count('.') > 0)):
-            raise Exception('Name has an invalid character "\\t" "\\n" "!" "," ".": "%s"' % name)
+    if names and len(names) > 0:
+        for name in names:
+            if ('\t' in name or '\n' in name or '!' in name or ',' in name or
+               (is_full_qualified_name and name.count('.') > 1) or (not is_full_qualified_name and name.count('.') > 0)):
+                raise Exception('Name has an invalid character "\\t" "\\n" "!" "," ".": "%s"' % name)
 
 #Form and run command line to backup individual file with NBU
 def backup_file_with_nbu(netbackup_service_host, netbackup_policy, netbackup_schedule, netbackup_block_size, netbackup_keyword, netbackup_filepath, hostname=None):
@@ -745,6 +750,9 @@ def removeEscapingDoubleQuoteInSQLString(string, forceDoubleQuote=True):
     """
     Remove the escaping double quote in database/schema/table name. 
     """
+    if string is None:
+        return string
+
     string = string.replace('""', '"')
 
     if forceDoubleQuote:

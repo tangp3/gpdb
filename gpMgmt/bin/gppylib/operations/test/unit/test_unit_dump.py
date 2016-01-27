@@ -408,7 +408,7 @@ class DumpTestCase(unittest.TestCase):
         master_port=5432
         dbname='testdb'
         partition_info = [(123, 'pepper', 't1', 4444), (234, 'pepper', 't2', 5555)]
-        expected_output = ['pepper, t1, 100', 'pepper, t2, 100']
+        expected_output = ['pepper,t1,100', 'pepper,t2,100']
         result = get_partition_state(master_port, dbname, 'pg_aoseg', partition_info)
         self.assertEqual(result, expected_output)
 
@@ -440,7 +440,7 @@ class DumpTestCase(unittest.TestCase):
         master_port=5432
         dbname='testdb'
         partition_info = [(123, 'pepper', 't1', 4444), (234, 'pepper', 't2', 5555)] * 1000
-        expected_output = ['pepper, t1, 100', 'pepper, t2, 100'] * 1000
+        expected_output = ['pepper,t1,100', 'pepper,t2,100'] * 1000
         result = get_partition_state(master_port, dbname, 'pg_aoseg', partition_info)
         self.assertEqual(result, expected_output)
 
@@ -619,7 +619,7 @@ class DumpTestCase(unittest.TestCase):
         self.assertEqual(result, expected_output)
 
     def test_create_partition_dict_00(self):
-        partition_list = ['pepper, t1, 100', 'pepper, t2, 200']
+        partition_list = ['pepper,t1,100', 'pepper,t2,200']
         expected_output = {'pepper.t1':'100', 'pepper.t2':'200'}
         result = create_partition_dict(partition_list)
         self.assertEqual(result, expected_output)
@@ -851,7 +851,7 @@ class DumpTestCase(unittest.TestCase):
         backup_dir = None
         full_timestamp = '20121212010101'
         table_type = 'ao'
-        curr_state_partition_list = ['pepper, t3, 300', 'pepper, t1, 200']
+        curr_state_partition_list = ['pepper,t3,300', 'pepper,t1,200']
         expected_output = set(['pepper.t3', 'pepper.t1'])
         result = get_dirty_partition_tables(table_type, curr_state_partition_list, master_datadir, backup_dir, self.dumper.dump_dir, self.dumper.dump_prefix, full_timestamp)
         self.assertEqual(result, expected_output)
@@ -862,7 +862,7 @@ class DumpTestCase(unittest.TestCase):
         backup_dir = None
         full_timestamp = '20121212010101'
         table_type = 'ao'
-        curr_state_partition_list = ['pepper, t3, 300', 'pepper, t1, 200']
+        curr_state_partition_list = ['pepper,t3,300', 'pepper,t1,200']
         netbackup_service_host = "mdw"
         netbackup_block_size = "1024"
         expected_output = set(['pepper.t3', 'pepper.t1'])
