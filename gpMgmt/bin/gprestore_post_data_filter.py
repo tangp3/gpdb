@@ -54,6 +54,7 @@ def process_schema(dump_schemas, dump_tables, fdin, fdout, change_schema_name=No
     further_investigation_required = False
     for line in fdin:
         if (line[0] == set_start) and line.startswith(search_path_expr):
+            output = False
             further_investigation_required = False
             # schema in set search_path line is already escaped in dump file
             schema = extract_schema(line)
@@ -92,7 +93,6 @@ def process_schema(dump_schemas, dump_tables, fdin, fdout, change_schema_name=No
         elif further_investigation_required:
             if type == 'TRIGGER':
                 output = check_table(schema_wo_escaping, line, ' ON ', dump_tables, schema_level_restore_list)
-                further_investigation_required = False
 
         if output:
             fdout.write(line)

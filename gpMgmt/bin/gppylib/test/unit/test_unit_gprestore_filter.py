@@ -22,7 +22,7 @@ class GpRestoreFilterTestCase(unittest.TestCase):
 
         (sc, tb) = get_table_schema_set(fname)
         self.assertEquals(sc, set(['public', ' pepper']))
-        self.assertEquals(tb, set([('public','ao1'), (' pepper','ao2  ')]))
+        self.assertEquals(tb, set([('public','ao1'), (' pepper','ao2   ')]))
 
         os.remove(fname)
 
@@ -489,7 +489,8 @@ COPY "测试" (column1, column2, column3) FROM stdin;
 
     def test_get_table_info01(self):
         line = '-- Name: public; Type: ACL; Schema: -; Owner: root'
-        (name, type, schema) = get_table_info(line)
+        comment_expr = '-- Name: '
+        (name, type, schema) = get_table_info(line, comment_expr)
         self.assertEquals(name, 'public')
         self.assertEquals(type, 'ACL')
         self.assertEquals(schema, '-')
@@ -2375,19 +2376,22 @@ GRANT ALL ON TABLE user_table TO user_role_b;
     def test_check_dropped_table00(self):
         line = 'DROP TABLE public.ao_part_table;'
         dump_tables = [('public', 'ao_part_table')]
-        output = check_dropped_table(line, dump_tables)
+        drop_table_expr = 'DROP TABLE '
+        output = check_dropped_table(line, dump_tables, None, drop_table_expr)
         self.assertTrue(output)
   
     def test_check_dropped_table01(self):
         line = 'DROP TABLE public.ao_part_table;'
         dump_tables = [('pepper', 'ao_part_table')]
-        output = check_dropped_table(line, dump_tables)
+        drop_table_expr = 'DROP TABLE '
+        output = check_dropped_table(line, dump_tables, None, drop_table_expr)
         self.assertFalse(output) 
 
     def test_check_dropped_table02(self):
         line = 'DROP TABLE public.ao_part_table;'
         dump_tables = [('public', 'ao_table')]
-        output = check_dropped_table(line, dump_tables)
+        drop_table_expr = 'DROP TABLE '
+        output = check_dropped_table(line, dump_tables, None, drop_table_expr)
         self.assertFalse(output) 
 
     def test_process_schema_foreign_table(self):

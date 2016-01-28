@@ -20,7 +20,7 @@ set_expr = 'SET '
 drop_start = 'D'
 drop_expr = 'DROP '
 drop_table_expr = 'DROP TABLE '
-len_drop_table_expr = len(drop_table_expr)
+drop_external_table_expr = 'DROP EXTERNAL TABLE '
 alter_table_only_expr = 'ALTER TABLE ONLY '
 alter_table_expr = 'ALTER TABLE '
 
@@ -34,24 +34,24 @@ comment_data_expr_b = '-- Data for Name: '
 len_start_comment_expr = len(comment_start_expr)
 
 
-def get_table_info(line):
+def get_table_info(line, cur_comment_expr):
     """
     It's complex to split when table name/schema name/user name/ tablespace name
     contains full context of one of others', which is very unlikely, but in
-    case it happens, return None.
+    case it happens, raise Exception.
 
     Since we only care about table name, type, and schema name, strip the input
     is safe here.
 
     line: contains the true (un-escaped) schema name, table name, and user name.
     """
-    temp = line.strip()
+    temp = line.strip('\n')
     type_start = find_all_expr_start(temp, type_expr)
     schema_start = find_all_expr_start(temp, schema_expr)
     owner_start = find_all_expr_start(temp, owner_expr)
     if len(type_start) != 1 or len(schema_start) != 1 or len(owner_start) != 1:
-        return (None, None, None)
-    name = temp[len(comment_expr) : type_start[0]]
+        raise Exception('Failed to parse line %s for table, type, and schema name' % line)
+    name = temp[len(cur_comment_expr) : type_start[0]]
     type = temp[type_start[0] + len(type_expr) : schema_start[0]]
     schema = temp[schema_start[0] + len(schema_expr) : owner_start[0]]
     return (name, type, schema)
@@ -142,17 +142,21 @@ def process_schema(dump_schemas, dump_tables, fdin, fdout, change_schema=None, s
         elif (line[0] == set_start) and line.startswith(set_expr) and not function_ddl:
             output = True
         elif (line[0] == drop_start) and line.startswith(drop_expr):
-            if line.startswith('DROP TABLE') or line.startswith('DROP EXTERNAL TABLE'):
+            if line.startswith(drop_table_expr) or line.startswith(drop_external_table_expr):
                 if passedDropSchemaSection:
                     output = False
                 else:
-                    output = check_dropped_table(line, dump_tables, schema_level_restore_list)
+                    if line.startswith(drop_table_expr):
+                        output = check_dropped_table(line, dump_tables, schema_level_restore_list, drop_table_expr)
+                    else:
+                        output = check_dropped_table(line, dump_tables, schema_level_restore_list, drop_external_table_expr)
+
             else:
                 output = False
         elif line[:3] == comment_start_expr and line.startswith(comment_expr):
             # Parse the line using get_table_info for SCHEMA relation type as well,
             # if type is SCHEMA, then the value of name returned is schema's name, and returned schema is represented by '-'
-            name, type, schema = get_table_info(line)
+            name, type, schema = get_table_info(line, comment_expr)
             output = False
             function_ddl = False
             passedDropSchemaSection = True
@@ -178,7 +182,10 @@ def process_schema(dump_schemas, dump_tables, fdin, fdout, change_schema=None, s
         elif (line[:3] == comment_start_expr) and (line.startswith(comment_data_expr_a) or line.startswith(comment_data_expr_b)):
             passedDropSchemaSection = True
             further_investigation_required = False
-            name, type, schema = get_table_info(line)
+            if line.startswith(comment_data_expr_a):
+                name, type, schema = get_table_info(line, comment_data_expr_a)
+            else:
+                name, type, schema = get_table_info(line, comment_data_expr_b)
             if type == 'TABLE DATA':
                 output = check_valid_table(schema, name, dump_tables, schema_level_restore_list)
                 if output:
@@ -270,14 +277,14 @@ def extract_table(line):
     table = temp[:idx]
     return checkAndRemoveEnclosingDoubleQuote(table)
 
-def check_dropped_table(line, dump_tables, schema_level_restore_list=None):
+def check_dropped_table(line, dump_tables, schema_level_restore_list, drop_table_expr):
     """
     check if table to drop is valid (can be dropped from schema level restore)
     """
-    temp = line[len_drop_table_expr:][:-1]
+    temp = line[len(drop_table_expr):].strip()[:-1]
     (schema, table) = smart_split(temp)
-    schema = removeEscapingDoubleQuoteInSQLString(checkAndRemoveEnclosingDoubleQuote(schema)) 
-    table = removeEscapingDoubleQuoteInSQLString(checkAndRemoveEnclosingDoubleQuote(table)) 
+    schema = removeEscapingDoubleQuoteInSQLString(checkAndRemoveEnclosingDoubleQuote(schema), False) 
+    table = removeEscapingDoubleQuoteInSQLString(checkAndRemoveEnclosingDoubleQuote(table), False) 
     if (schema_level_restore_list and schema in schema_level_restore_list) or ((schema, table) in dump_tables):
         return True
     return False
@@ -321,7 +328,7 @@ def get_schema_level_restore_list(schema_level_restore_file=None):
     Note: white space in schema and table name is supported now, don't do strip on them
     """
     if not os.path.exists(schema_level_restore_file):
-            raise Exception('schema level restore file path %s does not exist' % schema_level_restore_file)
+        raise Exception('schema level restore file path %s does not exist' % schema_level_restore_file)
     schema_level_restore_list = []
     with open(schema_level_restore_file) as fr:
         schema_entries = fr.read()

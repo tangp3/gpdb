@@ -563,6 +563,7 @@ SET default_with_oids = false;
 
 
 SET search_path = "测试_schema", pg_catalog;
+
 ALTER TABLE ONLY "测试"
     ADD CONSTRAINT a_pkey PRIMARY KEY (a);
 

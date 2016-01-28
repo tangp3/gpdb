@@ -39,7 +39,7 @@ def get_all_parent_tables(dbname):
     return set([d[0] for d in data])
 
 def list_to_quoted_string(filter_tables):
-    filter_string = "'" + "', '".join([t.strip() for t in filter_tables]) + "'"
+    filter_string = "'" + "', '".join([pg.escape_string(t) for t in filter_tables]) + "'"
     return filter_string
 
 def convert_parents_to_leafs(dbname, parents):
