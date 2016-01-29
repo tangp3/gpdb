@@ -1041,7 +1041,7 @@ class BackupUtilsTestCase(unittest.TestCase):
 
     def test_list_to_quoted_string01(self):
         input = ['   public.ao_table', 'public.co_table   ']
-        expected = "'public.ao_table', 'public.co_table'"
+        expected = "'public.ao_table', 'public.co_table   '"
         output = list_to_quoted_string(input)
         self.assertEqual(expected, output)
 
