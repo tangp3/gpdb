@@ -495,7 +495,7 @@ class RestoreDatabase(Operation):
         elif self.redirected_restore_db:
             restore_db = self.redirected_restore_db
 
-	    if self.restore_stats == "only":
+        if self.restore_stats == "only":
             self._restore_stats(restore_timestamp, self.master_datadir, self.backup_dir, self.master_port, restore_db, self.restore_tables)
             return
 
