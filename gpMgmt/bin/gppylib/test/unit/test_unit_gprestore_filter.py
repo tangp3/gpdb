@@ -482,7 +482,7 @@ COPY "测试" (column1, column2, column3) FROM stdin;
     
     def test_get_table_info00(self):
         line = ''
-        (name, type, schema) = get_table_info(line)
+        (name, type, schema) = get_table_info(line, '-- Name: ')
         self.assertEquals(name, None)
         self.assertEquals(type, None)
         self.assertEquals(schema, None)

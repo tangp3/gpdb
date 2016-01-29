@@ -24,21 +24,20 @@ drop_external_table_expr = 'DROP EXTERNAL TABLE '
 alter_table_only_expr = 'ALTER TABLE ONLY '
 alter_table_expr = 'ALTER TABLE '
 
-comment_start_expr = '-- '
+comment_start_expr = '--'
 comment_expr = '-- Name: '
 type_expr = '; Type: '
 schema_expr = '; Schema: '
 owner_expr = '; Owner: '
 comment_data_expr_a = '-- Data: '
 comment_data_expr_b = '-- Data for Name: '
-len_start_comment_expr = len(comment_start_expr)
 
 
 def get_table_info(line, cur_comment_expr):
     """
     It's complex to split when table name/schema name/user name/ tablespace name
     contains full context of one of others', which is very unlikely, but in
-    case it happens, raise Exception.
+    case it happens, return None.
 
     Since we only care about table name, type, and schema name, strip the input
     is safe here.
@@ -50,7 +49,7 @@ def get_table_info(line, cur_comment_expr):
     schema_start = find_all_expr_start(temp, schema_expr)
     owner_start = find_all_expr_start(temp, owner_expr)
     if len(type_start) != 1 or len(schema_start) != 1 or len(owner_start) != 1:
-        raise Exception('Failed to parse line %s for table, type, and schema name' % line)
+        return (None, None, None)
     name = temp[len(cur_comment_expr) : type_start[0]]
     type = temp[type_start[0] + len(type_expr) : schema_start[0]]
     schema = temp[schema_start[0] + len(schema_expr) : owner_start[0]]
@@ -153,7 +152,7 @@ def process_schema(dump_schemas, dump_tables, fdin, fdout, change_schema=None, s
 
             else:
                 output = False
-        elif line[:3] == comment_start_expr and line.startswith(comment_expr):
+        elif line[:2] == comment_start_expr and line.startswith(comment_expr):
             # Parse the line using get_table_info for SCHEMA relation type as well,
             # if type is SCHEMA, then the value of name returned is schema's name, and returned schema is represented by '-'
             name, type, schema = get_table_info(line, comment_expr)
@@ -179,7 +178,7 @@ def process_schema(dump_schemas, dump_tables, fdin, fdout, change_schema=None, s
                     search_path = True
             elif type in ['FUNCTION']:
                 function_ddl = True
-        elif (line[:3] == comment_start_expr) and (line.startswith(comment_data_expr_a) or line.startswith(comment_data_expr_b)):
+        elif (line[:2] == comment_start_expr) and (line.startswith(comment_data_expr_a) or line.startswith(comment_data_expr_b)):
             passedDropSchemaSection = True
             further_investigation_required = False
             if line.startswith(comment_data_expr_a):
