@@ -1,8 +1,9 @@
 #!/usr/bin/env python
 
 import os
-#gpcrondump_path = os.path.abspath('gpcrondump')
-#gpcrondump = imp.load_source('gpcrondump', gpcrondump_path)
+import imp
+gpcrondump_path = os.path.abspath('gpcrondump')
+gpcrondump = imp.load_source('gpcrondump', gpcrondump_path)
 import unittest2 as unittest
 from datetime import datetime
 from gppylib import gplog
