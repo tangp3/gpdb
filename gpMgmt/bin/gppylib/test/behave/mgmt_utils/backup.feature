@@ -6299,7 +6299,10 @@ Feature: Validate command line arguments
     @spl_char_5
     Scenario: gpcrondump with --schema-file, --exclude-schema-file, -s and -S option when schema name and database name contains special character
         Given the database is running
+        And the user runs "psql -f gppylib/test/behave/mgmt_utils/steps/data/special_chars/create_special_database.sql template1"
         And the user runs "psql -f gppylib/test/behave/mgmt_utils/steps/data/special_chars/create_special_schema.sql template1"
+        And the user runs "psql -f gppylib/test/behave/mgmt_utils/steps/data/special_chars/create_special_table.sql template1"
+        And the user runs "psql -f gppylib/test/behave/mgmt_utils/steps/data/special_chars/insert_into_special_table.sql template1"
 
         # --schema-file option
         When the user runs command gpcrondump -a -x " DB\`~@#\$%^&*()_-+[{]}|\\;: \\'/?><;1 " --schema-file gppylib/test/behave/mgmt_utils/steps/data/special_chars/schema-file.txt
@@ -6324,9 +6327,9 @@ Feature: Validate command line arguments
         Then gpcrondump should return a return code of 0
         And the timestamp from gpcrondump is stored
         And the user runs gpdbrestore with the stored timestamp
-        And verify that there is no table "ao" in " DB`~@#$%^&*()_-+[{]}|\;: \'/?><;1 "
-        And verify that there is no table "co" in " DB`~@#$%^&*()_-+[{]}|\;: \'/?><;1 "
-        And verify that there is no table "heap" in " DB`~@#$%^&*()_-+[{]}|\;: \'/?><;1 "
+        And verify that there is no table " ao_T`~@#$%^&*()-+[{]}|\;: \'"/?><1 " in " DB`~@#$%^&*()_-+[{]}|\;: \'/?><;1 "
+        And verify that there is no table " co_T`~@#$%^&*()-+[{]}|\;: \'"/?><1 " in " DB`~@#$%^&*()_-+[{]}|\;: \'/?><;1 "
+        And verify that there is no table " heap_T`~@#$%^&*()-+[{]}|\;: \'"/?><1 " in " DB`~@#$%^&*()_-+[{]}|\;: \'/?><;1 "
 
         # -S option
         Given the user runs "psql -f gppylib/test/behave/mgmt_utils/steps/data/special_chars/create_special_schema.sql template1"
@@ -6334,11 +6337,12 @@ Feature: Validate command line arguments
         Then gpcrondump should return a return code of 0
         And the timestamp from gpcrondump is stored
         And the user runs gpdbrestore with the stored timestamp
-        And verify that there is no table "ao" in " DB`~@#$%^&*()_-+[{]}|\;: \'/?><;1 "
-        And verify that there is no table "co" in " DB`~@#$%^&*()_-+[{]}|\;: \'/?><;1 "
-        And verify that there is no table "heap" in " DB`~@#$%^&*()_-+[{]}|\;: \'/?><;1 "
+        And verify that there is no table " ao_T`~@#$%^&*()-+[{]}|\;: \'"/?><1 " in " DB`~@#$%^&*()_-+[{]}|\;: \'/?><;1 "
+        And verify that there is no table " co_T`~@#$%^&*()-+[{]}|\;: \'"/?><1 " in " DB`~@#$%^&*()_-+[{]}|\;: \'/?><;1 "
+        And verify that there is no table " heap_T`~@#$%^&*()-+[{]}|\;: \'"/?><1 " in " DB`~@#$%^&*()_-+[{]}|\;: \'/?><;1 "
 
         # cleanup
+        And the user runs "psql -f gppylib/test/behave/mgmt_utils/steps/data/special_chars/drop_special_database.sql template1"
         And the directory "/tmp/specail_schema_data.out" is removed or does not exist 
         And the directory "/tmp/specail_schema_data.ans" is removed or does not exist 
 
