@@ -610,7 +610,8 @@ class GpCronDump(Operation):
     def get_schema_list_file(self, dbname):
         schema_file = None
         if self.include_schema_file:
-            schema_file = self.include_schema_file
+            schema_list = get_lines_from_file(self.include_schema_file)
+            schema_file = create_temp_file_from_list(schema_list, 'schema_list')
         elif self.dump_schema:
             schema_file = create_temp_file_from_list(self.dump_schema, 'schema_list')
             self.dump_schema = []

@@ -6260,7 +6260,7 @@ Feature: Validate command line arguments
 
     @spl_char
     @spl_char_4
-    Scenario: gpcrondump with --table-file, and -t option when table name, schema name and database name contains special character
+    Scenario: gpcrondump with --table-file, and -t option when table name and database name contains special character
         Given the database is running
         And the user runs "psql -f gppylib/test/behave/mgmt_utils/steps/data/special_chars/filter_test.sql template1"
         And there is a list of files "ao,heap" of tables " ao_T`~@#$%^&*()-+[{]}|\;: \'"/?><1 , heap_T`~@#$%^&*()-+[{]}|\;: \'"/?><1 " in " DB`~@#$%^&*()_-+[{]}|\;: \'/?><;1 " exists for validation
@@ -6296,16 +6296,51 @@ Feature: Validate command line arguments
 
 
     @spl_char
-    Scenario: 
-        GIven the database is running
-        And the user runs "psql -f gppylib/test/behave/mgmt_utils/steps/data/special_chars/filter_test.sql template1"
-        When the user runs command gpcrondump -a -x " DB\`~@#\$%^&*()_-+[{]}|\\;: \\'/?><;1 " -t " ao_T`~@#$%^&*()-+[{]}|\;: \'"/?><1 " -t " heap_T`~@#$%^&*()-+[{]}|\;: \'"/?><1 "        
+    @spl_char_5
+    Scenario: gpcrondump with --schema-file, --exclude-schema-file, -s and -S option when schema name and database name contains special character
+        Given the database is running
+        And the user runs "psql -f gppylib/test/behave/mgmt_utils/steps/data/special_chars/create_special_schema.sql template1"
+
+        # --schema-file option
+        When the user runs command gpcrondump -a -x " DB\`~@#\$%^&*()_-+[{]}|\\;: \\'/?><;1 " --schema-file gppylib/test/behave/mgmt_utils/steps/data/special_chars/schema-file.txt
         Then gpcrondump should return a return code of 0
         And the timestamp from gpcrondump is stored
-        #And verify that the "report" file in " " dir contains "Backup Type: Full"
-        And the user runs gpdbrestore with the stored timestamp and options "--table-file gppylib/test/behave/mgmt_utils/steps/data/special_chars/restore_table-file.txt "
-        And verify that there is a "ao" table " ao_T`~@#$%^&*()-+[{]}|\;: \'"/?><1 " in " DB\`~@#\$%^&*()_-+[{]}|\\;: \\'/?><;1 " with data
+        And the user runs command psql -f gppylib/test/behave/mgmt_utils/steps/data/special_chars/special_schema_data.sql " DB\`~@#\$%^&*()_-+[{]}|\\;: \\'/?><;1 " > /tmp/special_schema_data.ans
+        And the user runs gpdbrestore with the stored timestamp
+        And the user runs command psql -f gppylib/test/behave/mgmt_utils/steps/data/special_chars/special_schema_data.sql " DB\`~@#\$%^&*()_-+[{]}|\\;: \\'/?><;1 " > /tmp/special_schema_data.out
+        And verify that the contents of the files "/tmp/special_schema_data.out" and "/tmp/special_schema_data.ans" are identical
 
+        # -s option
+        When the user runs command gpcrondump -a -x " DB\`~@#\$%^&*()_-+[{]}|\\;: \\'/?><;1 " -s " S\`~@#\$%^&*()-+[{]}|\\;: \\'\"/?><1 "
+        Then gpcrondump should return a return code of 0
+        And the timestamp from gpcrondump is stored
+        And the user runs command psql -f gppylib/test/behave/mgmt_utils/steps/data/special_chars/special_schema_data.sql " DB\`~@#\$%^&*()_-+[{]}|\\;: \\'/?><;1 " > /tmp/specail_schema_data.out
+        And the user runs gpdbrestore with the stored timestamp
+        And the user runs command psql -f gppylib/test/behave/mgmt_utils/steps/data/special_chars/special_schema_data.sql " DB\`~@#\$%^&*()_-+[{]}|\\;: \\'/?><;1 " > /tmp/specail_schema_data.ans
+        And verify that the contents of the files "/tmp/special_schema_data.out" and "/tmp/special_schema_data.ans" are identical
+
+        # --exclude-schema-file option
+        When the user runs command gpcrondump -a -x " DB\`~@#\$%^&*()_-+[{]}|\\;: \\'/?><;1 " --exclude-schema-file gppylib/test/behave/mgmt_utils/steps/data/special_chars/schema-file.txt
+        Then gpcrondump should return a return code of 0
+        And the timestamp from gpcrondump is stored
+        And the user runs gpdbrestore with the stored timestamp
+        And verify that there is no table "ao" in " DB`~@#$%^&*()_-+[{]}|\;: \'/?><;1 "
+        And verify that there is no table "co" in " DB`~@#$%^&*()_-+[{]}|\;: \'/?><;1 "
+        And verify that there is no table "heap" in " DB`~@#$%^&*()_-+[{]}|\;: \'/?><;1 "
+
+        # -S option
+        Given the user runs "psql -f gppylib/test/behave/mgmt_utils/steps/data/special_chars/create_special_schema.sql template1"
+        When the user runs command gpcrondump -a -x " DB\`~@#\$%^&*()_-+[{]}|\\;: \\'/?><;1 " -S " S\`~@#\$%^&*()-+[{]}|\\;: \\'\"/?><1 "
+        Then gpcrondump should return a return code of 0
+        And the timestamp from gpcrondump is stored
+        And the user runs gpdbrestore with the stored timestamp
+        And verify that there is no table "ao" in " DB`~@#$%^&*()_-+[{]}|\;: \'/?><;1 "
+        And verify that there is no table "co" in " DB`~@#$%^&*()_-+[{]}|\;: \'/?><;1 "
+        And verify that there is no table "heap" in " DB`~@#$%^&*()_-+[{]}|\;: \'/?><;1 "
+
+        # cleanup
+        And the directory "/tmp/specail_schema_data.out" is removed or does not exist 
+        And the directory "/tmp/specail_schema_data.ans" is removed or does not exist 
 
     # THIS SHOULD BE THE LAST TEST
     @backupfire
