@@ -6183,7 +6183,6 @@ Feature: Validate command line arguments
         And verify that the restored table "public.heap_table" in database "fullbkdb" is analyzed
 
     @spl_char
-    @spl_char_1
     Scenario: Simple full backup and restore with special character
         Given the database is running 
         And the user runs "psql -f gppylib/test/behave/mgmt_utils/steps/data/special_chars/spl_char_db.sql template1"
@@ -6198,7 +6197,6 @@ Feature: Validate command line arguments
         And the directory "/tmp/spl_char_1.out" is removed or does not exist 
 
     @spl_char
-    @spl_char_2
     Scenario: Funny characters in the table name or schema name for gpcrondump
         Given the database is running
         And the database "testdb" does not exist
@@ -6233,7 +6231,6 @@ Feature: Validate command line arguments
         And gpcrondump should print Name has an invalid character to stdout
 
     @spl_char
-    @spl_char_3
     Scenario: Funny characters in the table name or schema name for gpdbrestore
         Given the database is running
         And database "testdb" exists
@@ -6259,8 +6256,7 @@ Feature: Validate command line arguments
         And gpdbrestore should print Name has an invalid character to stdout
 
     @spl_char
-    @spl_char_4
-    Scenario: gpcrondump with --table-file, and -t option when table name and database name contains special character
+    Scenario: gpcrondump with --table-file,--exclude-table-file, -T and -t option where table name, schema name and database name contains special character
         Given the database is running
         And the user runs "psql -f gppylib/test/behave/mgmt_utils/steps/data/special_chars/filter_test.sql template1"
         And there is a list of files "ao,heap" of tables " ao_T`~@#$%^&*()-+[{]}|\;: \'"/?><1 , heap_T`~@#$%^&*()-+[{]}|\;: \'"/?><1 " in " DB`~@#$%^&*()_-+[{]}|\;: \'/?><;1 " exists for validation
@@ -6296,7 +6292,6 @@ Feature: Validate command line arguments
 
 
     @spl_char
-    @spl_char_5
     Scenario: gpcrondump with --schema-file, --exclude-schema-file, -s and -S option when schema name and database name contains special character
         Given the database is running
         And the user runs "psql -f gppylib/test/behave/mgmt_utils/steps/data/special_chars/create_special_database.sql template1"
@@ -6345,6 +6340,60 @@ Feature: Validate command line arguments
         And the user runs "psql -f gppylib/test/behave/mgmt_utils/steps/data/special_chars/drop_special_database.sql template1"
         And the directory "/tmp/specail_schema_data.out" is removed or does not exist 
         And the directory "/tmp/specail_schema_data.ans" is removed or does not exist 
+
+    Scenario: Gpcrondump, --table-file and --exclude-table-file, if file contains double quoted table and schema name then gpcrondump should error out finding table does not exists
+        Given the database is running
+        And the user runs "psql -f gppylib/test/behave/mgmt_utils/steps/data/special_chars/filter_test.sql template1"
+        # --table-file=<filename> option
+        When the user runs command gpcrondump -a -x " DB\`~@#\$%^&*()_-+[{]}|\\;: \\'/?><;1 " --table-file gppylib/test/behave/mgmt_utils/steps/data/special_chars/table-file-double-quote.txt
+        Then gpcrondump should return a return code of 2
+        And gpcrondump should print does not exist to stdout
+        # --exclude-table-file=<filename> option
+        When the user runs command gpcrondump -a -x " DB\`~@#\$%^&*()_-+[{]}|\\;: \\'/?><;1 " --exclude-table-file gppylib/test/behave/mgmt_utils/steps/data/special_chars/table-file-double-quote.txt
+        Then gpcrondump should return a return code of 0
+        And gpcrondump should print does not exist to stdout
+        And gpcrondump should print All exclude table names have been removed due to issues to stdout
+        
+    @spl_char
+    Scenario: Gpdbrestore, --change-schema option does not work with -S schema level restore option 
+        Given the database is running
+        And the user runs "psql -f gppylib/test/behave/mgmt_utils/steps/data/special_chars/filter_test.sql template1"
+        When the user runs command gpcrondump -a -x " DB\`~@#\$%^&*()_-+[{]}|\\;: \\'/?><;1 "
+        Then gpcrondump should return a return code of 0
+        And the timestamp from gpcrondump is stored
+        When the user runs "gpdbrestore -T public." ao_T\`~@#\$%^&*()-+[{]}|\\;: \\'\"/?><1 " --change-schema=" S\`~@#\$%^&*()_-+[{]}|\\;: \\'\"/?><1 " -S public " with the stored timestamp
+        Then gpdbrestore should return a return code of 2
+        And gpcrondump should print -S schema level restore does not work with --change-schema option to stdout
+
+
+    @spl_char
+    Scenario: Gpdbrestore with --table-file, -t, --truncate and --change-schema options when table name, schema name and database name contains special character
+        Given the database is running
+        And the user runs "psql -f gppylib/test/behave/mgmt_utils/steps/data/special_chars/filter_test.sql template1"
+        And there is a list of files "ao,heap" of tables " ao_T`~@#$%^&*()-+[{]}|\;: \'"/?><1 , heap_T`~@#$%^&*()-+[{]}|\;: \'"/?><1 " in " DB`~@#$%^&*()_-+[{]}|\;: \'/?><;1 " exists for validation
+        # --table-file=<filename> option
+        When the user runs command gpcrondump -a -x " DB\`~@#\$%^&*()_-+[{]}|\\;: \\'/?><;1 "
+        Then gpcrondump should return a return code of 0
+        And the timestamp from gpcrondump is stored
+        When the user runs gpdbrestore with the stored timestamp and options "--table-file gppylib/test/behave/mgmt_utils/steps/data/special_chars/table-file.txt"
+        Then gpdbrestore should return a return code of 0
+        And verify with backedup file "ao" that there is a "ao" table " ao_T`~@#$%^&*()-+[{]}|\;: \'"/?><1 " in " DB`~@#$%^&*()_-+[{]}|\;: \'/?><;1 " with data
+        And verify with backedup file "heap" that there is a "heap" table " heap_T`~@#$%^&*()-+[{]}|\;: \'"/?><1 " in " DB`~@#$%^&*()_-+[{]}|\;: \'/?><;1 " with data
+        And verify that there is no table " co_T`~@#$%^&*()-+[{]}|\;: \'"/?><1 " in " DB`~@#$%^&*()_-+[{]}|\;: \'/?><;1 "
+        # -t, --truncate, --change-schema options
+        Given the user runs "psql -f gppylib/test/behave/mgmt_utils/steps/data/special_chars/add-schema.txt template1"
+        And the user runs command psql -c """ select * from public.\" ao_T\`~@#\$%^&*()-+[{]}|\\;: \\'\"\"/?><1 \" """ -d " DB\`~@#\$%^&*()_-+[{]}|\\;: \\'/?><;1 "  > /tmp/table_backedup.out
+        When the user runs command gpcrondump -a -x " DB\`~@#\$%^&*()_-+[{]}|\\;: \\'/?><;1 "
+        Then gpcrondump should return a return code of 0
+        And the timestamp from gpcrondump is stored
+        When the user runs "gpdbrestore -T public." ao_T\`~@#\$%^&*()-+[{]}|\\;: \\'\"/?><1 " --change-schema=" S\`~@#\$%^&*()_-+[{]}|\\;: \\'\"/?><1 " -a --truncate" with the stored timestamp
+        Then gpdbrestore should return a return code of 0
+        And verify with backedup file "heap" that there is a "heap" table " heap_T`~@#$%^&*()-+[{]}|\;: \'"/?><1 " in " DB`~@#$%^&*()_-+[{]}|\;: \'/?><;1 " with data
+        And verify that there is no table " ao_T`~@#$%^&*()-+[{]}|\;: \'"/?><1 " in " DB`~@#$%^&*()_-+[{]}|\;: \'/?><;1 "
+        And the user runs command psql -f  psql -c """select * from \" S\`~@#\$%^&*()_-+[{]}|\\;: \\'\"\"/?><1 \".\" ao_T\`~@#\$%^&*()-+[{]}|\\;: \\'\"\"/?><1 \" """ -d " DB\`~@#\$%^&*()_-+[{]}|\\;: \\'/?><;1 "  > /tmp/table_changed_schema.out
+        And verify that the contents of the files "/tmp/table_backedup.out" and "/tmp/table_changed_schema.out" are identical
+        And the directory "/tmp/table_backedup.out" is removed or does not exist
+        And the directory "/tmp/table_changed_schema.out" is removed or does not exist
 
     # THIS SHOULD BE THE LAST TEST
     @backupfire
