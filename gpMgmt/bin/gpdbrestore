@@ -154,6 +154,11 @@ class GpdbRestore(Operation):
         if self.list_tables and self.netbackup_service_host:
             raise Exception('-L is not supported with NetBackup.')
 
+        if self.redirected_restore_db:
+            check_funny_chars_in_names(self.redirected_restore_db, is_full_qualified_name = False)
+
+        if self.search_for_dbname:
+            check_funny_chars_in_names(self.search_for_dbname, is_full_qualified_name = False)
         # force non-interactive if list_backup
         if options.list_backup:
             self.interactive = False

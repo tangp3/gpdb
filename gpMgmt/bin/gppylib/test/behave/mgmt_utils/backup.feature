@@ -6182,6 +6182,131 @@ Feature: Validate command line arguments
         And verify that the table "public.heap_table2" in database "fullbkdb" is not analyzed
         And verify that the restored table "public.heap_table" in database "fullbkdb" is analyzed
 
+    @spl_char
+    @spl_char_1
+    Scenario: Simple full backup and restore with special character
+        Given the database is running 
+        And the user runs "psql -f gppylib/test/behave/mgmt_utils/steps/data/special_chars/spl_char_db.sql template1"
+        When the user runs command gpcrondump -a -x " DB\`~@#\$%^&*()_-+[{]}|\\;: \\'/?><;1 "
+        And the timestamp from gpcrondump is stored
+        Then gpcrondump should return a return code of 0
+        When the user runs gpdbrestore with the stored timestamp
+        Then gpdbrestore should return a return code of 0
+        And the user runs command psql -f gppylib/test/behave/mgmt_utils/steps/data/special_chars/spl_char_1.sql " DB\`~@#\$%^&*()_-+[{]}|\\;: \\'/?><;1 " > /tmp/spl_char_1.out
+        And verify that the contents of the files "/tmp/spl_char_1.out" and "gppylib/test/behave/mgmt_utils/steps/data/special_chars/spl_char_1.ans" are identical
+        And the user runs "psql -f gppylib/test/behave/mgmt_utils/steps/data/special_chars/spl_char_db_tear_down.sql template1"
+        And the directory "/tmp/spl_char_1.out" is removed or does not exist 
+
+    @spl_char
+    @spl_char_2
+    Scenario: Funny characters in the table name or schema name for gpcrondump
+        Given the database is running
+        And the database "testdb" does not exist
+        And database "testdb" exists
+        And the user runs "psql -f gppylib/test/behave/mgmt_utils/steps/data/special_chars/funny_char.sql testdb"
+        When the user runs command gpcrondump -a -x testdb
+        Then gpcrondump should return a return code of 2
+        And gpcrondump should print Name has an invalid character to stdout
+        When the user runs command gpcrondump -a -x testdb -t Schema\\t,1.Table\\n\!1
+        Then gpcrondump should return a return code of 2
+        And gpcrondump should print Name has an invalid character to stdout
+        When the user runs command gpcrondump -a -x testdb -T Schema\\t,1.Table\\n\!1
+        Then gpcrondump should return a return code of 2
+        And gpcrondump should print Name has an invalid character to stdout
+        When the user runs command gpcrondump -a -x testdb -s Schema\\t,1
+        Then gpcrondump should return a return code of 2
+        And gpcrondump should print Name has an invalid character to stdout
+        When the user runs command gpcrondump -a -x testdb -S Schema\\t,1
+        Then gpcrondump should return a return code of 2
+        And gpcrondump should print Name has an invalid character to stdout
+        When the user runs command gpcrondump -a -x testdb --table-file gppylib/test/behave/mgmt_utils/steps/data/special_chars/funny_char_table.txt
+        Then gpcrondump should return a return code of 2
+        And gpcrondump should print Name has an invalid character to stdout
+        When the user runs command gpcrondump -a -x testdb --exclude-table-file gppylib/test/behave/mgmt_utils/steps/data/special_chars/funny_char_table.txt
+        Then gpcrondump should return a return code of 2
+        And gpcrondump should print Name has an invalid character to stdout
+        When the user runs command gpcrondump -a -x testdb --schema-file gppylib/test/behave/mgmt_utils/steps/data/special_chars/funny_char_schema.txt
+        Then gpcrondump should return a return code of 2
+        And gpcrondump should print Name has an invalid character to stdout
+        When the user runs command gpcrondump -a -x testdb --exclude-schema-file gppylib/test/behave/mgmt_utils/steps/data/special_chars/funny_char_schema.txt
+        Then gpcrondump should return a return code of 2
+        And gpcrondump should print Name has an invalid character to stdout
+
+    @spl_char
+    @spl_char_3
+    Scenario: Funny characters in the table name or schema name for gpdbrestore
+        Given the database is running
+        And database "testdb" exists
+        When the user runs command gpcrondump -a -x testdb
+        And the timestamp from gpcrondump is stored
+        When the user runs gpdbrestore with the stored timestamp and options "--table-file gppylib/test/behave/mgmt_utils/steps/data/special_chars/funny_char_table.txt"
+        Then gpdbrestore should return a return code of 2
+        And gpdbrestore should print Name has an invalid character to stdout
+        When the user runs gpdbrestore with the stored timestamp and options "-T pub\\t\\nlic.!,\\t\\n.1"
+        Then gpdbrestore should return a return code of 2
+        And gpdbrestore should print Name has an invalid character to stdout
+        When the user runs gpdbrestore with the stored timestamp and options "--redirect A\\t\\n.,!1"
+        Then gpdbrestore should return a return code of 2
+        And gpdbrestore should print Name has an invalid character to stdout
+        When the user runs command gpdbrestore -s "A\\t\\n.,!1"
+        Then gpdbrestore should return a return code of 2
+        And gpdbrestore should print Name has an invalid character to stdout
+        When the user runs gpdbrestore with the stored timestamp and options "-T public.table --change-schema A\\t\\n.,!1"
+        Then gpdbrestore should return a return code of 2
+        And gpdbrestore should print Name has an invalid character to stdout
+        When the user runs gpdbrestore with the stored timestamp and options "-S A\\t\\n.,!1"
+        Then gpdbrestore should return a return code of 2
+        And gpdbrestore should print Name has an invalid character to stdout
+
+    @spl_char
+    @spl_char_4
+    Scenario: gpcrondump with --table-file, and -t option when table name, schema name and database name contains special character
+        Given the database is running
+        And the user runs "psql -f gppylib/test/behave/mgmt_utils/steps/data/special_chars/filter_test.sql template1"
+        And there is a list of files "ao,heap" of tables " ao_T`~@#$%^&*()-+[{]}|\;: \'"/?><1 , heap_T`~@#$%^&*()-+[{]}|\;: \'"/?><1 " in " DB`~@#$%^&*()_-+[{]}|\;: \'/?><;1 " exists for validation
+        #-T option
+        When the user runs command gpcrondump -a -x " DB\`~@#\$%^&*()_-+[{]}|\\;: \\'/?><;1 " -T public." co_T\`~@#\$%^&*()-+[{]}|\\;: \\'\"/?><1 "
+        Then gpcrondump should return a return code of 0
+        And the timestamp from gpcrondump is stored
+        And the user runs gpdbrestore with the stored timestamp
+        And verify that there is no table " co_T`~@#$%^&*()-+[{]}|\;: \'"/?><1 " in " DB`~@#$%^&*()_-+[{]}|\;: \'/?><;1 "
+        # --exclude-table-file option
+        When the user runs command gpcrondump -a -x " DB\`~@#\$%^&*()_-+[{]}|\\;: \\'/?><;1 " --exclude-table-file gppylib/test/behave/mgmt_utils/steps/data/special_chars/exclude-table-file.txt
+        Then gpcrondump should return a return code of 0
+        And the timestamp from gpcrondump is stored
+        And the user runs gpdbrestore with the stored timestamp
+        And verify that there is no table " co_T`~@#$%^&*()-+[{]}|\;: \'"/?><1 " in " DB`~@#$%^&*()_-+[{]}|\;: \'/?><;1 "
+        # --table-file option
+        When the user runs command gpcrondump -a -x " DB\`~@#\$%^&*()_-+[{]}|\\;: \\'/?><;1 " --table-file gppylib/test/behave/mgmt_utils/steps/data/special_chars/table-file.txt
+        Then gpcrondump should return a return code of 0
+        And the timestamp from gpcrondump is stored
+        And the user runs gpdbrestore with the stored timestamp
+        And gpdbrestore should return a return code of 0
+        And verify with backedup file "ao" that there is a "ao" table " ao_T`~@#$%^&*()-+[{]}|\;: \'"/?><1 " in " DB`~@#$%^&*()_-+[{]}|\;: \'/?><;1 " with data
+        And verify with backedup file "heap" that there is a "heap" table " heap_T`~@#$%^&*()-+[{]}|\;: \'"/?><1 " in " DB`~@#$%^&*()_-+[{]}|\;: \'/?><;1 " with data
+        And verify that there is no table " co_T`~@#$%^&*()-+[{]}|\;: \'"/?><1 " in " DB`~@#$%^&*()_-+[{]}|\;: \'/?><;1 "
+        # -t option
+        When the user runs command gpcrondump -a -x " DB\`~@#\$%^&*()_-+[{]}|\\;: \\'/?><;1 " -t public." ao_T\`~@#\$%^&*()-+[{]}|\\;: \\'\"/?><1 "
+        Then gpcrondump should return a return code of 0
+        And the timestamp from gpcrondump is stored
+        And the user runs gpdbrestore with the stored timestamp
+        And gpdbrestore should return a return code of 0
+        And verify with backedup file "ao" that there is a "ao" table " ao_T`~@#$%^&*()-+[{]}|\;: \'"/?><1 " in " DB`~@#$%^&*()_-+[{]}|\;: \'/?><;1 " with data
+        And the user runs "psql -f gppylib/test/behave/mgmt_utils/steps/data/special_chars/filter_test_tear_down.sql template1"
+
+
+    @spl_char
+    Scenario: 
+        GIven the database is running
+        And the user runs "psql -f gppylib/test/behave/mgmt_utils/steps/data/special_chars/filter_test.sql template1"
+        When the user runs command gpcrondump -a -x " DB\`~@#\$%^&*()_-+[{]}|\\;: \\'/?><;1 " -t " ao_T`~@#$%^&*()-+[{]}|\;: \'"/?><1 " -t " heap_T`~@#$%^&*()-+[{]}|\;: \'"/?><1 "        
+        Then gpcrondump should return a return code of 0
+        And the timestamp from gpcrondump is stored
+        #And verify that the "report" file in " " dir contains "Backup Type: Full"
+        And the user runs gpdbrestore with the stored timestamp and options "--table-file gppylib/test/behave/mgmt_utils/steps/data/special_chars/restore_table-file.txt "
+        And verify that there is a "ao" table " ao_T`~@#$%^&*()-+[{]}|\;: \'"/?><1 " in " DB\`~@#\$%^&*()_-+[{]}|\\;: \\'/?><;1 " with data
+
+
     # THIS SHOULD BE THE LAST TEST
     @backupfire
     Scenario: cleanup for backup feature
