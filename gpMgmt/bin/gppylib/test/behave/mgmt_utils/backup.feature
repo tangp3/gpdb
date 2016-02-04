@@ -6183,6 +6183,7 @@ Feature: Validate command line arguments
         And verify that the restored table "public.heap_table" in database "fullbkdb" is analyzed
 
     @spl_char
+    @spl_char_1
     Scenario: Simple full backup and restore with special character
         Given the database is running 
         And the user runs "psql -f gppylib/test/behave/mgmt_utils/steps/data/special_chars/spl_char_db.sql template1"
@@ -6197,6 +6198,7 @@ Feature: Validate command line arguments
         And the directory "/tmp/spl_char_1.out" is removed or does not exist 
 
     @spl_char
+    @spl_char_2
     Scenario: Funny characters in the table name or schema name for gpcrondump
         Given the database is running
         And the database "testdb" does not exist
@@ -6231,6 +6233,7 @@ Feature: Validate command line arguments
         And gpcrondump should print Name has an invalid character to stdout
 
     @spl_char
+    @spl_char_3
     Scenario: Funny characters in the table name or schema name for gpdbrestore
         Given the database is running
         And database "testdb" exists
@@ -6256,6 +6259,7 @@ Feature: Validate command line arguments
         And gpdbrestore should print Name has an invalid character to stdout
 
     @spl_char
+    @spl_char_4
     Scenario: gpcrondump with --table-file,--exclude-table-file, -T and -t option where table name, schema name and database name contains special character
         Given the database is running
         And the user runs "psql -f gppylib/test/behave/mgmt_utils/steps/data/special_chars/filter_test.sql template1"
@@ -6292,6 +6296,7 @@ Feature: Validate command line arguments
 
 
     @spl_char
+    @spl_char_5
     Scenario: gpcrondump with --schema-file, --exclude-schema-file, -s and -S option when schema name and database name contains special character
         Given the database is running
         And the user runs "psql -f gppylib/test/behave/mgmt_utils/steps/data/special_chars/create_special_database.sql template1"
@@ -6303,19 +6308,19 @@ Feature: Validate command line arguments
         When the user runs command gpcrondump -a -x " DB\`~@#\$%^&*()_-+[{]}|\\;: \\'/?><;1 " --schema-file gppylib/test/behave/mgmt_utils/steps/data/special_chars/schema-file.txt
         Then gpcrondump should return a return code of 0
         And the timestamp from gpcrondump is stored
-        And the user runs command psql -f gppylib/test/behave/mgmt_utils/steps/data/special_chars/special_schema_data.sql " DB\`~@#\$%^&*()_-+[{]}|\\;: \\'/?><;1 " > /tmp/special_schema_data.ans
+        And the user runs command psql -f gppylib/test/behave/mgmt_utils/steps/data/special_chars/select_from_special_table.sql " DB\`~@#\$%^&*()_-+[{]}|\\;: \\'/?><;1 " > /tmp/special_table_data.ans
         And the user runs gpdbrestore with the stored timestamp
-        And the user runs command psql -f gppylib/test/behave/mgmt_utils/steps/data/special_chars/special_schema_data.sql " DB\`~@#\$%^&*()_-+[{]}|\\;: \\'/?><;1 " > /tmp/special_schema_data.out
-        And verify that the contents of the files "/tmp/special_schema_data.out" and "/tmp/special_schema_data.ans" are identical
+        And the user runs command psql -f gppylib/test/behave/mgmt_utils/steps/data/special_chars/select_from_special_table.sql " DB\`~@#\$%^&*()_-+[{]}|\\;: \\'/?><;1 " > /tmp/special_table_data.out
+        And verify that the contents of the files "/tmp/special_table_data.out" and "/tmp/special_table_data.ans" are identical
 
         # -s option
         When the user runs command gpcrondump -a -x " DB\`~@#\$%^&*()_-+[{]}|\\;: \\'/?><;1 " -s " S\`~@#\$%^&*()-+[{]}|\\;: \\'\"/?><1 "
         Then gpcrondump should return a return code of 0
         And the timestamp from gpcrondump is stored
-        And the user runs command psql -f gppylib/test/behave/mgmt_utils/steps/data/special_chars/special_schema_data.sql " DB\`~@#\$%^&*()_-+[{]}|\\;: \\'/?><;1 " > /tmp/specail_schema_data.out
+        And the user runs command psql -f gppylib/test/behave/mgmt_utils/steps/data/special_chars/select_from_special_table.sql " DB\`~@#\$%^&*()_-+[{]}|\\;: \\'/?><;1 " > /tmp/special_table_data.ans
         And the user runs gpdbrestore with the stored timestamp
-        And the user runs command psql -f gppylib/test/behave/mgmt_utils/steps/data/special_chars/special_schema_data.sql " DB\`~@#\$%^&*()_-+[{]}|\\;: \\'/?><;1 " > /tmp/specail_schema_data.ans
-        And verify that the contents of the files "/tmp/special_schema_data.out" and "/tmp/special_schema_data.ans" are identical
+        And the user runs command psql -f gppylib/test/behave/mgmt_utils/steps/data/special_chars/select_from_special_table.sql " DB\`~@#\$%^&*()_-+[{]}|\\;: \\'/?><;1 " > /tmp/special_table_data.out
+        And verify that the contents of the files "/tmp/special_table_data.out" and "/tmp/special_table_data.ans" are identical
 
         # --exclude-schema-file option
         When the user runs command gpcrondump -a -x " DB\`~@#\$%^&*()_-+[{]}|\\;: \\'/?><;1 " --exclude-schema-file gppylib/test/behave/mgmt_utils/steps/data/special_chars/schema-file.txt
@@ -6341,6 +6346,8 @@ Feature: Validate command line arguments
         And the directory "/tmp/specail_schema_data.out" is removed or does not exist 
         And the directory "/tmp/specail_schema_data.ans" is removed or does not exist 
 
+    @spl_char
+    @spl_char_6
     Scenario: Gpcrondump, --table-file and --exclude-table-file, if file contains double quoted table and schema name then gpcrondump should error out finding table does not exists
         Given the database is running
         And the user runs "psql -f gppylib/test/behave/mgmt_utils/steps/data/special_chars/filter_test.sql template1"
@@ -6355,6 +6362,7 @@ Feature: Validate command line arguments
         And gpcrondump should print All exclude table names have been removed due to issues to stdout
         
     @spl_char
+    @spl_char_7
     Scenario: Gpdbrestore, --change-schema option does not work with -S schema level restore option 
         Given the database is running
         And the user runs "psql -f gppylib/test/behave/mgmt_utils/steps/data/special_chars/filter_test.sql template1"
@@ -6367,6 +6375,7 @@ Feature: Validate command line arguments
 
 
     @spl_char
+    @spl_char_8
     Scenario: Gpdbrestore with --table-file, -t, --truncate and --change-schema options when table name, schema name and database name contains special character
         Given the database is running
         And the user runs "psql -f gppylib/test/behave/mgmt_utils/steps/data/special_chars/filter_test.sql template1"
@@ -6394,6 +6403,63 @@ Feature: Validate command line arguments
         And verify that the contents of the files "/tmp/table_backedup.out" and "/tmp/table_changed_schema.out" are identical
         And the directory "/tmp/table_backedup.out" is removed or does not exist
         And the directory "/tmp/table_changed_schema.out" is removed or does not exist
+
+    @spl_char
+    @spl_char_9
+    Scenario: gpcrondump with --incremental option when table name, schema name and database name contains special character
+        Given the database is running
+        And the user runs "psql -f gppylib/test/behave/mgmt_utils/steps/data/special_chars/create_special_database.sql template1"
+        And the user runs "psql -f gppylib/test/behave/mgmt_utils/steps/data/special_chars/create_special_schema.sql template1"
+        And the user runs "psql -f gppylib/test/behave/mgmt_utils/steps/data/special_chars/create_special_table.sql template1"
+        And the user runs "psql -f gppylib/test/behave/mgmt_utils/steps/data/special_chars/insert_into_special_table.sql template1"
+
+        # --incremental dump whole database
+        When the user runs command gpcrondump -a -x " DB\`~@#\$%^&*()_-+[{]}|\\;: \\'/?><;1 "
+        Then gpcrondump should return a return code of 0
+        Given the user runs "psql -f gppylib/test/behave/mgmt_utils/steps/data/special_chars/insert_into_special_table.sql template1"
+        When the user runs command gpcrondump -a -x " DB\`~@#\$%^&*()_-+[{]}|\\;: \\'/?><;1 " --incremental
+        Then gpcrondump should return a return code of 0
+        And the timestamp from gpcrondump is stored
+        When the user runs command psql -f gppylib/test/behave/mgmt_utils/steps/data/special_chars/select_from_special_table.sql " DB\`~@#\$%^&*()_-+[{]}|\\;: \\'/?><;1 " > /tmp/special_table_data.ans
+        And the user runs gpdbrestore with the stored timestamp
+        And the user runs command psql -f gppylib/test/behave/mgmt_utils/steps/data/special_chars/select_from_special_table.sql " DB\`~@#\$%^&*()_-+[{]}|\\;: \\'/?><;1 " > /tmp/special_table_data.out
+        Then verify that the contents of the files "/tmp/special_table_data.out" and "/tmp/special_table_data.ans" are identical
+
+        # cleanup
+        And the user runs "psql -f gppylib/test/behave/mgmt_utils/steps/data/special_chars/drop_special_database.sql template1"
+        And the directory "/tmp/special_table_data.out" is removed or does not exist 
+        And the directory "/tmp/special_table_data.ans" is removed or does not exist 
+
+
+    @spl_char
+    @spl_char_10
+    Scenario: gpdbrestore, --redirect option with special db name, and all table name, schema name and database name contain special character
+        Given the database is running
+        And the user runs "psql -f gppylib/test/behave/mgmt_utils/steps/data/special_chars/create_special_database.sql template1"
+        And the user runs "psql -f gppylib/test/behave/mgmt_utils/steps/data/special_chars/create_special_schema.sql template1"
+        And the user runs "psql -f gppylib/test/behave/mgmt_utils/steps/data/special_chars/create_special_table.sql template1"
+        And the user runs "psql -f gppylib/test/behave/mgmt_utils/steps/data/special_chars/insert_into_special_table.sql template1"
+
+        When the user runs command gpcrondump -a -x " DB\`~@#\$%^&*()_-+[{]}|\\;: \\'/?><;1 "
+        Then gpcrondump should return a return code of 0
+        And the timestamp from gpcrondump is stored
+        When the user runs command psql -f gppylib/test/behave/mgmt_utils/steps/data/special_chars/select_from_special_table.sql " DB\`~@#\$%^&*()_-+[{]}|\\;: \\'/?><;1 " > /tmp/special_table_data.ans
+        When the user runs gpdbrestore with the stored timestamp and options "--redirect " DB\`~@#\$%^&*()_-+[{]}|\\;: \\'/?><;2 "" without -e option
+        And the user runs command psql -f gppylib/test/behave/mgmt_utils/steps/data/special_chars/select_from_special_table.sql " DB\`~@#\$%^&*()_-+[{]}|\\;: \\'/?><;2 " > /tmp/special_table_data.out
+        Then verify that the contents of the files "/tmp/special_table_data.out" and "/tmp/special_table_data.ans" are identical
+
+        # cleanup
+        And the directory "/tmp/special_table_data.out" is removed or does not exist 
+        And the directory "/tmp/special_table_data.ans" is removed or does not exist 
+        And the user runs command dropdb " DB\`~@#\$%^&*()_-+[{]}|\\;: \\'/?><;1 "
+        And the user runs command dropdb " DB\`~@#\$%^&*()_-+[{]}|\\;: \\'/?><;2 "
+
+    @spl_char
+    @spl_char_11
+    Scenario: gpdbrestore, -s option with special chars
+        Given the database is running
+        When the user runs command gpdbrestore -s " DB\`~@#\$%^&*()_-+[{]}|\\;:.;\n\t \\'/?><;2 "
+        Then gpdbrestore should print Name has an invalid character to stdout
 
     # THIS SHOULD BE THE LAST TEST
     @backupfire

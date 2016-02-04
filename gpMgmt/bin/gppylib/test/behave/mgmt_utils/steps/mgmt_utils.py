@@ -828,6 +828,8 @@ def impl(context, options):
         command = 'gpdbrestore -b %s -a' % (context.backup_timestamp[0:8])
     else:
         command = 'gpdbrestore -t %s %s -a' % (context.backup_timestamp, options)
+    with open('/tmp/cmd', 'w') as fw:
+        fw.write(command)
     run_gpcommand(context, command)
 
 @when('the user runs "{cmd}" with the stored timestamp')

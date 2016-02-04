@@ -1,3 +1,5 @@
+\c " DB`~@#$%^&*()_-+[{]}|\;: \'/?><;1 ";
+
 SET SEARCH_PATH=" S`~@#$%^&*()-+[{]}|\;: \'""/?><1 ";
 
 Create table " co_T`~@#$%^&*()-+[{]}|\;: \'""/?><1 " (Column1 int, Column2 varchar(20), Column3 date) 
