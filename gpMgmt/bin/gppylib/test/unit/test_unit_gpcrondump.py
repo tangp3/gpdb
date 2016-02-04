@@ -381,7 +381,7 @@ class GpCronDumpTestCase(unittest.TestCase):
         dbname = 'foo'
         timestamp = '20141016010101'
         file = gpcd.get_schema_list_file(dbname)
-        self.assertTrue(file.startswith('/tmp/foo'))
+        self.assertTrue(file.startswith('/tmp/schema_list'))
         if os.path.exists('/tmp/foo'):
             os.remove('/tmp/foo')
 
