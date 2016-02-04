@@ -6290,7 +6290,6 @@ Feature: Validate command line arguments
         Then gpcrondump should return a return code of 0
         And the timestamp from gpcrondump is stored
         And the user runs gpdbrestore with the stored timestamp
-        And gpdbrestore should return a return code of 0
         And verify with backedup file "ao" that there is a "ao" table " ao_T`~@#$%^&*()-+[{]}|\;: \'"/?><1 " in " DB`~@#$%^&*()_-+[{]}|\;: \'/?><;1 " with data
         And the user runs "psql -f gppylib/test/behave/mgmt_utils/steps/data/special_chars/filter_test_tear_down.sql template1"
 
@@ -6348,7 +6347,7 @@ Feature: Validate command line arguments
 
     @spl_char
     @spl_char_6
-    Scenario: Gpcrondump, --table-file and --exclude-table-file, if file contains double quoted table and schema name then gpcrondump should error out finding table does not exists
+    Scenario: Gpcrondump, --table-file, --exclude-table-file, --schema-file and --exclude-schema-file if file contains double quoted table and schema name then gpcrondump should error out finding table does not exists
         Given the database is running
         And the user runs "psql -f gppylib/test/behave/mgmt_utils/steps/data/special_chars/filter_test.sql template1"
         # --table-file=<filename> option
@@ -6360,6 +6359,15 @@ Feature: Validate command line arguments
         Then gpcrondump should return a return code of 0
         And gpcrondump should print does not exist to stdout
         And gpcrondump should print All exclude table names have been removed due to issues to stdout
+        # --schema-file
+        Given the user runs "psql -f gppylib/test/behave/mgmt_utils/steps/data/special_chars/create_special_database.sql template1"
+        And the user runs "psql -f gppylib/test/behave/mgmt_utils/steps/data/special_chars/create_special_schema.sql template1"
+        When the user runs command gpcrondump -a -x " DB\`~@#\$%^&*()_-+[{]}|\\;: \\'/?><;1 " --schema-file gppylib/test/behave/mgmt_utils/steps/data/special_chars/schema-file-double-quote.txt    
+        Then gpcrondump should return a return code of 2
+        And gpcrondump should print does not exist to stdout
+        # --exclude-schema-file
+        When the user runs command gpcrondump -a -x " DB\`~@#\$%^&*()_-+[{]}|\\;: \\'/?><;1 " --exclude-schema-file gppylib/test/behave/mgmt_utils/steps/data/special_chars/schema-file-double-quote.txt
+        Then gpcrondump should return a return code of 0
         
     @spl_char
     @spl_char_7
