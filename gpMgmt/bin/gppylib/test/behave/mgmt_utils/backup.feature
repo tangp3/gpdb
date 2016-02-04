@@ -6461,6 +6461,27 @@ Feature: Validate command line arguments
         When the user runs command gpdbrestore -s " DB\`~@#\$%^&*()_-+[{]}|\\;:.;\n\t \\'/?><;2 "
         Then gpdbrestore should print Name has an invalid character to stdout
 
+    @spl_char_12
+    Scenario: gpdbrestore, -S option, schema level restore with special chars in schema name
+        Given the database is running
+        And the user runs "psql -f gppylib/test/behave/mgmt_utils/steps/data/special_chars/create_special_database.sql template1"
+        And the user runs "psql -f gppylib/test/behave/mgmt_utils/steps/data/special_chars/create_special_schema.sql template1"
+        And the user runs "psql -f gppylib/test/behave/mgmt_utils/steps/data/special_chars/create_special_table.sql template1"
+        And the user runs "psql -f gppylib/test/behave/mgmt_utils/steps/data/special_chars/insert_into_special_table.sql template1"
+
+        When the user runs command gpcrondump -a -x " DB\`~@#\$%^&*()_-+[{]}|\\;: \\'/?><;1 "
+        Then gpcrondump should return a return code of 0
+        And the timestamp from gpcrondump is stored
+        When the user runs command psql -f gppylib/test/behave/mgmt_utils/steps/data/special_chars/select_from_special_table.sql " DB\`~@#\$%^&*()_-+[{]}|\\;: \\'/?><;1 " > /tmp/special_table_data.ans
+        When the user runs gpdbrestore with the stored timestamp and options "-S " S\`~@#\$%^&*()-+[{]}|\\;: \\'\"/?><1 ""
+        And the user runs command psql -f gppylib/test/behave/mgmt_utils/steps/data/special_chars/select_from_special_table.sql " DB\`~@#\$%^&*()_-+[{]}|\\;: \\'/?><;1 " > /tmp/special_table_data.out
+        Then verify that the contents of the files "/tmp/special_table_data.out" and "/tmp/special_table_data.ans" are identical
+
+        # cleanup
+        And the directory "/tmp/special_table_data.out" is removed or does not exist 
+        And the directory "/tmp/special_table_data.ans" is removed or does not exist 
+        And the user runs command dropdb " DB\`~@#\$%^&*()_-+[{]}|\\;: \\'/?><;1 "
+
     # THIS SHOULD BE THE LAST TEST
     @backupfire
     Scenario: cleanup for backup feature
