@@ -20,7 +20,7 @@
 #include <fcntl.h>
 
 #include "pqexpbuffer.h"
-#include "dumputils.h"
+#include "../dumputils.h"
 #include "cdb_dump_util.h"
 
 #define DDP_CL_DDP 1
