@@ -4940,19 +4940,20 @@ Feature: NetBackup Integration with GPDB
         And gpdbrestore should return a return code of 0 
         And verify that there is a "ao" table "public.ao_part_table" in "fullbkdb" with data 
 
-
     @spl_char
     @nbupartI
     @spl_char_nbu_1
     Scenario: gpcrondump, full and incremental netbackup dump with special chars in db name, schema name, table name
         Given the database is running
+        And the netbackup params have been parsed
+        And there are no backup files
         And the user runs "psql -f gppylib/test/behave/mgmt_utils/steps/data/special_chars/create_special_database.sql template1"
         And the user runs "psql -f gppylib/test/behave/mgmt_utils/steps/data/special_chars/create_special_schema.sql template1"
         And the user runs "psql -f gppylib/test/behave/mgmt_utils/steps/data/special_chars/create_special_table.sql template1"
         And the user runs "psql -f gppylib/test/behave/mgmt_utils/steps/data/special_chars/insert_into_special_table.sql template1"
 
         When the user runs "gpcrondump -a -x " DB\`~@#\$%^&*()_-+[{]}|\\;: \\'/?><;1 " --netbackup-block-size 4096" using netbackup
-        Then gpcrondump should return a return code of 0 
+        Then gpcrondump should return a return code of 0
 
         Given the user runs "psql -f gppylib/test/behave/mgmt_utils/steps/data/special_chars/insert_into_special_table.sql template1"
         When the user runs "gpcrondump -a -x " DB\`~@#\$%^&*()_-+[{]}|\\;: \\'/?><;1 " --netbackup-block-size 4096 --incremental " using netbackup
@@ -4960,7 +4961,7 @@ Feature: NetBackup Integration with GPDB
         And the timestamp from gpcrondump is stored
 
         When the user runs command "psql -f gppylib/test/behave/mgmt_utils/steps/data/special_chars/select_from_special_table.sql " DB\`~@#\$%^&*()_-+[{]}|\\;: \\'/?><;1 " > /tmp/special_table_data.ans"
-        And the user runs gpdbrestore with the stored timestamp
+        And the user runs gpdbrestore with the stored timestamp using netbackup
         And the user runs command "psql -f gppylib/test/behave/mgmt_utils/steps/data/special_chars/select_from_special_table.sql " DB\`~@#\$%^&*()_-+[{]}|\\;: \\'/?><;1 " > /tmp/special_table_data.out"
 
         Then verify that the contents of the files "/tmp/special_table_data.out" and "/tmp/special_table_data.ans" are identical
@@ -4969,12 +4970,13 @@ Feature: NetBackup Integration with GPDB
         And the directory "/tmp/special_table_data.ans" is removed or does not exist
         And the user runs command "dropdb " DB\`~@#\$%^&*()_-+[{]}|\\;: \\'/?><;1 ""
 
-
     @spl_char
     @nbupartI
     @spl_char_nbu_2
     Scenario: gpcrondump, -s option, -t option, and gpdbrestore with -T, --redirect option for special chars in db name, schema name, table name
         Given the database is running
+        And the netbackup params have been parsed
+        And there are no backup files
         And the user runs "psql -f gppylib/test/behave/mgmt_utils/steps/data/special_chars/create_special_database.sql template1"
         And the user runs "psql -f gppylib/test/behave/mgmt_utils/steps/data/special_chars/create_special_schema.sql template1"
         And the user runs "psql -f gppylib/test/behave/mgmt_utils/steps/data/special_chars/create_special_table.sql template1"
@@ -4986,7 +4988,7 @@ Feature: NetBackup Integration with GPDB
         And the timestamp from gpcrondump is stored
 
         When the user runs command "psql -f gppylib/test/behave/mgmt_utils/steps/data/special_chars/select_from_special_ao_table.sql " DB\`~@#\$%^&*()_-+[{]}|\\;: \\'/?><;1 " > /tmp/special_ao_table_data.ans"
-        And the user runs gpdbrestore with the stored timestamp
+        And the user runs gpdbrestore with the stored timestamp using netbackup
         And the user runs command "psql -f gppylib/test/behave/mgmt_utils/steps/data/special_chars/select_from_special_ao_table.sql " DB\`~@#\$%^&*()_-+[{]}|\\;: \\'/?><;1 " > /tmp/special_ao_table_data.out"
 
         Then verify that the contents of the files "/tmp/special_ao_table_data.out" and "/tmp/special_ao_table_data.ans" are identical
