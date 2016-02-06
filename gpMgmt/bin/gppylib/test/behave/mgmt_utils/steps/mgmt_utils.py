@@ -840,6 +840,9 @@ def impl(context, cmd):
 
 @then('verify that there is no table "{tablename}" in "{dbname}"')
 def impl(context, tablename, dbname):
+    with open('/tmp/table_info', 'w') as fw:
+        fw.write(tablename+'\n')
+        fw.write(dbname)
     if check_table_exists(context, dbname=dbname, table_name=tablename): 
         raise Exception("Table '%s' still exists when it should not" % tablename)
 

@@ -245,10 +245,14 @@ def get_table_data_to_file(filename, tablename, dbname):
     conn = dbconn.connect(dbconn.DbURL(dbname=dbname))
     try:
         res = dbconn.execSQLForSingleton(conn, query)
-        data_sql = '''COPY (select gp_segment_id, * from "%s" order by %s) TO '%s' ''' %(escapeDoubleQuoteInSQLString(tablename, False), res, filename)
+        # check if tablename is fully qualified <schema_name>.<table_name>
+        if '.' in tablename:
+            schema_name, table_name = tablename.split('.')
+            data_sql = '''COPY (select gp_segment_id, * from "%s"."%s" order by %s) TO '%s' ''' % (escapeDoubleQuoteInSQLString(schema_name, False),
+                                                                                                   escapeDoubleQuoteInSQLString(table_name, False), res, filename)
+        else:
+            data_sql = '''COPY (select gp_segment_id, * from "%s" order by %s) TO '%s' ''' %(escapeDoubleQuoteInSQLString(tablename, False), res, filename)
         query = data_sql
-        with open('/tmp/query', 'w') as fw:
-            fw.write(query)
         dbconn.execSQL(conn, query)
         dbconn.execSQL(conn, query)
         conn.commit()
@@ -319,14 +323,19 @@ def check_partition_table_exists(context, dbname, schemaname, table_name, table_
     return check_table_exists(context, dbname, partitions[0][0].strip(), table_type) 
 
 def check_table_exists(context, dbname, table_name, table_type=None):
-    SQL = """
-            select oid, relkind, relstorage, reloptions \
-            from pg_class \
-            where relname = E'%s'; \
-          """ % pg.escape_string(table_name)
-
-    print "=================================="
-    print SQL
+    if '.' in table_name:
+        schemaname, tablename = table_name.split('.')
+        SQL = """
+              select c.oid, c.relkind, c.relstorage, c.reloptions
+              from pg_class c, pg_namespace n
+              where c.relname = E'%s' and n.nspname = E'%s' and c.relnamespace = n.oid;
+              """ % (pg.escape_string(tablename), pg.escape_string(schemaname))
+    else:
+        SQL = """
+              select oid, relkind, relstorage, reloptions \
+              from pg_class \
+              where relname = E'%s'; \
+              """ % pg.escape_string(table_name)
 
     table_row = None 
     with dbconn.connect(dbconn.DbURL(dbname=dbname)) as conn:

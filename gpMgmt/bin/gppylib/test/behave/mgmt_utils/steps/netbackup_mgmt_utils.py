@@ -29,6 +29,8 @@ def impl(context, ver):
 
 @when('the user runs "{cmd_str}" using netbackup')
 def impl(context, cmd_str):
+    with open('/tmp/cmd_str', 'w') as fw:
+        fw.write(cmd_str)
     if hasattr(context, 'netbackup_service_host'):
         netbackup_service_host = context.netbackup_service_host
     if hasattr(context, 'netbackup_policy'):

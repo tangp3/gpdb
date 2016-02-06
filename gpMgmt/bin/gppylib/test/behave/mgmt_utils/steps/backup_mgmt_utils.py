@@ -391,12 +391,6 @@ def impl(context, role_name, dbname):
     except:
         raise Exception("Role %s does not exist in database %s." % (role_name, dbname))
 
-@given('the user runs command {command}')
-@when('the user runs command {command}')
-@then('the user runs command {command}')
-def impl(context, command):
-    run_command(context, command)
-
 @given('there is a list of files "{filenames}" of tables "{table_list}" in "{dbname}" exists for validation')
 @when('there is a list of files "{filenames}" of tables "{table_list}" in "{dbname}" exists for validation')
 @then('there is a list of files "{filenames}" of tables "{table_list}" in "{dbname}" exists for validation')
