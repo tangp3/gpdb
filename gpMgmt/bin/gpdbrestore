@@ -443,7 +443,6 @@ class GpdbRestore(Operation):
         table_counts = []
         if len(self.restore_tables) > 0 or len(self.schema_level_restore_list) > 0:
             self.restore_tables, self.schema_level_restore_list = validate_tablenames(self.restore_tables, self.schema_level_restore_list)
-            logger.info('-------------schema level restore list is %s ----------' % self.schema_level_restore_list)
 
         if not self.db_host_path and not self.ddboost:
             report_filename = generate_report_filename(self.master_datadir, self.backup_dir, self.dump_dir, self.dump_prefix, restore_timestamp)
@@ -529,8 +528,6 @@ class GpdbRestore(Operation):
             raise ExceptionNoStackTraceNeeded("No %s* files located" % generate_createdb_prefix(self.dump_prefix))
         for path, filename in candidates:
             db_name = GetDbName(os.path.join(path, filename)).run()
-            logger.info('------------get db name is %s -----------' % db_name)
-            logger.info('------------search db name is %s -----------' % self.search_for_dbname)
             if self.search_for_dbname == db_name:
                 logger.info('Located dump file %s for database %s, adding to list' % (filename, self.search_for_dbname))
                 timestamps.append(int(filename[len(generate_createdb_prefix(self.dump_prefix)):]))

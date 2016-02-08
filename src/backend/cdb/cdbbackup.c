@@ -61,7 +61,6 @@ static char* parse_status_from_params(char *params);
 static char* parse_option_from_params(char *params, char *option);
 static char *queryNBUBackupFilePathName(char *netbackupServiceHost, char *netbackupRestoreFileName);
 static char *shellEscape(const char *shellArg, PQExpBuffer escapeBuf, bool addQuote);
-static char *getAclName(const char *input, PQExpBuffer output);
 
 
 #ifdef USE_DDBOOST
@@ -193,7 +192,6 @@ gp_backup_launch__(PG_FUNCTION_ARGS)
 	int	   len;
 	int	   instid;			/* dispatch node */
 	bool	   is_compress;
-	FILE		*ff = fopen("/tmp/cdbbk", "w");
 	itimers    savetimers;
 
 	char       *pszThrottleCmd;
@@ -206,8 +204,6 @@ gp_backup_launch__(PG_FUNCTION_ARGS)
 	char		*gpDDBoostCmdLine = NULL;
 	char 		*temp = NULL, *pch = NULL, *pchs = NULL;
 #endif
-
-	//sleep(60);
 
 	verifyGpIdentityIsSet();
 	instid = (GpIdentity.segindex == -1) ? 1 : 0;	/* dispatch node */
@@ -327,11 +323,7 @@ gp_backup_launch__(PG_FUNCTION_ARGS)
 	if (pszDBName == NULL)
 		pszDBName = "";
 	else
-	{
-		fprintf(ff, "before escape %s\n", pszDBName);
 		pszDBName = shellEscape(pszDBName, escapeBuf, true);
-		fprintf(ff, "after escape %s\n", pszDBName);
-	}
 	if (pszUserName == NULL)
 		pszUserName = "";
 
@@ -687,8 +679,6 @@ gp_backup_launch__(PG_FUNCTION_ARGS)
 	}
 #endif
 
-	fprintf(ff, "command line is %s\n", pszCmdLine);
-	fclose(ff);
 	elog(LOG, "gp_dump_agent command line: %s", pszCmdLine),
 
 
@@ -1188,18 +1178,11 @@ gp_restore_launch__(PG_FUNCTION_ARGS)
 	{
 		escapeBuf = createPQExpBuffer();
 		aclNameBuf = createPQExpBuffer();
-		FILE *ff = fopen("/tmp/dbname_restore", "w");
-		fprintf(ff, "before escape %s\n", pszDBName);
-		//pszDBName = getAclName(pszDBName, aclNameBuf);
 		pszDBName = shellEscape(pszDBName, escapeBuf, true);
-		fprintf(ff, "after escape %s\n", pszDBName);
-		fclose(ff);
 	}
 
 	if (pszUserName == NULL)
 		pszUserName = "";
-
-
 
 	/* Clear process interval timers */
 	resetTimers(&savetimers);
@@ -1399,10 +1382,6 @@ gp_restore_launch__(PG_FUNCTION_ARGS)
 		}
 #endif
 	}
-		FILE *fw = fopen("/tmp/before_cmd", "w");
-		fprintf(fw, "database name is: %s\n", pszDBName);
-		fprintf(fw, "command line is: %s\n", pszCmdLine);
-		fclose(fw);
 
 		elog(LOG, "gp_restore_agent command line: %s\n", pszCmdLine);
 
@@ -2415,24 +2394,4 @@ shellEscape(const char *shellArg, PQExpBuffer escapeBuf, bool addQuote)
 	if(addQuote)
 		appendPQExpBufferChar(escapeBuf, '\"');
         return escapeBuf->data;
-}
-
-/* Dequoting if needed */
-char *
-getAclName(const char *input, PQExpBuffer output)
-{
-	char *s = input;
-	while (*s != '\0')
-	{
-		/*
-		 * Quoting convention is to escape " as ""
-		 */
-		if(*s == '"' && *(s + 1) == '"')
-		{
-			s++;
-		}
-		appendPQExpBufferChar(output, s);
-		s++;
-        }
-        return output->data;
 }

@@ -217,7 +217,7 @@ def get_partition_state(master_port, dbname, catalog_schema, partition_info):
                 modcount = modcount.strip()
             validate_modcount(schemaname, partition_name, modcount)
 
-            #Don't put space after comma, which can mess up with the space in schema and table name
+            # Don't put space after comma, which can mess up with the space in schema and table name
             partition_list.append('%s,%s,%s' %(schemaname, partition_name, modcount))
 
     return partition_list
@@ -352,9 +352,6 @@ def get_dirty_tables(master_port, dbname, master_datadir, backup_dir, dump_dir, 
     dirty_metadata_set = get_tables_with_dirty_metadata(master_datadir, backup_dir, dump_dir, dump_prefix, fulldump_ts, last_operation_data,
                                                         netbackup_service_host, netbackup_block_size)
 
-    logger.info('-----------dirty_co_tables-------- %s' % dirty_co_tables)
-
-
     return list(dirty_heap_tables | dirty_ao_tables | dirty_co_tables | dirty_metadata_set)
 
 def get_dirty_heap_tables(master_port, dbname):
@@ -376,8 +373,6 @@ def write_dirty_file(mdd, dirty_tables, backup_dir, dump_dir, dump_prefix, times
 
     if dirty_tables is None:
         return None
-
-    logger.info('==========dirty tables are %s ==========' % dirty_tables)
 
     dirty_list_file = generate_dirtytable_filename(mdd, backup_dir, dump_dir, dump_prefix, timestamp_key, ddboost)
     write_lines_to_file(dirty_list_file, dirty_tables)
@@ -542,13 +537,11 @@ def filter_dirty_tables(dirty_tables, dump_database, master_datadir, backup_dir,
     filter_file = get_filter_file(dump_database, master_datadir, backup_dir, dump_dir, dump_prefix, ddboost, netbackup_service_host, netbackup_block_size)
     if filter_file:
         tables_to_filter = get_lines_from_file(filter_file)
-        logger.info('=============== Tables to filter are %s =============' % tables_to_filter)
         dirty_copy = dirty_tables[:]
         for table in dirty_copy:
             if table not in tables_to_filter:
                 if os.path.exists(schema_filename):
                     schemas_to_filter = get_lines_from_file(schema_filename)
-                    logger.info('============ Schemas to filter are %s ==============' % schemas_to_filter)
                     table_schema = smart_split(table)[0]
                     if table_schema not in schemas_to_filter:
                         dirty_tables.remove(table)
@@ -1215,9 +1208,6 @@ class ValidateSegDiskSpace(Operation):
                     needed_space += execSQLForSingleton(conn, "SELECT pg_relation_size('%s')/1024;" % pg.escape_string(dump_table))
             else:
                 needed_space = execSQLForSingleton(conn, "SELECT pg_database_size('%s')/1024;" % pg.escape_string(self.dump_database))
-                with open("/tmp/pg_database", "w") as fw:
-                    fw.write("SELECT pg_database_size('%s')/1024;" % pg.escape_string(self.dump_database))
-                    fw.write('\n%s' % needed_space)
         finally:
             if conn is not None:
                 conn.close()
@@ -1427,9 +1417,6 @@ class ValidateExcludeTargets(Operation):
                 dump_tables.append(line.strip('\n'))
             exclude_file.close()
 
-        with open("/tmp/dump_tables1", "w") as fm:
-            fm.write("\n".join(dump_tables))
-
         for dump_table in dump_tables:
             if '.' not in dump_table:
                 raise ExceptionNoStackTraceNeeded("No schema name supplied for exclude table %s" % dump_table)
@@ -1459,9 +1446,6 @@ class ValidateDatabaseExists(Operation):
         self.database = database
 
     def execute(self):
-        with open("/tmp/database", "w") as fw:
-            fw.write(self.database + '\n')
-            fw.write(pg.escape_string(self.database))
         conn = None
         try:
             dburl = dbconn.DbURL(port=self.master_port)
@@ -1482,9 +1466,6 @@ class ValidateSchemaExists(Operation):
         self.master_port = master_port
 
     def execute(self):
-        with open("/tmp/schema", "w") as fw:
-            fw.write(self.schema + '\n')
-            fw.write(pg.escape_string(self.schema))
         conn = None
         try:
             dburl = dbconn.DbURL(port=self.master_port, dbname=self.database)
@@ -1509,14 +1490,7 @@ class CheckTableExists(Operation):
             for (schema, table) in get_user_table_list(self.master_port, self.database):
                 CheckTableExists.all_tables.add((schema,
                                                  table))
-        with open("/tmp/alltables", "w") as f:
-            for (schema, table) in CheckTableExists.all_tables:
-                f.write(schema + '.' + table+'\n')
-
     def execute(self):
-        with open("/tmp/input", "w") as f:
-            f.write(self.schema + '.' + self.table + '\n')
-
         if (self.schema, self.table) in CheckTableExists.all_tables:
             return True
         return False

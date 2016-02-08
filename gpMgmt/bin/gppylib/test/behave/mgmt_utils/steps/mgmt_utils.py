@@ -820,8 +820,6 @@ def impl(context, options):
         command = 'gpdbrestore -e -b %s -a' % (context.backup_timestamp[0:8])
     else:
         command = 'gpdbrestore -e -t %s %s -a' % (context.backup_timestamp, options)
-    with open('/tmp/cmd', 'w') as fw:
-        fw.write(command)
     run_gpcommand(context, command)
 
 @when('the user runs gpdbrestore with the stored timestamp and options "{options}" without -e option')
@@ -840,9 +838,6 @@ def impl(context, cmd):
 
 @then('verify that there is no table "{tablename}" in "{dbname}"')
 def impl(context, tablename, dbname):
-    with open('/tmp/table_info', 'w') as fw:
-        fw.write(tablename+'\n')
-        fw.write(dbname)
     if check_table_exists(context, dbname=dbname, table_name=tablename): 
         raise Exception("Table '%s' still exists when it should not" % tablename)
 

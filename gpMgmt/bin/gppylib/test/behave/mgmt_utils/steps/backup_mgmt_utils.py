@@ -403,10 +403,6 @@ def impl(context, filenames, table_list, dbname):
 @when('verify with backedup file "{filename}" that there is a "{table_type}" table "{tablename}" in "{dbname}" with data')
 @then('verify with backedup file "{filename}" that there is a "{table_type}" table "{tablename}" in "{dbname}" with data')
 def impl(context, filename, table_type, tablename, dbname):
-    print "++++++++++++++++++"
-    print "filename : %s " % filename
-    print "DATABASE: %s" % dbname
-    print "tablename --%s--" % tablename
     if not check_table_exists(context, dbname=dbname, table_name=tablename, table_type=table_type):
         raise Exception("Table '%s' does not exist when it should" % tablename)
     validate_restore_data(context, tablename, dbname, filename)

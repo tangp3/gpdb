@@ -465,9 +465,6 @@ main(int argc, char **argv)
 	};
 	int			optindex;
 
-	FILE *xx = fopen("/tmp/Hello", "w");
-	fclose(xx);
-
 	set_pglocale_pgservice(argv[0], "pg_dump");
 
 	g_verbose = false;
@@ -775,15 +772,8 @@ main(int argc, char **argv)
 
 	/* Get database name from command line */
 	if (optind < argc)
-	{
-		FILE *fy = fopen("/tmp/get_db", "w");
 		dbname = argv[optind];
-		fprintf(fy, "%s", dbname);
-		fclose(fy);
 
-	}
-
-	//sleep(30);
 	/* --column-inserts implies --inserts */
 	if (column_inserts)
 		dump_inserts = 1;
@@ -933,8 +923,6 @@ main(int argc, char **argv)
 		/*
 		 * Open the database again, for writing status info
 		 */
-		FILE *seg = fopen("/tmp/agent", "w");
-		fprintf(seg, "%s", g_SegDB.pszDBName);	
 		g_conn_status = MakeDBConnection(&g_SegDB, false);
 
 		if (PQstatus(g_conn_status) == CONNECTION_BAD)
@@ -945,7 +933,6 @@ main(int argc, char **argv)
 						  StringNotNull(g_SegDB.pszHost, "localhost"),
 						  PQerrorMessage(g_conn_status));
 		}
-		fclose(seg);
 
 		PQclear(res);
 

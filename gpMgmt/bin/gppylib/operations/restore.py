@@ -235,7 +235,6 @@ def get_restore_table_list(table_list, restore_tables):
             if (schema, table) in restore_table_set:
                 restore_list.append(tbl)
 
-    logger.info('========= restore table list is %s =========' % restore_list )
     if restore_list == []:
         return None
     return create_temp_file_with_tables(restore_list)
@@ -526,10 +525,6 @@ class RestoreDatabase(Operation):
         change_schema_file = self.create_change_schema_file() # returns None if nothing to filter
         schema_level_restore_file = self.create_schema_level_file()
 
-        logger.info('--------------- len restore tables is %s -----------' % len(self.restore_tables))
-        logger.info('--------------- restore tables is %s -----------' % self.restore_tables)
-        logger.info('--------------- begin incremental restore is %s -----------' % str(begin_incremental))
-
         if (full_restore and len(self.restore_tables) > 0 and not self.no_plan) or begin_incremental or self.metadata_only:
             if full_restore and not self.no_plan:
                 full_restore_with_filter = True
@@ -576,10 +571,13 @@ class RestoreDatabase(Operation):
                 logger.info('gp_restore commandline: %s: ' % restore_line)
                 Command('Invoking gp_restore', restore_line).run(validateAfter=True)
 
-            #if table_filter_file:
-            #    self.remove_filter_file(table_filter_file)
-            #if change_schema_file:
-            #    self.remove_filter_file(change_schema_file)
+
+            if table_filter_file:
+                self.remove_filter_file(table_filter_file)
+            if change_schema_file:
+                self.remove_filter_file(change_schema_file)
+            if schema_level_restore_file:
+                self.remove_filter_file(schema_level_restore_file)
 
         if not self.metadata_only:
             if (not self.no_analyze) and (len(self.restore_tables) == 0):
@@ -716,18 +714,13 @@ class RestoreDatabase(Operation):
         plan_file_items = get_plan_file_contents(self.master_datadir, self.backup_dir,
                                                  self.restore_timestamp, self.dump_dir,
                                                  self.dump_prefix)
-        logger.info('=========== plan file items are %s ================' % plan_file_items)
         table_file = None
         table_files = []
         restored_tables = []
 
-        logger.info('==========restore tables are %s========' % self.restore_tables)
-
         validate_restore_tables_list(plan_file_items, self.restore_tables, self.schema_level_restore_list)
 
         for (ts, table_list) in plan_file_items:
-            logger.info('time stampe is %s ' % ts)
-            logger.info('table list for  the stamp is %s ' % table_list)
             if table_list:
                 restore_data = True
                 table_file = get_restore_table_list(table_list.strip('\n').split(','), self.restore_tables)
@@ -1180,8 +1173,6 @@ def validate_tablenames(table_list, schema_level_restore_list=None):
         else:
             table_set.add((schema, table))
             restore_table_list.append(restore_table)
-    logger.info('--------restore table list is %s-----------' % table_list)
-    logger.info('--------table set is %s------------' % table_set)
 
     return restore_table_list, schema_level_restore_list 
 

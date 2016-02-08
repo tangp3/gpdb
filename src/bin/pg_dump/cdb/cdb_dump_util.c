@@ -354,7 +354,6 @@ MakeDBConnection(const SegmentDatabase *pSegDB, bool bDispatch)
 	else
 		pszDBPswd = NULL;
 
-	//char *database = "dbname='SCHEMA\\\'\\\'\"/\\\\1'";
 	pszConnInfo = MakeString("%s %s port=%u %s %s %s",
 							 StringNotNull(pszOptions, ""),
 							 pszHost,
@@ -363,10 +362,6 @@ MakeDBConnection(const SegmentDatabase *pSegDB, bool bDispatch)
 							 //database,
 							 StringNotNull(pszUser, ""),
 							 StringNotNull(pszDBPswd, ""));
-
-	FILE *ft = fopen("/tmp/connStr", "w");
-	fprintf(ft, "%s", pszConnInfo);
-	fclose(ft);
 
 	pConn = PQconnectdb(pszConnInfo);
 
@@ -1015,17 +1010,10 @@ formPostDataSchemaOnlyPsqlCommandLine(char** retVal, const char* inputFileSpec, 
 			strcat(pszCmdLine, compProg);
 		}
 
-		FILE *f = fopen("/tmp/pszCommandline", "w");
-		fprintf(f, "before %s\n", pszCmdLine);
-		fprintf(f, "change schema file path is %s\n", change_schema_file);
-
 		formPostDataFilterCommandLine(&pszCmdLine, post_data_filter_script, table_filter_file, change_schema_file, schema_level_file);
 
 		strcat(pszCmdLine, " | ");
 		strcat(pszCmdLine, psqlPg);
-
-		fprintf(f, " after %s", pszCmdLine);
-		fclose(f);
 	}    
 	else 
 	{    

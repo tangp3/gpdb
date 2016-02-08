@@ -17,8 +17,6 @@ logger = gplog.get_default_logger()
 def expand_partitions_and_populate_filter_file(dbname, partition_list, file_prefix):
     expanded_partitions = expand_partition_tables(dbname, partition_list)
     dump_partition_list = list(set(expanded_partitions + partition_list))
-    with open('/tmp/dump_partition_list', 'w') as fw:
-        fw.write('%s' % dump_partition_list)
     return create_temp_file_from_list(dump_partition_list, file_prefix)
 
 def populate_filter_tables(table, rows, non_partition_tables, partition_leaves):
@@ -194,17 +192,14 @@ def check_cdatabase_exists(dbname, report_file, dump_prefix, ddboost=False, netb
         cdatabase_contents = get_lines_from_file(filename)
 
     dbname = escapeDoubleQuoteInSQLString(dbname, forceDoubleQuote=False)
-    ff = open("/tmp/dbnames", "w")
     for line in cdatabase_contents:
         if 'CREATE DATABASE' in line:
             dump_dbname = get_dbname_from_cdatabaseline(line)
             if dump_dbname is None:
                 continue
             else:
-                ff.write("dump dbname: %s\n" % dump_dbname)
                 if dbname == checkAndRemoveEnclosingDoubleQuote(dump_dbname):
                     return True
-    ff.close()
     return False
 
 def get_dbname_from_cdatabaseline(line):
@@ -309,11 +304,11 @@ def write_lines_to_file(filename, lines):
 def verify_lines_in_file(fname, expected):
     lines = get_lines_from_file(fname)
 
-    logger.info('lines from file %s\n' % lines)
-    logger.info('lines expected from file %s\n' % expected)
-
     if lines != expected:
-        raise Exception("After writing file '%s' contents not as expected, suspected IO error" % fname)
+        raise Exception("After writing file '%s' contents not as expected.\n"
+                        "Lines read from file %s\n"
+                        "Lines expected from file %s\n"
+                        "Suspected IO error" % (fname, lines, expected))
 
 def check_dir_writable(directory):
     fp = None
@@ -524,10 +519,7 @@ def get_latest_full_dump_timestamp(dbname, backup_dir, dump_dir, dump_prefix, dd
         raise Exception('Invalid None param to get_latest_full_dump_timestamp')
 
     dump_dirs = get_dump_dirs(backup_dir, dump_dir)
-    with open("/tmp/dir", "w") as ff:
-        ff.write(', '.join(dump_dirs))
 
-    fs = open("/tmp/report_file", "w")
     for dump_dir in dump_dirs:
         files = sorted(os.listdir(dump_dir))
 
@@ -543,7 +535,6 @@ def get_latest_full_dump_timestamp(dbname, backup_dir, dump_dir, dump_prefix, dd
 
         dump_report_files = sorted(dump_report_files, key=lambda x: int(x.split('_')[-1].split('.')[0]), reverse=True)
         for dump_report_file in dump_report_files:
-            fs.write(os.path.join(dump_dir, dump_report_file) + '\n')
             logger.debug('Checking for latest timestamp in report file %s' % os.path.join(dump_dir, dump_report_file))
             timestamp = get_full_ts_from_report_file(dbname, os.path.join(dump_dir, dump_report_file), dump_prefix, ddboost)
             logger.debug('Timestamp = %s' % timestamp)
