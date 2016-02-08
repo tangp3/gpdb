@@ -324,7 +324,7 @@ class DumpTestCase(unittest.TestCase):
         dbname = 'bkdb'
         port = '5432'
         partition_list_file = os.path.join(os.getcwd(), 'test')
-        with self.assertRaisesRegexp(Exception, 'After writing file .* contents not as expected, suspected IO error'):
+        with self.assertRaisesRegexp(Exception, 'contents not as expected'):
             write_partition_list_file(master_datadir, backup_dir, timestamp_key, port, dbname, self.dumper.dump_dir, self.dumper.dump_prefix)
 
     def test_dirty_file_to_temp_00(self):

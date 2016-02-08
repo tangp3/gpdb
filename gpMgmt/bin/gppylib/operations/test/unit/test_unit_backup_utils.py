@@ -347,7 +347,7 @@ class BackupUtilsTestCase(unittest.TestCase):
         fname = 'foo'
         expected = ['t1', 't2']
 
-        with self.assertRaisesRegexp(Exception, 'contents not as expected, suspected IO error'):
+        with self.assertRaisesRegexp(Exception, 'After writing file \'foo\' contents not as expected'):
             verify_lines_in_file(fname, expected)
 
     @patch('gppylib.operations.backup_utils.get_lines_from_file', return_value=[' t1', 't2'])
@@ -355,7 +355,7 @@ class BackupUtilsTestCase(unittest.TestCase):
         fname = 'foo'
         expected = ['t1', 't2']
 
-        with self.assertRaisesRegexp(Exception, 'contents not as expected, suspected IO error'):
+        with self.assertRaisesRegexp(Exception, 'After writing file \'foo\' contents not as expected'):
             verify_lines_in_file(fname, expected)
 
     @patch('gppylib.operations.backup_utils.get_lines_from_file', return_value=['t1'])
@@ -363,7 +363,7 @@ class BackupUtilsTestCase(unittest.TestCase):
         fname = 'foo'
         expected = ['t1', 't2']
 
-        with self.assertRaisesRegexp(Exception, 'contents not as expected, suspected IO error'):
+        with self.assertRaisesRegexp(Exception, 'After writing file \'foo\' contents not as expected'):
             verify_lines_in_file(fname, expected)
 
     @patch('gppylib.operations.backup_utils.get_lines_from_file', return_value=['t1', 't2', 't3'])
@@ -371,7 +371,7 @@ class BackupUtilsTestCase(unittest.TestCase):
         fname = 'foo'
         expected = ['t1', 't2']
 
-        with self.assertRaisesRegexp(Exception, 'contents not as expected, suspected IO error'):
+        with self.assertRaisesRegexp(Exception, 'After writing file \'foo\' contents not as expected'):
             verify_lines_in_file(fname, expected)
 
     @patch('gppylib.operations.backup_utils.get_lines_from_file', return_value=[])
@@ -379,7 +379,7 @@ class BackupUtilsTestCase(unittest.TestCase):
         fname = 'foo'
         expected = ['t1', 't2']
 
-        with self.assertRaisesRegexp(Exception, 'contents not as expected, suspected IO error'):
+        with self.assertRaisesRegexp(Exception, 'After writing file \'foo\' contents not as expected'):
             verify_lines_in_file(fname, expected)
 
     def test41_generate_plan_filename(self):
