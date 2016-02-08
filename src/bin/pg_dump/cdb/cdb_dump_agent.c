@@ -916,8 +916,6 @@ main(int argc, char **argv)
 	}
 #endif
 
-	FILE *fseg = fopen("/tmp/agents", "w");
-	fclose(fseg);
 	if (g_CDBDumpKey != NULL)
 	{
 		/*
@@ -927,8 +925,6 @@ main(int argc, char **argv)
 
 		if (PQstatus(g_conn_status) == CONNECTION_BAD)
 		{
-			fprintf(seg, "failed segment connect");
-			fclose(seg);
 			exit_horribly(g_fout, NULL, "Connection on host %s failed: %s",
 						  StringNotNull(g_SegDB.pszHost, "localhost"),
 						  PQerrorMessage(g_conn_status));
