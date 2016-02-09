@@ -741,7 +741,6 @@ class DumpDatabase(Operation):
                                                         include_schema_file = self.include_schema_file).run()
 
         # Format sql strings for all schema and table names
-        # to refactor, jason
         for table_file in [self.include_dump_tables_file, self.exclude_dump_tables_file]:
             formatSQLString(rel_file=table_file, isTableName=True)
 
