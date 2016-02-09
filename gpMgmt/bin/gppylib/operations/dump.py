@@ -786,9 +786,9 @@ class DumpDatabase(Operation):
                                                self.dump_dir,
                                                self.dump_prefix,
                                                TIMESTAMP_KEY)
-        if self.include_dump_tables_file[0]:
-            shutil.copyfile(self.include_dump_tables_file[0], filter_name)
-            verify_lines_in_file(filter_name, get_lines_from_file(self.include_dump_tables_file[0]))
+        if self.include_dump_tables_file:
+            shutil.copyfile(self.include_dump_tables_file, filter_name)
+            verify_lines_in_file(filter_name, get_lines_from_file(self.include_dump_tables_file))
             if self.netbackup_service_host:
                 backup_file_with_nbu(self.netbackup_service_host, self.netbackup_policy, self.netbackup_schedule, self.netbackup_block_size, self.netbackup_keyword, filter_name)
         elif self.exclude_dump_tables_file[0]:
