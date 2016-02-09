@@ -740,10 +740,14 @@ class DumpDatabase(Operation):
                                                         incremental = self.incremental,
                                                         include_schema_file = self.include_schema_file).run()
 
+        # create filter file based on the include_dump_tables_file before we do formating of contents
+        if self.dump_prefix and self.include_dump_tables_file and not self.incremental:
+            self.create_filter_file()
+
         # Format sql strings for all schema and table names
         for table_file in [self.include_dump_tables_file, self.exclude_dump_tables_file]:
             formatSQLString(rel_file=table_file, isTableName=True)
-
+        # format include schema names
         formatSQLString(rel_file=self.include_schema_file, isTableName=False)
 
         if (self.incremental and self.dump_prefix and 
@@ -756,8 +760,7 @@ class DumpDatabase(Operation):
 
         dump_line = self.create_dump_string(getUserName(), DUMP_DATE, TIMESTAMP_KEY)
         (start, end, rc) = self.perform_dump('Dump process', dump_line)
-        if self.dump_prefix and self.include_dump_tables_file and not self.incremental:
-            self.create_filter_file()
+
         return self.create_dump_outcome(start, end, rc)
 
     def perform_dump(self, title, dump_line):
