@@ -309,7 +309,7 @@ def backup_data(context, tablename, dbname):
     filename = tablename + "_backup"
     get_table_data_to_file(filename, tablename, dbname)
 
-def backup_data(context, tablename, dbname, filename):
+def backup_data_to_file(context, tablename, dbname, filename):
     filename = filename + "_backup"
     get_table_data_to_file(filename, tablename, dbname)
 

@@ -9,7 +9,7 @@ from gppylib.db import dbconn
 from gppylib.test.behave_utils.utils import run_gpcommand, getRows, validate_parse_email_file
 from gppylib.gparray import GpArray
 from gppylib.operations.unix import CheckFile
-from gppylib.test.behave_utils.utils import run_command, backup_data, check_table_exists, check_table_exists
+from gppylib.test.behave_utils.utils import run_command, backup_data, backup_data_to_file, check_table_exists, check_table_exists
 
 master_data_dir = os.environ.get('MASTER_DATA_DIRECTORY')
 
@@ -398,7 +398,7 @@ def impl(context, filenames, table_list, dbname):
     files = [f for f in filenames.split(',')]
     tables = [t for t in table_list.split(',')]
     for t,f in zip(tables,files):
-        backup_data(context, t, dbname, f)
+        backup_data_to_file(context, t, dbname, f)
 
 @when('verify with backedup file "{filename}" that there is a "{table_type}" table "{tablename}" in "{dbname}" with data')
 @then('verify with backedup file "{filename}" that there is a "{table_type}" table "{tablename}" in "{dbname}" with data')
