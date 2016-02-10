@@ -1003,7 +1003,7 @@ def impl(context, table_list, dbname, num_parts):
 @when('there is a backupfile of tables "{table_list}" in "{dbname}" exists for validation')
 @then('there is a backupfile of tables "{table_list}" in "{dbname}" exists for validation')
 def impl(context, table_list, dbname):
-    tables = [t for t in table_list.split(',')] 
+    tables = [t.strip() for t in table_list.split(',')] 
     for t in tables:
         backup_data(context, t, dbname) 
 
