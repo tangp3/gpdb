@@ -382,8 +382,10 @@ def drop_external_table_if_exists(context, table_name, dbname):
         drop_external_table(context, table_name=table_name, dbname=dbname)
 
 def drop_table_if_exists(context, table_name, dbname):
-    if check_table_exists(context, table_name=table_name, dbname=dbname):
-        drop_table(context, table_name=table_name, dbname=dbname)
+    SQL = 'drop table if exists %s' % table_name
+    with dbconn.connect(dbconn.DbURL(dbname=dbname)) as conn:
+        dbconn.execSQL(conn, SQL)
+        conn.commit()
 
 def drop_external_table(context, table_name, dbname):
     SQL = 'drop external table %s' % table_name
