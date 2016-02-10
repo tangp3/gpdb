@@ -1968,7 +1968,6 @@ Feature: Validate command line arguments
         Then gpdbrestore should return a return code of 0
         And verify that exactly "2" tables in "schematestdb" have been restored 
 
-    @test
     Scenario: Incremental restore with invalid table filter
         Given the database is running
         And the database "schematestdb" does not exist
@@ -2564,7 +2563,6 @@ Feature: Validate command line arguments
          Then gpcrondump should return a return code of 2
          And gpcrondump should print does not exist in to stdout
  
-     @test
      Scenario: Full Backup with option -T and non-existant table
          Given the database is running
          And there is a "heap" table "heap_table" with compression "None" in "fullbkdb" with data
@@ -2579,19 +2577,6 @@ Feature: Validate command line arguments
          And gpdbrestore should return a return code of 0
          And verify that there is a "ao" table "ao_part_table" in "fullbkdb" with data
          And verify that there is no table "heap_table" in "fullbkdb"
-
-    @backupfire
-    Scenario: Funny character table names
-        Given the database is running
-        And the database "testdb" does not exist
-        And database "testdb" exists
-        And there is a "ao" table "ao_table" with compression "None" in "testdb" with data
-        And there is a "ao" table "public.ao_table" with funny characters in "testdb"
-        And there is a "co" table "public.co_table" with funny characters in "testdb"
-        And there are no backup files
-        When the user runs "gpcrondump -a -x testdb"
-        Then gpcrondump should return a return code of 2
-        And gpcrondump should print Tablename has an invalid character ".n", ":", "," : to stdout
 
     Scenario: Negative test gpdbrestore -G with incremental timestamp
         Given the database is running
@@ -2634,10 +2619,10 @@ Feature: Validate command line arguments
         And verify that there is a "heap" table "heap_table" in "fullbkdb" with data
         And verify that there is a "ao" table "ao_part_table" in "fullbkdb" with data
         And verify that there is a "co" table "co_part_table" in "fullbkdb" with data
-        And verify that there are no aoco stats in "fullbkdb" for table "ao_part_table_1_prt_p1_2_prt_1, ao_part_table_1_prt_p1_2_prt_2, ao_part_table_1_prt_p1_2_prt_3"
-        And verify that there are no aoco stats in "fullbkdb" for table "ao_part_table_1_prt_p2_2_prt_1, ao_part_table_1_prt_p2_2_prt_2, ao_part_table_1_prt_p2_2_prt_3"
-        And verify that there are no aoco stats in "fullbkdb" for table "co_part_table_1_prt_p1_2_prt_1, co_part_table_1_prt_p1_2_prt_2, co_part_table_1_prt_p1_2_prt_3"
-        And verify that there are no aoco stats in "fullbkdb" for table "co_part_table_1_prt_p2_2_prt_1, co_part_table_1_prt_p2_2_prt_2, co_part_table_1_prt_p2_2_prt_3"
+        And verify that there are no aoco stats in "fullbkdb" for table "ao_part_table_1_prt_p1_2_prt_1,ao_part_table_1_prt_p1_2_prt_2,ao_part_table_1_prt_p1_2_prt_3"
+        And verify that there are no aoco stats in "fullbkdb" for table "ao_part_table_1_prt_p2_2_prt_1,ao_part_table_1_prt_p2_2_prt_2,ao_part_table_1_prt_p2_2_prt_3"
+        And verify that there are no aoco stats in "fullbkdb" for table "co_part_table_1_prt_p1_2_prt_1,co_part_table_1_prt_p1_2_prt_2,co_part_table_1_prt_p1_2_prt_3"
+        And verify that there are no aoco stats in "fullbkdb" for table "co_part_table_1_prt_p2_2_prt_1,co_part_table_1_prt_p2_2_prt_2,co_part_table_1_prt_p2_2_prt_3"
 
     Scenario: Negative test for report file missing gpcrondump
         Given the database is running
@@ -2924,7 +2909,7 @@ Feature: Validate command line arguments
         And database "fullbkdb" exists
         And there is a "heap" table "heap_table" with compression "None" in "fullbkdb" with data 
         And there is a "ao" partition table "ao_part_table" with compression "quicklz" in "fullbkdb" with data 
-        And there is a backupfile of tables "heap_table, ao_part_table" in "fullbkdb" exists for validation
+        And there is a backupfile of tables "heap_table,ao_part_table" in "fullbkdb" exists for validation
         When the user runs "gpcrondump -a -x fullbkdb --list-backup-files -K 20130101010101"
         Then gpcrondump should return a return code of 0 
         And gpcrondump should print Added the list of pipe names to the file to stdout
@@ -2975,7 +2960,7 @@ Feature: Validate command line arguments
         And database "fullbkdb" exists
         And there is a "heap" table "heap_table" with compression "None" in "fullbkdb" with data 
         And there is a "ao" partition table "ao_part_table" with compression "quicklz" in "fullbkdb" with data 
-        And there is a backupfile of tables "heap_table, ao_part_table" in "fullbkdb" exists for validation
+        And there is a backupfile of tables "heap_table,ao_part_table" in "fullbkdb" exists for validation
         When the user runs "gpcrondump -a -x fullbkdb --list-backup-files -K 20130101010101 -G"
         Then gpcrondump should return a return code of 0 
         And gpcrondump should print Added the list of pipe names to the file to stdout
@@ -3005,7 +2990,7 @@ Feature: Validate command line arguments
         And database "fullbkdb" exists
         And there is a "heap" table "heap_table" with compression "None" in "fullbkdb" with data 
         And there is a "ao" partition table "ao_part_table" with compression "quicklz" in "fullbkdb" with data 
-        And there is a backupfile of tables "heap_table, ao_part_table" in "fullbkdb" exists for validation
+        And there is a backupfile of tables "heap_table,ao_part_table" in "fullbkdb" exists for validation
         When the user runs "gpcrondump -a -x fullbkdb --list-backup-files -K 20130101010101 -g"
         Then gpcrondump should return a return code of 0 
         And gpcrondump should print Added the list of pipe names to the file to stdout
@@ -3093,7 +3078,7 @@ Feature: Validate command line arguments
         And there is a "ao" partition table "ao_part_table" with compression "quicklz" in "fullbkdb" with data 
         And there is a "ao" table "ao_index_table" with compression "None" in "fullbkdb" with data 
         And there is a list to store the incremental backup timestamps
-        And there is a backupfile of tables "heap_table, ao_part_table" in "fullbkdb" exists for validation
+        And there is a backupfile of tables "heap_table,ao_part_table" in "fullbkdb" exists for validation
         When the user runs "gpcrondump -a -x fullbkdb --list-backup-files -K 20130101010101"
         Then gpcrondump should return a return code of 0 
         And gpcrondump should print Added the list of pipe names to the file to stdout
@@ -3188,7 +3173,7 @@ Feature: Validate command line arguments
         And database "testdb" exists
         And there is a "heap" table "heap_table" with compression "None" in "testdb" with data
         And there is a "ao" partition table "ao_part_table" with compression "quicklz" in "testdb" with data
-        And there is a backupfile of tables "heap_table, ao_part_table" in "testdb" exists for validation
+        And there is a backupfile of tables "heap_table,ao_part_table" in "testdb" exists for validation
         When the user runs "gpcrondump -a -x testdb --prefix=foo"
         Then gpcrondump should return a return code of 0
         And the timestamp from gpcrondump is stored 
@@ -3208,7 +3193,7 @@ Feature: Validate command line arguments
         And database "testdb2" exists
         And there is a "heap" table "heap_table1" with compression "None" in "testdb1" with data
         And there is a "ao" partition table "ao_part_table" with compression "quicklz" in "testdb1" with data
-        And there is a backupfile of tables "heap_table1, ao_part_table" in "testdb1" exists for validation
+        And there is a backupfile of tables "heap_table1,ao_part_table" in "testdb1" exists for validation
         And there is a "heap" table "heap_table2" with compression "None" in "testdb2" with data
         And there is a backupfile of tables "heap_table2" in "testdb2" exists for validation
         When the user runs "gpcrondump -a -x testdb1,testdb2 --prefix=foo"
@@ -3262,7 +3247,7 @@ Feature: Validate command line arguments
         And database "testdb" exists
         And there is a "heap" table "heap_table" with compression "None" in "testdb" with data
         And there is a "ao" partition table "ao_part_table" with compression "quicklz" in "testdb" with data
-        And there is a backupfile of tables "heap_table, ao_part_table" in "testdb" exists for validation
+        And there is a backupfile of tables "heap_table,ao_part_table" in "testdb" exists for validation
         When the user runs "gpcrondump -a -x testdb --prefix=foo -g"
         Then gpcrondump should return a return code of 0
         And the timestamp from gpcrondump is stored 
@@ -3281,7 +3266,7 @@ Feature: Validate command line arguments
         And database "testdb" exists
         And there is a "heap" table "heap_table" with compression "None" in "testdb" with data
         And there is a "ao" partition table "ao_part_table" with compression "quicklz" in "testdb" with data
-        And there is a backupfile of tables "heap_table, ao_part_table" in "testdb" exists for validation
+        And there is a backupfile of tables "heap_table,ao_part_table" in "testdb" exists for validation
         When the user runs "gpcrondump -a -x testdb --prefix=foo -G"
         Then gpcrondump should return a return code of 0
         And the timestamp from gpcrondump is stored 
@@ -3301,7 +3286,7 @@ Feature: Validate command line arguments
         And database "testdb" exists
         And there is a "heap" table "heap_table" with compression "None" in "testdb" with data
         And there is a "ao" partition table "ao_part_table" with compression "quicklz" in "testdb" with data
-        And there is a backupfile of tables "heap_table, ao_part_table" in "testdb" exists for validation
+        And there is a backupfile of tables "heap_table,ao_part_table" in "testdb" exists for validation
         When the user runs "gpcrondump -a -x testdb --prefix=foo -u /tmp"
         Then gpcrondump should return a return code of 0
         And the timestamp from gpcrondump is stored 
@@ -4016,7 +4001,7 @@ Feature: Validate command line arguments
         Given the database is running
         And there is a "heap" table "heap_table" with compression "None" in "fullbkdb" with data
         And there is a "ao" partition table "ao_part_table" with compression "quicklz" in "fullbkdb" with data
-        And there is a backupfile of tables "heap_table, ao_part_table" in "fullbkdb" exists for validation
+        And there is a backupfile of tables "heap_table,ao_part_table" in "fullbkdb" exists for validation
         And the environment variable "PGPORT" is not set
         When the user runs "gpcrondump -G -a -x fullbkdb"
         Then gpcrondump should return a return code of 0
@@ -4718,7 +4703,7 @@ Feature: Validate command line arguments
         Given the database is running
         And there is a "heap" table "heap_table" with compression "None" in "fullbkdb" with data and 1000000 rows
         And there is a "ao" partition table "ao_part_table" with compression "quicklz" in "fullbkdb" with data
-        And there is a backupfile of tables "heap_table, ao_part_table" in "fullbkdb" exists for validation
+        And there is a backupfile of tables "heap_table,ao_part_table" in "fullbkdb" exists for validation
         And all the data from "fullbkdb" is saved for verification
         Then the user runs the query "drop table heap_table" in database "fullbkdb" in a worker pool "w1" as soon as pg_class is locked
         And the user runs "gpcrondump -a -x fullbkdb"
@@ -4735,7 +4720,7 @@ Feature: Validate command line arguments
         Given the database is running
         And there is a "heap" table "heap_table" with compression "None" in "fullbkdb" with data and 1000000 rows
         And there is a "ao" partition table "ao_part_table" with compression "quicklz" in "fullbkdb" with data
-        And there is a backupfile of tables "heap_table, ao_part_table" in "fullbkdb" exists for validation
+        And there is a backupfile of tables "heap_table,ao_part_table" in "fullbkdb" exists for validation
         And all the data from "fullbkdb" is saved for verification
         And the user drops "heap_table" in "fullbkdb" in a worker pool "w1"
         Then the user runs the "gpcrondump -a -x fullbkdb" in a worker pool "w2"
@@ -4752,7 +4737,7 @@ Feature: Validate command line arguments
         Given the database is running
         And there is a "heap" table "heap_table" with compression "None" in "fullbkdb" with data and 1000000 rows
         And there is a "ao" partition table "ao_part_table" with compression "quicklz" in "fullbkdb" with data
-        And there is a backupfile of tables "heap_table, ao_part_table" in "fullbkdb" exists for validation
+        And there is a backupfile of tables "heap_table,ao_part_table" in "fullbkdb" exists for validation
         When the user runs the "gp_dump --gp-d=db_dumps --gp-s=p --gp-c fullbkdb" in a worker pool "w1"
         And this test sleeps for "1" seconds
         And the worker pool "w1" is cleaned up
@@ -4770,7 +4755,7 @@ Feature: Validate command line arguments
         Given the database is running
         And there is a "heap" table "heap_table" with compression "None" in "fullbkdb" with data and 1000000 rows
         And there is a "ao" partition table "ao_part_table" with compression "quicklz" in "fullbkdb" with data
-        And there is a backupfile of tables "heap_table, ao_part_table" in "fullbkdb" exists for validation
+        And there is a backupfile of tables "heap_table,ao_part_table" in "fullbkdb" exists for validation
         When the user runs the "gp_dump --gp-s=p --gp-c --no-lock fullbkdb" in a worker pool "w1"
         And this test sleeps for "2" seconds
         And the worker pool "w1" is cleaned up
@@ -5131,7 +5116,7 @@ Feature: Validate command line arguments
         And the database "testdb1" does not exist
         And there is a "heap" table "heap_table" with compression "None" in "testdb" with data
         And there is a "ao" partition table "ao_part_table" with compression "quicklz" in "testdb" with data
-        And there is a backupfile of tables "heap_table, ao_part_table" in "testdb" exists for validation
+        And there is a backupfile of tables "heap_table,ao_part_table" in "testdb" exists for validation
         When the user runs "gpcrondump -a -x testdb --prefix=foo"
         Then gpcrondump should return a return code of 0
         And the timestamp from gpcrondump is stored 
@@ -5153,7 +5138,7 @@ Feature: Validate command line arguments
         And database "testdb2" exists
         And there is a "heap" table "heap_table1" with compression "None" in "testdb1" with data
         And there is a "ao" partition table "ao_part_table" with compression "quicklz" in "testdb1" with data
-        And there is a backupfile of tables "heap_table1, ao_part_table" in "testdb1" exists for validation
+        And there is a backupfile of tables "heap_table1,ao_part_table" in "testdb1" exists for validation
         And there is a "heap" table "heap_table2" with compression "None" in "testdb2" with data
         And there is a backupfile of tables "heap_table2" in "testdb2" exists for validation
         When the user runs "gpcrondump -a -x testdb1,testdb2 --prefix=foo"
@@ -5366,7 +5351,7 @@ Feature: Validate command line arguments
         And database "TESTING" exists
         And there is a "heap" table "heap_table" with compression "None" in "TESTING" with data
         And there is a "ao" partition table "ao_part_table" with compression "quicklz" in "TESTING" with data
-        And there is a backupfile of tables "heap_table, ao_part_table" in "TESTING" exists for validation
+        And there is a backupfile of tables "heap_table,ao_part_table" in "TESTING" exists for validation
         When the user runs "gpcrondump -a -x TESTING --prefix=foo"
         Then gpcrondump should return a return code of 0
         And the timestamp from gpcrondump is stored
@@ -5770,7 +5755,7 @@ Feature: Validate command line arguments
         And there is a "heap" table "schema_heap.heap_table" with compression "None" in "fullbkdb" with data
         And there is a "heap" table "schema_heap1.heap_table1" with compression "None" in "fullbkdb" with data
         And there is a "ao" partition table "schema_ao.ao_part_table" with compression "quicklz" in "fullbkdb" with data
-        And there is a backupfile of tables "schema_heap1.heap_table1, schema_heap.heap_table, schema_ao.ao_part_table" in "fullbkdb" exists for validation
+        And there is a backupfile of tables "schema_heap1.heap_table1,schema_heap.heap_table,schema_ao.ao_part_table" in "fullbkdb" exists for validation
         When the user runs "gpcrondump -a -x fullbkdb -S schema_heap -S schema_heap1"
         Then gpcrondump should return a return code of 0
         And the timestamp from gpcrondump is stored 
@@ -5791,7 +5776,7 @@ Feature: Validate command line arguments
         And there is a "heap" table "schema_heap.heap_table" with compression "None" in "fullbkdb" with data
         And there is a "heap" table "schema_heap1.heap_table1" with compression "None" in "fullbkdb" with data
         And there is a "ao" partition table "schema_ao.ao_part_table" with compression "quicklz" in "fullbkdb" with data
-        And there is a backupfile of tables "schema_heap.heap_table, schema_ao.ao_part_table, schema_heap1.heap_table1" in "fullbkdb" exists for validation
+        And there is a backupfile of tables "schema_heap.heap_table,schema_ao.ao_part_table,schema_heap1.heap_table1" in "fullbkdb" exists for validation
         When the user runs "gpcrondump -a -x fullbkdb -s schema_heap -s schema_heap1"
         Then gpcrondump should return a return code of 0
         And the timestamp from gpcrondump is stored 
@@ -5811,7 +5796,7 @@ Feature: Validate command line arguments
         And there is schema "schema_heap, schema_ao" exists in "fullbkdb"
         And there is a "heap" table "schema_heap.heap_table" with compression "None" in "fullbkdb" with data
         And there is a "ao" partition table "schema_ao.ao_part_table" with compression "quicklz" in "fullbkdb" with data
-        And there is a backupfile of tables "schema_heap.heap_table, schema_ao.ao_part_table" in "fullbkdb" exists for validation
+        And there is a backupfile of tables "schema_heap.heap_table,schema_ao.ao_part_table" in "fullbkdb" exists for validation
         When the user runs "gpcrondump -a -x fullbkdb -S schema_heap"
         Then gpcrondump should return a return code of 0
         And the timestamp from gpcrondump is stored 
@@ -5830,7 +5815,7 @@ Feature: Validate command line arguments
         And there is schema "schema_heap, schema_ao" exists in "fullbkdb"
         And there is a "heap" table "schema_heap.heap_table" with compression "None" in "fullbkdb" with data
         And there is a "ao" partition table "schema_ao.ao_part_table" with compression "quicklz" in "fullbkdb" with data
-        And there is a backupfile of tables "schema_heap.heap_table, schema_ao.ao_part_table" in "fullbkdb" exists for validation
+        And there is a backupfile of tables "schema_heap.heap_table,schema_ao.ao_part_table" in "fullbkdb" exists for validation
         When the user runs "gpcrondump -a -x fullbkdb -s schema_heap"
         Then gpcrondump should return a return code of 0
         And the timestamp from gpcrondump is stored 
@@ -5850,7 +5835,7 @@ Feature: Validate command line arguments
         And there is a "heap" table "schema_heap.heap_table" with compression "None" in "fullbkdb" with data
         And there is a "heap" table "schema_heap1.heap_table1" with compression "None" in "fullbkdb" with data
         And there is a "ao" partition table "schema_ao.ao_part_table" with compression "quicklz" in "fullbkdb" with data
-        And there is a backupfile of tables "schema_heap.heap_table, schema_ao.ao_part_table, schema_heap1.heap_table1" in "fullbkdb" exists for validation
+        And there is a backupfile of tables "schema_heap.heap_table,schema_ao.ao_part_table,schema_heap1.heap_table1" in "fullbkdb" exists for validation
         And there is a file "exclude_file" with tables "schema_heap1,schema_ao" 
         When the user runs "gpcrondump -a -x fullbkdb --exclude-schema-file exclude_file"
         Then gpcrondump should return a return code of 0
@@ -5872,7 +5857,7 @@ Feature: Validate command line arguments
         And there is a "heap" table "schema_heap.heap_table" with compression "None" in "fullbkdb" with data
         And there is a "heap" table "schema_heap1.heap_table1" with compression "None" in "fullbkdb" with data
         And there is a "ao" partition table "schema_ao.ao_part_table" with compression "quicklz" in "fullbkdb" with data
-        And there is a backupfile of tables "schema_heap.heap_table, schema_ao.ao_part_table, schema_heap1.heap_table1" in "fullbkdb" exists for validation
+        And there is a backupfile of tables "schema_heap.heap_table,schema_ao.ao_part_table,schema_heap1.heap_table1" in "fullbkdb" exists for validation
         And there is a file "include_file" with tables "schema_heap,schema_ao" 
         When the user runs "gpcrondump -a -x fullbkdb --schema-file include_file"
         Then gpcrondump should return a return code of 0
@@ -5894,7 +5879,7 @@ Feature: Validate command line arguments
         And database "testdb" exists
         And there is a "heap" table "heap_table" with compression "None" in "testdb" with data
         And there is a "ao" partition table "ao_part_table" with compression "quicklz" in "testdb" with data
-        And there is a backupfile of tables "heap_table, ao_part_table" in "testdb" exists for validation
+        And there is a backupfile of tables "heap_table,ao_part_table" in "testdb" exists for validation
         When the user runs "gpcrondump -a -x testdb --prefix=foo"
         Then gpcrondump should return a return code of 0
         And the timestamp from gpcrondump is stored 
@@ -6105,7 +6090,7 @@ Feature: Validate command line arguments
         And there is schema "schema_heap, schema_ao, schema_new1" exists in "fullbkdb"
         And there is a "heap" table "schema_heap.heap_table" with compression "None" in "fullbkdb" with data
         And there is a "ao" partition table "schema_ao.ao_part_table" with compression "quicklz" in "fullbkdb" with data
-        And there is a backupfile of tables "schema_heap.heap_table, schema_ao.ao_part_table" in "fullbkdb" exists for validation
+        And there is a backupfile of tables "schema_heap.heap_table,schema_ao.ao_part_table" in "fullbkdb" exists for validation
         And there is a file "include_file" with tables "schema_heap.heap_table,schema_ao.ao_part_table"
         When the user runs "gpcrondump -a -x fullbkdb --table-file include_file"
         Then gpcrondump should return a return code of 0
@@ -6124,7 +6109,7 @@ Feature: Validate command line arguments
         And there is schema "schema_heap, schema_ao, schema_new1" exists in "fullbkdb"
         And there is a "heap" table "schema_heap.heap_table" with compression "None" in "fullbkdb" with data
         And there is a "ao" partition table "schema_ao.ao_part_table" with compression "quicklz" in "fullbkdb" with data
-        And there is a backupfile of tables "schema_heap.heap_table, schema_ao.ao_part_table" in "fullbkdb" exists for validation
+        And there is a backupfile of tables "schema_heap.heap_table,schema_ao.ao_part_table" in "fullbkdb" exists for validation
         And there is a file "include_file" with tables "schema_heap.heap_table,schema_ao.ao_part_table"
         When the user runs "gpcrondump -a -x fullbkdb --table-file include_file"
         Then gpcrondump should return a return code of 0
