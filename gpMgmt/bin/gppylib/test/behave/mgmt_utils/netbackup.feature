@@ -2913,7 +2913,7 @@ Feature: NetBackup Integration with GPDB
         And gpcrondump should return a return code of 0
         And the timestamp from gpcrondump is stored
         And all the data from "schematestdb" is saved for verification
-        And the user runs gpdbrestore with the stored timestamp and options "-T public.ao_table2,public.co_table --netbackup-block-size 4096" using netbackup
+        And the user runs gpdbrestore with the stored timestamp and options "-T public.ao_table2 -T public.co_table --netbackup-block-size 4096" using netbackup
         Then gpdbrestore should return a return code of 0
         And verify that exactly "2" tables in "schematestdb" have been restored
 
@@ -3270,7 +3270,7 @@ Feature: NetBackup Integration with GPDB
         And database "testdb" exists
         When the user runs gp_restore with the the stored timestamp and subdir for metadata only in "testdb" using netbackup
         Then gp_restore should return a return code of 0
-        When the user runs gpdbrestore with the stored timestamp and options "-T public.ao_part_table,public.heap_table_1 --noplan" without -e option using netbackup
+        When the user runs gpdbrestore with the stored timestamp and options "-T public.ao_part_table -T public.heap_table_1 --noplan" without -e option using netbackup
         Then gpdbrestore should return a return code of 0
         And verify that tables "public.ao_part_table_1_prt_p1_2_prt_3, public.ao_part_table_1_prt_p2_2_prt_3" in "testdb" has no rows
         And verify that tables "public.ao_part_table_1_prt_p1_2_prt_2, public.ao_part_table_1_prt_p2_2_prt_2" in "testdb" has no rows
@@ -4529,7 +4529,7 @@ Feature: NetBackup Integration with GPDB
         And gpcrondump should return a return code of 0
         And the timestamp from gpcrondump is stored
         And all the data from "schematestdb" is saved for verification
-        And the user runs gpdbrestore with the stored timestamp and options "-T public.ao_table2,public.co_table --redirect=testdb --netbackup-block-size 4096" using netbackup
+        And the user runs gpdbrestore with the stored timestamp and options "-T public.ao_table2 -T public.co_table --redirect=testdb --netbackup-block-size 4096" using netbackup
         Then gpdbrestore should return a return code of 0
         And verify that exactly "2" tables in "testdb" have been restored
 
