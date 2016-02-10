@@ -276,7 +276,7 @@ def validate_restore_data(context, tablename, dbname, backedup_table=None):
     restore_file = os.path.join(current_dir, './gppylib/test/data', tablename.strip() + "_restore")
     diff_backup_restore_data(context, backup_file, restore_file)
 
-def validate_restore_data(context, tablename, dbname, file_name, backedup_table=None):
+def validate_restore_data_in_file(context, tablename, dbname, file_name, backedup_table=None):
     filename = file_name + "_restore"
     get_table_data_to_file(filename, tablename, dbname)
     current_dir = os.getcwd()
