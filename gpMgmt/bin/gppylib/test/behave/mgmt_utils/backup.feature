@@ -490,7 +490,7 @@ Feature: Validate command line arguments
         Given the database is running
         And there is a "heap" table "heap_table" with compression "None" in "fullbkdb" with data
         And there is a "ao" partition table "ao_part_table" with compression "quicklz" in "fullbkdb" with data
-        And there is a backupfile of tables "heap_table, ao_part_table" in "fullbkdb" exists for validation
+        And there is a backupfile of tables "heap_table,ao_part_table" in "fullbkdb" exists for validation
         When the user runs "gpcrondump -a -x fullbkdb"
         Then gpcrondump should return a return code of 0
         And the timestamp from gpcrondump is stored 
@@ -561,7 +561,7 @@ Feature: Validate command line arguments
         Given the database is running
         And there is a "heap" table "heap_table" with compression "None" in "fullbkdb" with data
         And there is a "ao" partition table "ao_part_table" with compression "quicklz" in "fullbkdb" with data
-        And there is a backupfile of tables "heap_table, ao_part_table" in "fullbkdb" exists for validation
+        And there is a backupfile of tables "heap_table,ao_part_table" in "fullbkdb" exists for validation
         When the user runs "gpcrondump -a -y /tmp -x fullbkdb"
         Then gpcrondump should return a return code of 0
         And the timestamp from gpcrondump is stored 
@@ -576,7 +576,7 @@ Feature: Validate command line arguments
         Given the database is running
         And there is a "heap" table "heap_table" with compression "None" in "fullbkdb" with data
         And there is a "ao" partition table "ao_part_table" with compression "quicklz" in "fullbkdb" with data
-        And there is a backupfile of tables "heap_table, ao_part_table" in "fullbkdb" exists for validation
+        And there is a backupfile of tables "heap_table,ao_part_table" in "fullbkdb" exists for validation
         When the user runs "gpcrondump -a -x fullbkdb"
         Then gpcrondump should return a return code of 0
         When the user runs "gp_dump --gp-d=db_dumps --gp-s=p --gp-c fullbkdb"
@@ -818,7 +818,7 @@ Feature: Validate command line arguments
         Given the database is running
         And there is a "heap" table "heap_table" with compression "None" in "fullbkdb" with data
         And there is a "ao" partition table "ao_part_table" with compression "quicklz" in "fullbkdb" with data
-        And there is a backupfile of tables "heap_table, ao_part_table" in "fullbkdb" exists for validation
+        And there is a backupfile of tables "heap_table,ao_part_table" in "fullbkdb" exists for validation
         When the user runs "gpcrondump -a -x fullbkdb"
         Then gpcrondump should return a return code of 0
         When the user runs "gp_dump --gp-d=db_dumps --gp-k=20121228111527 --gp-s=p --gp-c fullbkdb"
@@ -869,7 +869,7 @@ Feature: Validate command line arguments
         And database "fullbkdb" exists
         And there is a "heap" table "heap_table" with compression "None" in "fullbkdb" with data
         And there is a "ao" partition table "ao_part_table" with compression "quicklz" in "fullbkdb" with data
-        And there is a backupfile of tables "heap_table, ao_part_table" in "fullbkdb" exists for validation
+        And there is a backupfile of tables "heap_table,ao_part_table" in "fullbkdb" exists for validation
         And the temp files "exclude_dump_tables" are removed from the system
         When the user runs "gpcrondump -a -x fullbkdb -T public.heap_table"
         Then gpcrondump should return a return code of 0
@@ -1512,7 +1512,7 @@ Feature: Validate command line arguments
         And the row "1, 0, 999999999999998, 999999999999998, 0, 0" is inserted into "public.tuple_count_table" in "tempdb"
         And the row "2, 0, 1, 1, 0, 0" is inserted into "public.tuple_count_table" in "tempdb"
         When the method get_partition_state is executed on table "public.tuple_count_table" in "tempdb" for ao table "pepper.t1"
-        Then the get_partition_state result should contain "pepper, t1, 999999999999999"
+        Then the get_partition_state result should contain "pepper,t1,999999999999999"
 
     @backupfire
     Scenario: Verify the gpcrondump -o option is not broken
@@ -1697,7 +1697,7 @@ Feature: Validate command line arguments
          And there is a "co" table "co_table2" with compression "None" in "testdb2" with data
          And there are no backup files
          When the user runs "gpcrondump -a -x testdb1,testdb2"
-         And the timestamp for database dumps "testdb1, testdb2" are stored
+         And the timestamp for database dumps "testdb1,testdb2" are stored
          And gpcrondump should return a return code of 0
          And all the data from "testdb1" is saved for verification
          And all the data from "testdb2" is saved for verification
@@ -1707,7 +1707,7 @@ Feature: Validate command line arguments
          And gpdbrestore should return a return code of 0
          Then verify that the data of "2" tables in "testdb1" is validated after restore 
          And verify that the data of "2" tables in "testdb2" is validated after restore 
-         And the dump timestamp for "testdb1, testdb2" are different
+         And the dump timestamp for "testdb1,testdb2" are different
          And verify that the tuple count of all appendonly tables are consistent in "testdb1"
          And verify that the tuple count of all appendonly tables are consistent in "testdb2"
 
@@ -1968,6 +1968,7 @@ Feature: Validate command line arguments
         Then gpdbrestore should return a return code of 0
         And verify that exactly "2" tables in "schematestdb" have been restored 
 
+    @test
     Scenario: Incremental restore with invalid table filter
         Given the database is running
         And the database "schematestdb" does not exist
@@ -1985,7 +1986,7 @@ Feature: Validate command line arguments
         And gpcrondump should return a return code of 0
         And the timestamp from gpcrondump is stored 
         And all the data from "schematestdb" is saved for verification
-        And the user runs gpdbrestore with the stored timestamp and options "-T public.ao_table2,public.invalid"
+        And the user runs gpdbrestore with the stored timestamp and options "-T public.ao_table2 -T public.invalid"
         Then gpdbrestore should return a return code of 2
         And gpdbrestore should print Invalid tables for -T option: The following tables were not found in plan file to stdout
 
@@ -2563,11 +2564,12 @@ Feature: Validate command line arguments
          Then gpcrondump should return a return code of 2
          And gpcrondump should print does not exist in to stdout
  
+     @test
      Scenario: Full Backup with option -T and non-existant table
          Given the database is running
          And there is a "heap" table "heap_table" with compression "None" in "fullbkdb" with data
          And there is a "ao" partition table "ao_part_table" with compression "quicklz" in "fullbkdb" with data
-         And there is a backupfile of tables "heap_table, ao_part_table" in "fullbkdb" exists for validation
+         And there is a backupfile of tables "heap_table,ao_part_table" in "fullbkdb" exists for validation
          When the user runs "gpcrondump -a -x fullbkdb -T public.heap_table -T cool.dude"
          Then gpcrondump should return a return code of 0
          And gpcrondump should print does not exist in to stdout
