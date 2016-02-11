@@ -337,7 +337,7 @@ Feature: NetBackup Integration with GPDB
         When the user runs gpdbrestore with the stored timestamp using netbackup
         Then gpdbrestore should return a return code of 0
         And verify that the data of "18" tables in "fullbkdb" is validated after restore
-        And verify that there is no table "heap_table" in "fullbkdb"
+        And verify that there is no table "public.heap_table" in "fullbkdb"
 
     @nbuall
     @nbupartI
@@ -400,9 +400,9 @@ Feature: NetBackup Integration with GPDB
         And the timestamp from gpcrondump is stored
         When the user runs gpdbrestore with the stored timestamp using netbackup
         Then gpdbrestore should return a return code of 0
-        And verify that there is a "co" table "co_part_table" in "fullbkdb" with data
-        And verify that there is no table "ao_part_table" in "fullbkdb"
-        And verify that there is no table "heap_table" in "fullbkdb"
+        And verify that there is a "co" table "public.co_part_table" in "fullbkdb" with data
+        And verify that there is no table "public.ao_part_table" in "fullbkdb"
+        And verify that there is no table "public.heap_table" in "fullbkdb"
 
     @nbusmoke
     @nbuall
@@ -420,9 +420,9 @@ Feature: NetBackup Integration with GPDB
         And the timestamp from gpcrondump is stored
         When the user runs gpdbrestore with the stored timestamp using netbackup
         Then gpdbrestore should return a return code of 0
-        And verify that there is a "ao" table "ao_part_table" in "fullbkdb" with data
-        And verify that there is a "heap" table "heap_table" in "fullbkdb" with data
-        And verify that there is no table "co_part_table" in "fullbkdb"
+        And verify that there is a "ao" table "public.ao_part_table" in "fullbkdb" with data
+        And verify that there is a "heap" table "public.heap_table" in "fullbkdb" with data
+        And verify that there is no table "public.co_part_table" in "fullbkdb"
 
     @nbuall
     @nbupartI
@@ -721,8 +721,8 @@ Feature: NetBackup Integration with GPDB
         And all the data from "fullbkdb" is saved for verification
         When the user runs gpdbrestore with the stored timestamp and options " -T public.ao_index_table -a --netbackup-block-size 2048" using netbackup
         And gpdbrestore should return a return code of 0
-        Then verify that there is no table "ao_part_table" in "fullbkdb"
-        And verify that there is no table "heap_table" in "fullbkdb"
+        Then verify that there is no table "public.ao_part_table" in "fullbkdb"
+        And verify that there is no table "public.heap_table" in "fullbkdb"
         And verify that there is a "ao" table "public.ao_index_table" in "fullbkdb" with data
 
     @nbuall
@@ -743,8 +743,8 @@ Feature: NetBackup Integration with GPDB
         And database "fullbkdb" exists
         When the user runs gpdbrestore with the stored timestamp and options "-T public.ao_index_table -a --netbackup-block-size 2048" without -e option using netbackup
         And gpdbrestore should return a return code of 0
-        Then verify that there is no table "ao_part_table" in "fullbkdb"
-        And verify that there is no table "heap_table" in "fullbkdb"
+        Then verify that there is no table "public.ao_part_table" in "fullbkdb"
+        And verify that there is no table "public.heap_table" in "fullbkdb"
         And verify that there is a "ao" table "public.ao_index_table" in "fullbkdb" with data
 
     @nbuall
@@ -764,8 +764,8 @@ Feature: NetBackup Integration with GPDB
         When the user truncates "public.ao_index_table" tables in "fullbkdb"
         And the user runs gpdbrestore with the stored timestamp and options "-T public.ao_index_table -a --netbackup-block-size 2048" using netbackup
         Then gpdbrestore should return a return code of 0
-        And verify that there is no table "ao_part_table" in "fullbkdb"
-        And verify that there is no table "heap_table" in "fullbkdb"
+        And verify that there is no table "public.ao_part_table" in "fullbkdb"
+        And verify that there is no table "public.heap_table" in "fullbkdb"
         And verify that there is a "ao" table "public.ao_index_table" in "fullbkdb" with data
 
     @nbuall
@@ -785,8 +785,8 @@ Feature: NetBackup Integration with GPDB
         When table "public.ao_index_table" is deleted in "fullbkdb"
         And the user runs gpdbrestore with the stored timestamp and options "-T public.ao_index_table -a --netbackup-block-size 2048" using netbackup
         Then gpdbrestore should return a return code of 0
-        And verify that there is no table "ao_part_table" in "fullbkdb"
-        And verify that there is no table "heap_table" in "fullbkdb"
+        And verify that there is no table "public.ao_part_table" in "fullbkdb"
+        And verify that there is no table "public.heap_table" in "fullbkdb"
         And verify that there is a "ao" table "public.ao_index_table" in "fullbkdb" with data
 
     @nbuall
@@ -901,7 +901,7 @@ Feature: NetBackup Integration with GPDB
         When the user runs gpdbrestore with the stored timestamp using netbackup
         Then gpdbrestore should return a return code of 0
         And verify that there is a "ao" table "ao_part_table" in "fullbkdb" with data
-        And verify that there is no table "heap_table" in "fullbkdb"
+        And verify that there is no table "public.heap_table" in "fullbkdb"
 
     @nbuall
     @nbupartI
@@ -939,9 +939,9 @@ Feature: NetBackup Integration with GPDB
         And database "fullbkdb" exists
         When the user runs gp_restore with the the stored timestamp and subdir in "fullbkdb" and bypasses ao stats using netbackup
         Then gp_restore should return a return code of 0
-        And verify that there is a "heap" table "heap_table" in "fullbkdb" with data
+        And verify that there is a "heap" table "public.heap_table" in "fullbkdb" with data
         And verify that there is a "ao" table "ao_part_table" in "fullbkdb" with data
-        And verify that there is a "co" table "co_part_table" in "fullbkdb" with data
+        And verify that there is a "co" table "public.co_part_table" in "fullbkdb" with data
         And verify that there are no aoco stats in "fullbkdb" for table "ao_part_table_1_prt_p1_2_prt_1, ao_part_table_1_prt_p1_2_prt_2, ao_part_table_1_prt_p1_2_prt_3"
         And verify that there are no aoco stats in "fullbkdb" for table "ao_part_table_1_prt_p2_2_prt_1, ao_part_table_1_prt_p2_2_prt_2, ao_part_table_1_prt_p2_2_prt_3"
         And verify that there are no aoco stats in "fullbkdb" for table "co_part_table_1_prt_p1_2_prt_1, co_part_table_1_prt_p1_2_prt_2, co_part_table_1_prt_p1_2_prt_3"
@@ -1053,8 +1053,8 @@ Feature: NetBackup Integration with GPDB
         And verify that report file with prefix "foo" under subdir " " has been backed up using NetBackup
         And verify that cdatabase file with prefix "foo" under subdir " " has been backed up using NetBackup
         And verify that state file with prefix "foo" under subdir " " has been backed up using NetBackup
-        And verify that there is a "heap" table "heap_table" in "testdb" with data
-        And verify that there is a "ao" table "ao_part_table" in "testdb" with data
+        And verify that there is a "heap" table "public.heap_table" in "testdb" with data
+        And verify that there is a "ao" table "public.ao_part_table" in "testdb" with data
 
     @nbuall
     @nbupartI
@@ -1080,9 +1080,9 @@ Feature: NetBackup Integration with GPDB
         And verify that state file with prefix "foo" under subdir " " has been backed up using NetBackup
         When the user runs gpdbrestore with the stored timestamp and options "--prefix=foo --netbackup-block-size 2048" using netbackup
         Then gpdbrestore should return a return code of 0
-        And verify that there is a "heap" table "heap_table1" in "testdb1" with data
-        And verify that there is a "ao" table "ao_part_table" in "testdb1" with data
-        And verify that there is a "heap" table "heap_table2" in "testdb2" with data
+        And verify that there is a "heap" table "public.heap_table1" in "testdb1" with data
+        And verify that there is a "ao" table "public.ao_part_table" in "testdb1" with data
+        And verify that there is a "heap" table "public.heap_table2" in "testdb2" with data
 
     @nbuall
     @nbupartI
@@ -1106,8 +1106,8 @@ Feature: NetBackup Integration with GPDB
         And verify that config file with prefix "foo" under subdir " " has been backed up using NetBackup
         When the user runs gpdbrestore with the stored timestamp and options "--prefix=foo --netbackup-block-size 2048" using netbackup
         Then gpdbrestore should return a return code of 0
-        And verify that there is a "heap" table "heap_table" in "testdb" with data
-        And verify that there is a "ao" table "ao_part_table" in "testdb" with data
+        And verify that there is a "heap" table "public.heap_table" in "testdb" with data
+        And verify that there is a "ao" table "public.ao_part_table" in "testdb" with data
 
     @nbuall
     @nbupartI
@@ -1130,8 +1130,8 @@ Feature: NetBackup Integration with GPDB
         And verify that global file with prefix "foo" under subdir " " has been backed up using NetBackup
         When the user runs gpdbrestore with the stored timestamp and options "--prefix=foo --netbackup-block-size 2048" using netbackup
         Then gpdbrestore should return a return code of 0
-        And verify that there is a "heap" table "heap_table" in "testdb" with data
-        And verify that there is a "ao" table "ao_part_table" in "testdb" with data
+        And verify that there is a "heap" table "public.heap_table" in "testdb" with data
+        And verify that there is a "ao" table "public.ao_part_table" in "testdb" with data
 
     @nbuall
     @nbupartI
@@ -1155,8 +1155,8 @@ Feature: NetBackup Integration with GPDB
         And verify that state file with prefix "foo" under subdir "/tmp" has been backed up using NetBackup
         When the user runs gpdbrestore with the stored timestamp and options "-u /tmp --prefix=foo --netbackup-block-size 2048" using netbackup
         Then gpdbrestore should return a return code of 0
-        And verify that there is a "heap" table "heap_table" in "testdb" with data
-        And verify that there is a "ao" table "ao_part_table" in "testdb" with data
+        And verify that there is a "heap" table "public.heap_table" in "testdb" with data
+        And verify that there is a "ao" table "public.ao_part_table" in "testdb" with data
 
     @nbuall
     @nbupartI
@@ -1409,8 +1409,8 @@ Feature: NetBackup Integration with GPDB
         And the environment variable "PGPORT" is reset
         When the user runs gpdbrestore with the stored timestamp using netbackup
         Then gpdbrestore should return a return code of 0
-        And verify that there is a "heap" table "heap_table" in "fullbkdb" with data
-        And verify that there is a "ao" table "ao_part_table" in "fullbkdb" with data
+        And verify that there is a "heap" table "public.heap_table" in "fullbkdb" with data
+        And verify that there is a "ao" table "public.ao_part_table" in "fullbkdb" with data
 
     @nbuall
     @nbupartI
@@ -1427,9 +1427,9 @@ Feature: NetBackup Integration with GPDB
         And the timestamp from gpcrondump is stored
         When the user runs gpdbrestore with the stored timestamp using netbackup
         Then gpdbrestore should return a return code of 0
-        And verify that there is a "ao" table "ao_part_table" in "fullbkdb" with data
-        And verify that there is a "heap" table "heap_table" in "fullbkdb" with data
-        And verify that there is no table "co_part_table" in "fullbkdb"
+        And verify that there is a "ao" table "public.ao_part_table" in "fullbkdb" with data
+        And verify that there is a "heap" table "public.heap_table" in "fullbkdb" with data
+        And verify that there is no table "public.co_part_table" in "fullbkdb"
 
     @nbuall
     @nbupartI
@@ -1446,9 +1446,9 @@ Feature: NetBackup Integration with GPDB
         And all the data from "fullbkdb" is saved for verification
         When the user runs gpdbrestore with the stored timestamp using netbackup
         Then gpdbrestore should return a return code of 0
-        And verify that there is a "heap" table "heap_table" in "fullbkdb"
-        And verify that there is a "ao" table "ao_table" in "fullbkdb"
-        And verify that there is a "ao" table "ao_part_table" in "fullbkdb"
+        And verify that there is a "heap" table "public.heap_table" in "fullbkdb"
+        And verify that there is a "ao" table "public.ao_table" in "fullbkdb"
+        And verify that there is a "ao" table "public.ao_part_table" in "fullbkdb"
 
     @nbuall
     @nbupartI
@@ -1865,8 +1865,8 @@ Feature: NetBackup Integration with GPDB
         And all the data from "fullbkdb" is saved for verification
         When the user runs gpdbrestore with the stored timestamp using netbackup
         Then gpdbrestore should return a return code of 0
-        And verify that there is a "heap" table "heap_table" in "fullbkdb" with data
-        And verify that there is a "ao" table "ao_part_table" in "fullbkdb" with data
+        And verify that there is a "heap" table "public.heap_table" in "fullbkdb" with data
+        And verify that there is a "ao" table "public.ao_part_table" in "fullbkdb" with data
 
     @nbuall
     @nbupartI
@@ -1886,8 +1886,8 @@ Feature: NetBackup Integration with GPDB
         And database "fullbkdb" exists
         When the user runs gp_restore with the the stored timestamp and subdir in "fullbkdb" using netbackup
         Then gp_restore should return a return code of 0
-        And verify that there is a "heap" table "heap_table" in "fullbkdb" with data
-        And verify that there is a "ao" table "ao_part_table" in "fullbkdb" with data
+        And verify that there is a "heap" table "public.heap_table" in "fullbkdb" with data
+        And verify that there is a "ao" table "public.ao_part_table" in "fullbkdb" with data
 
     @nbuall
     @nbupartI
@@ -1916,9 +1916,9 @@ Feature: NetBackup Integration with GPDB
         Then gpdbrestore should return a return code of 0
         When the user runs "psql -f gppylib/test/behave/mgmt_utils/steps/data/select_multi_byte_char_tables.sql testdb"
         Then psql should print 1000 to stdout 4 times
-        And verify that there is a "ao" table "ao_index_table" in "testdb" with data
-        And verify that there is a "co" table "co_index_table" in "testdb" with data
-        And verify that there is a "heap" table "heap_index_table" in "testdb" with data
+        And verify that there is a "ao" table "public.ao_index_table" in "testdb" with data
+        And verify that there is a "co" table "public.co_index_table" in "testdb" with data
+        And verify that there is a "heap" table "public.heap_index_table" in "testdb" with data
         When the user runs "psql -f gppylib/test/behave/mgmt_utils/steps/data/describe_multi_byte_char.sql testdb > /tmp/describe_multi_byte_char_after"
         And the user runs "psql -c '\d public.ao_index_table' testdb > /tmp/describe_ao_index_table_after"
         Then verify that the contents of the files "/tmp/describe_multi_byte_char_before" and "/tmp/describe_multi_byte_char_after" are identical
@@ -2084,8 +2084,8 @@ Feature: NetBackup Integration with GPDB
         When the user runs gpdbrestore with the stored timestamp and options "--prefix=foo --redirect=testdb1 --netbackup-block-size 4096" without -e option using netbackup
         Then gpdbrestore should return a return code of 0
         And there should be dump files under " " with prefix "foo"
-        And verify that there is a "heap" table "heap_table" in "testdb1" with data
-        And verify that there is a "ao" table "ao_part_table" in "testdb1" with data
+        And verify that there is a "heap" table "public.heap_table" in "testdb1" with data
+        And verify that there is a "ao" table "public.ao_part_table" in "testdb1" with data
 
     @nbuall
     @nbupartI
@@ -2111,8 +2111,8 @@ Feature: NetBackup Integration with GPDB
         When the user runs gpdbrestore with the stored timestamp and options "--prefix=foo --redirect=testdb --netbackup-block-size 4096" without -e option using netbackup
         Then gpdbrestore should return a return code of 0
         And there should be dump files under " " with prefix "foo"
-        And verify that there is a "heap" table "heap_table1" in "testdb" with data
-        And verify that there is a "ao" table "ao_part_table" in "testdb" with data
+        And verify that there is a "heap" table "public.heap_table1" in "testdb" with data
+        And verify that there is a "ao" table "public.ao_part_table" in "testdb" with data
 
     @nbuall
     @nbupartI
@@ -2209,8 +2209,8 @@ Feature: NetBackup Integration with GPDB
         Then gpdbrestore should return a return code of 0
         And gpdbestore should not print Issue with analyze of to stdout
         And there should be dump files under " " with prefix "foo"
-        And verify that there is a "heap" table "heap_table" in "TESTING" with data
-        And verify that there is a "ao" table "ao_part_table" in "TESTING" with data
+        And verify that there is a "heap" table "public.heap_table" in "TESTING" with data
+        And verify that there is a "ao" table "public.ao_part_table" in "TESTING" with data
 
     @nbuall
     @nbupartI
@@ -2937,8 +2937,8 @@ Feature: NetBackup Integration with GPDB
         And all the data from "fullbkdb" is saved for verification
         When the user runs gpdbrestore with the stored timestamp and options "-T public.ao_index_table" using netbackup
         And gpdbrestore should return a return code of 0
-        Then verify that there is no table "ao_part_table" in "fullbkdb"
-        And verify that there is no table "heap_table" in "fullbkdb"
+        Then verify that there is no table "public.ao_part_table" in "fullbkdb"
+        And verify that there is no table "public.heap_table" in "fullbkdb"
         And verify that there is a "ao" table "public.ao_index_table" in "fullbkdb" with data
 
     @nbuall
@@ -2963,8 +2963,8 @@ Feature: NetBackup Integration with GPDB
         And database "fullbkdb" exists
         When the user runs gpdbrestore with the stored timestamp and options "-T public.ao_index_table" without -e option using netbackup
         And gpdbrestore should return a return code of 0
-        Then verify that there is no table "ao_part_table" in "fullbkdb"
-        And verify that there is no table "heap_table" in "fullbkdb"
+        Then verify that there is no table "public.ao_part_table" in "fullbkdb"
+        And verify that there is no table "public.heap_table" in "fullbkdb"
         And verify that there is a "ao" table "public.ao_index_table" in "fullbkdb" with data
 
     @nbuall
@@ -3078,8 +3078,8 @@ Feature: NetBackup Integration with GPDB
         And all the data from "fullbkdb" is saved for verification
         When the user runs gpdbrestore with the stored timestamp and options "-T public.ao_part_table --netbackup-block-size 4096" using netbackup
         Then gpdbrestore should return a return code of 0
-        And verify that there is no table "heap_table" in "fullbkdb"
-        And verify that there is no table "ao_index_table" in "fullbkdb"
+        And verify that there is no table "public.heap_table" in "fullbkdb"
+        And verify that there is no table "public.ao_index_table" in "fullbkdb"
         And verify that there is a "ao" table "public.ao_part_table" in "fullbkdb" with data
 
     @nbuall
@@ -4388,9 +4388,9 @@ Feature: NetBackup Integration with GPDB
         Then gpdbrestore should return a return code of 0
         When the user runs "psql -f gppylib/test/behave/mgmt_utils/steps/data/select_multi_byte_char_tables.sql testdb"
         Then psql should print 2000 to stdout 4 times
-        And verify that there is a "ao" table "ao_index_table" in "testdb" with data
-        And verify that there is a "co" table "co_index_table" in "testdb" with data
-        And verify that there is a "heap" table "heap_index_table" in "testdb" with data
+        And verify that there is a "ao" table "public.ao_index_table" in "testdb" with data
+        And verify that there is a "co" table "public.co_index_table" in "testdb" with data
+        And verify that there is a "heap" table "public.heap_index_table" in "testdb" with data
         When the user runs "psql -f gppylib/test/behave/mgmt_utils/steps/data/describe_multi_byte_char.sql testdb > /tmp/describe_multi_byte_char_after"
         And the user runs "psql -c '\d public.ao_index_table' testdb > /tmp/describe_ao_index_table_after"
         Then verify that the contents of the files "/tmp/describe_multi_byte_char_before" and "/tmp/describe_multi_byte_char_after" are identical
@@ -4591,8 +4591,8 @@ Feature: NetBackup Integration with GPDB
         And all the data from "fullbkdb" is saved for verification
         When the user runs gpdbrestore with the stored timestamp and options "-T public.ao_part_table --netbackup-block-size 4096" using netbackup
         Then gpdbrestore should return a return code of 0
-        And verify that there is no table "ao_index_table" in "fullbkdb"
-        And verify that there is no table "heap_table" in "fullbkdb"
+        And verify that there is no table "public.ao_index_table" in "fullbkdb"
+        And verify that there is no table "public.heap_table" in "fullbkdb"
         And verify that there is a "ao" table "public.ao_part_table" in "fullbkdb" with data
         And verify that the data of "9" tables in "fullbkdb" is validated after restore
 
@@ -4751,8 +4751,8 @@ Feature: NetBackup Integration with GPDB
         When the user runs gpdbrestore with the stored timestamp and options " --prefix=foo --netbackup-block-size 4096" using netbackup
         Then gpdbrestore should return a return code of 0
         And there should be dump files under " " with prefix "foo"
-        And verify that there is a "heap" table "heap_table" in "testdb" with data
-        And verify that there is a "ao" table "ao_part_table" in "testdb" with data
+        And verify that there is a "heap" table "public.heap_table" in "testdb" with data
+        And verify that there is a "ao" table "public.ao_part_table" in "testdb" with data
 
     @nbuslb
     @nbuall
