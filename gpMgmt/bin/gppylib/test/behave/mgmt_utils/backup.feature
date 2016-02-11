@@ -1779,7 +1779,6 @@ Feature: Validate command line arguments
         And verify that the tuple count of all appendonly tables are consistent in "schematestdb"
 
     @backupfire
-    @test
     Scenario: gpcrondump should not track external tables
          Given the database is running
          And the database "testdb1" does not exist
@@ -1965,7 +1964,7 @@ Feature: Validate command line arguments
         And gpcrondump should return a return code of 0
         And the timestamp from gpcrondump is stored 
         And all the data from "schematestdb" is saved for verification
-        And the user runs gpdbrestore with the stored timestamp and options "-T public.ao_table2,public.co_table"
+        And the user runs gpdbrestore with the stored timestamp and options "-T public.ao_table2 -T public.co_table"
         Then gpdbrestore should return a return code of 0
         And verify that exactly "2" tables in "schematestdb" have been restored 
 
