@@ -389,11 +389,13 @@ Feature: NetBackup Integration with GPDB
     @nbupartI
     Scenario: Full Backup with option --exclude-table-file and Restore using NetBackup
         Given the database is running
+        And the database "fullbkdb" does not exist
+        And database "fullbkdb" exists
         And the netbackup params have been parsed
         And there is a "heap" table "public.heap_table" with compression "None" in "fullbkdb" with data
         And there is a "ao" partition table "public.ao_part_table" with compression "quicklz" in "fullbkdb" with data
         And there is a "co" partition table "public.co_part_table" with compression "None" in "fullbkdb" with data
-        And there is a backupfile of tables "co_part_table" in "fullbkdb" exists for validation
+        And there is a backupfile of tables "public.co_part_table" in "fullbkdb" exists for validation
         And there is a file "exclude_file" with tables "public.heap_table,public.ao_part_table"
         When the user runs "gpcrondump -a -x fullbkdb --exclude-table-file exclude_file --netbackup-block-size 2048" using netbackup
         Then gpcrondump should return a return code of 0
