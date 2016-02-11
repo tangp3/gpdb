@@ -1696,7 +1696,7 @@ Feature: Validate command line arguments
          And there is a "ao" table "ao_table2" with compression "None" in "testdb2" with data
          And there is a "co" table "co_table2" with compression "None" in "testdb2" with data
          And there are no backup files
-         When the user runs "gpcrondump -a -x testdb1,testdb2"
+         When the user runs "gpcrondump -a -x testdb1 -x testdb2"
          And the timestamp for database dumps "testdb1,testdb2" are stored
          And gpcrondump should return a return code of 0
          And all the data from "testdb1" is saved for verification
@@ -1779,6 +1779,7 @@ Feature: Validate command line arguments
         And verify that the tuple count of all appendonly tables are consistent in "schematestdb"
 
     @backupfire
+    @test
     Scenario: gpcrondump should not track external tables
          Given the database is running
          And the database "testdb1" does not exist

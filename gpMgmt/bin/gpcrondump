@@ -897,7 +897,7 @@ class GpCronDump(Operation):
                     backup_report_file_with_nbu(self.master_datadir, self.backup_dir, self.dump_dir, self.dump_prefix, self.netbackup_service_host, self.netbackup_policy, self.netbackup_schedule, self.netbackup_block_size, self.netbackup_keyword)
 
                 if self.incremental:
-                    if os.path.isfile(dirty_file):
+                    if dirty_file is not None and os.path.isfile(dirty_file):
                         if self.ddboost:
                             time.sleep(5)
                         os.remove(dirty_file)
