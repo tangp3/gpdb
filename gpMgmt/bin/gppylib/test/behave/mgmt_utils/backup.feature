@@ -40,10 +40,10 @@ Feature: Validate command line arguments
         When the user runs "gpcrondump --list-backup-files"
         Then gpcrondump should return a return code of 2
         And gpcrondump should print Must supply -K option when listing backup files to stdout
-        When the user runs "gpcrondump -K 20140101010101 -x bkdb,fulldb -a"
+        When the user runs "gpcrondump -K 20140101010101 -x bkdb -x fulldb -a"
         Then gpcrondump should return a return code of 2
         And gpcrondump should print multi-database backup is not supported with -K option to stdout
-        When the user runs "gpcrondump -a --incremental -x bkdb,fulldb"
+        When the user runs "gpcrondump -a --incremental -x bkdb -x fulldb"
         Then gpcrondump should return a return code of 2
         And gpcrondump should print multi-database backup is not supported with incremental backup to stdout
         When the user runs "gpcrondump -a --list-backup-files -K 20130101010101 --ddboost -x bkdb"
@@ -6562,7 +6562,6 @@ Feature: Validate command line arguments
         And the user runs gpdbrestore with the stored timestamp and options "--noplan" without -e option
         And the user runs command "psql -f gppylib/test/behave/mgmt_utils/steps/data/special_chars/select_from_special_ao_table.sql " DB\`~@#\$%^&*()_-+[{]}|\\;: \\'/?><;1 " > /tmp/special_ao_table_data.out"
         Then verify that the contents of the files "/tmp/special_ao_table_data.out" and "/tmp/special_ao_table_data.ans" are identical
-        And verify that there is no table " co_T`~@#$%^&*()-+[{]}|\;: \'"/?><1 " in " DB`~@#$%^&*()_-+[{]}|\;: \'/?><;1 "
 
         # cleanup
         And the directory "/tmp/special_ao_table_data.out" is removed or does not exist 
