@@ -12,7 +12,7 @@ set_start = 'S'
 len_search_path_expr = len(search_path_expr)
 set_expr = 'SET '
 
-extra_rule_keyword = ' DO '
+extra_rule_keyword = [' WHERE ', ' DO ']
 comment_start_expr = '--'
 comment_expr = '-- Name: '
 comment_data_expr = '-- Data: '
@@ -38,9 +38,12 @@ def find_all_expr_start(line, expr):
 
 def locate_unquoted_keyword(line, keyword):
     indexes = find_all_expr_start(line, keyword)
-    for idx in indexes:
-        if len(find_all_expr_start(line[ : idx], '"')) % 2 == 0 and len(find_all_expr_start(line[idx + len(keyword) : ], '"')) % 2 == 0:
-            return idx
+    if len(indexes) > 0:
+        for idx in indexes:
+            if len(find_all_expr_start(line[ : idx], '"')) % 2 == 0 and len(find_all_expr_start(line[idx + len(keyword) : ], '"')) % 2 == 0:
+                return idx
+    else:
+        return -1
 
 def process_schema(dump_schemas, dump_tables, fdin, fdout, change_schema_name=None, schema_level_restore_list=None):
     """
@@ -84,7 +87,7 @@ def process_schema(dump_schemas, dump_tables, fdin, fdout, change_schema_name=No
             output = False
         elif type and (line[:7] == 'CREATE ' or line[:8] == 'REPLACE '):
             if type == 'RULE':
-                output = check_table(schema_wo_escaping, line, ' TO ', dump_tables, schema_level_restore_list, True)
+                output = check_table(schema_wo_escaping, line, ' TO ', dump_tables, schema_level_restore_list, is_rule=True)
             elif type == 'INDEX':
                 output = check_table(schema_wo_escaping, line, ' ON ', dump_tables, schema_level_restore_list)
             elif type == 'TRIGGER':
@@ -110,7 +113,7 @@ def process_schema(dump_schemas, dump_tables, fdin, fdout, change_schema_name=No
 
 # Given a line like 'ALTER TABLE ONLY tablename\n' and a search_str like ' ONLY ',
 # extract everything between the search_str and the next space or the end of the string, whichever comes first.
-def check_table(schema, line, search_str, dump_tables, schema_level_restore_list=None, is_rule=True):
+def check_table(schema, line, search_str, dump_tables, schema_level_restore_list=None, is_rule=False):
     if schema_level_restore_list and schema in schema_level_restore_list:
         return True
 
@@ -120,7 +123,10 @@ def check_table(schema, line, search_str, dump_tables, schema_level_restore_list
             start = line.index(search_str) + len(search_str)
             if is_rule:
                 # cut the line nicely based on extra keyword for create rule statement
-                end = locate_unquoted_keyword(line, extra_rule_keyword)
+                # in case [WHERE condition] clause contains any special chars, cut before WHERE
+                end = locate_unquoted_keyword(line, extra_rule_keyword[0])
+                if end == -1:
+                    end = locate_unquoted_keyword(line, extra_rule_keyword[1])
                 line = line[:end]
 
             dot_separator_idx = line.find('.')

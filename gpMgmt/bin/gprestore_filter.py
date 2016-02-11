@@ -9,6 +9,7 @@ import sys
 
 search_path_expr = 'SET search_path = '
 set_start = 'S'
+set_assignment = '='
 len_search_path_expr = len(search_path_expr)
 copy_expr = 'COPY ' 
 copy_start = 'C'
@@ -138,7 +139,7 @@ def process_schema(dump_schemas, dump_tables, fdin, fdout, change_schema=None, s
                 search_path = False
             else:
                 output = False
-        elif (line[0] == set_start) and line.startswith(set_expr) and not function_ddl:
+        elif (line[0] == set_start) and line.startswith(set_expr) and set_assignment in line and not function_ddl:
             output = True
         elif (line[0] == drop_start) and line.startswith(drop_expr):
             if line.startswith(drop_table_expr) or line.startswith(drop_external_table_expr):

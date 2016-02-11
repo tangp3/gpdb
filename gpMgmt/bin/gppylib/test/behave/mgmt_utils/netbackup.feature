@@ -601,7 +601,7 @@ Feature: NetBackup Integration with GPDB
         And there is a "co" table "public.co_table2" with compression "None" in "testdb2" with data
         And there are no backup files
         And there is a list to store the backup timestamps
-        When the user runs "gpcrondump -a -x testdb1,testdb2 --netbackup-block-size 2048" using netbackup
+        When the user runs "gpcrondump -a -x testdb1 -x testdb2 --netbackup-block-size 2048" using netbackup
         And the timestamp for database dumps "testdb1, testdb2" are stored
         Then gpcrondump should return a return code of 0
         And all the data from "testdb1" is saved for verification
@@ -903,21 +903,6 @@ Feature: NetBackup Integration with GPDB
         And verify that there is a "ao" table "ao_part_table" in "fullbkdb" with data
         And verify that there is no table "public.heap_table" in "fullbkdb"
 
-    @nbuall
-    @nbupartI
-    Scenario: Funny character table names using NetBackup
-        Given the database is running
-        And the netbackup params have been parsed
-        And the database "testdb" does not exist
-        And database "testdb" exists
-        And there is a "ao" table "public.ao_table" with compression "None" in "testdb" with data
-        And there is a "ao" table "public.ao_table" with funny characters in "testdb"
-        And there is a "co" table "public.co_table" with funny characters in "testdb"
-        And there are no backup files
-        When the user runs "gpcrondump -a -x testdb" using netbackup
-        Then gpcrondump should return a return code of 2
-        And gpcrondump should print Tablename has an invalid character ".n", ":", "," : to stdout
-
     @nbusmoke
     @nbuall
     @nbupartI
@@ -1072,7 +1057,7 @@ Feature: NetBackup Integration with GPDB
         And there is a backupfile of tables "heap_table1, ao_part_table" in "testdb1" exists for validation
         And there is a "heap" table "public.heap_table2" with compression "None" in "testdb2" with data
         And there is a backupfile of tables "heap_table2" in "testdb2" exists for validation
-        When the user runs "gpcrondump -a -x testdb1,testdb2 --prefix=foo --netbackup-block-size 2048" using netbackup
+        When the user runs "gpcrondump -a -x testdb1 -x testdb2 --prefix=foo --netbackup-block-size 2048" using netbackup
         Then gpcrondump should return a return code of 0
         And the timestamp from gpcrondump is stored
         And verify that report file with prefix "foo" under subdir " " has been backed up using NetBackup
@@ -1411,25 +1396,6 @@ Feature: NetBackup Integration with GPDB
         Then gpdbrestore should return a return code of 0
         And verify that there is a "heap" table "public.heap_table" in "fullbkdb" with data
         And verify that there is a "ao" table "public.ao_part_table" in "fullbkdb" with data
-
-    @nbuall
-    @nbupartI
-    Scenario: Checking for abnormal whitespace using NetBackup
-        Given the database is running
-        And the netbackup params have been parsed
-        And there is a "heap" table "public.heap_table" with compression "None" in "fullbkdb" with data
-        And there is a "ao" partition table "public.ao_part_table" with compression "quicklz" in "fullbkdb" with data
-        And there is a "co" partition table "public.co_part_table" with compression "None" in "fullbkdb" with data
-        And there is a file "include_file_with_whitespace" with tables "public.heap_table   ,public.ao_part_table"
-        And there is a backupfile of tables "heap_table,ao_part_table" in "fullbkdb" exists for validation
-        When the user runs "gpcrondump -a -x fullbkdb --table-file include_file_with_whitespace --netbackup-block-size 2048" using netbackup
-        Then gpcrondump should return a return code of 0
-        And the timestamp from gpcrondump is stored
-        When the user runs gpdbrestore with the stored timestamp using netbackup
-        Then gpdbrestore should return a return code of 0
-        And verify that there is a "ao" table "public.ao_part_table" in "fullbkdb" with data
-        And verify that there is a "heap" table "public.heap_table" in "fullbkdb" with data
-        And verify that there is no table "public.co_part_table" in "fullbkdb"
 
     @nbuall
     @nbupartI
@@ -2105,7 +2071,7 @@ Feature: NetBackup Integration with GPDB
         And there is a backupfile of tables "heap_table1, ao_part_table" in "testdb1" exists for validation
         And there is a "heap" table "public.heap_table2" with compression "None" in "testdb2" with data
         And there is a backupfile of tables "heap_table2" in "testdb2" exists for validation
-        When the user runs "gpcrondump -a -x testdb1,testdb2 --prefix=foo --netbackup-block-size 4096" using netbackup
+        When the user runs "gpcrondump -a -x testdb1 -x testdb2 --prefix=foo --netbackup-block-size 4096" using netbackup
         Then gpcrondump should return a return code of 0
         And the timestamp from gpcrondump is stored
         When the user runs gpdbrestore with the stored timestamp and options "--prefix=foo --redirect=testdb --netbackup-block-size 4096" without -e option using netbackup

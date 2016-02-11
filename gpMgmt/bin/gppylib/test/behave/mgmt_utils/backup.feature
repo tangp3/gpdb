@@ -4012,24 +4012,6 @@ Feature: Validate command line arguments
         And verify that there is a "heap" table "heap_table" in "fullbkdb" with data
         And verify that there is a "ao" table "ao_part_table" in "fullbkdb" with data
 
-    @backupsmoke
-    Scenario: Checking for abnormal whitespace
-        Given the database is running
-        And there is a "heap" table "heap_table" with compression "None" in "fullbkdb" with data
-        And there is a "ao" partition table "ao_part_table" with compression "quicklz" in "fullbkdb" with data
-        And there is a "co" partition table "co_part_table" with compression "None" in "fullbkdb" with data
-        And there is a file "include_file_with_whitespace" with tables "public.heap_table   ,public.ao_part_table" 
-        And there is a backupfile of tables "heap_table,ao_part_table" in "fullbkdb" exists for validation
-        When the user runs "gpcrondump -a -x fullbkdb --table-file include_file_with_whitespace"
-        Then gpcrondump should return a return code of 0
-        And the timestamp from gpcrondump is stored 
-        And verify that the "report" file in " " dir contains "Backup Type: Full"
-        And the user runs gpdbrestore with the stored timestamp
-        And gpdbrestore should return a return code of 0
-        And verify that there is a "ao" table "ao_part_table" in "fullbkdb" with data
-        And verify that there is a "heap" table "heap_table" in "fullbkdb" with data
-        And verify that there is no table "co_part_table" in "fullbkdb"
-
     Scenario: Full Backup and Restore of one table with -C option
         Given the database is running
         And the database "fullbkdb" does not exist
@@ -6197,31 +6179,31 @@ Feature: Validate command line arguments
         And the user runs "psql -f gppylib/test/behave/mgmt_utils/steps/data/special_chars/funny_char.sql testdb"
         When the user runs command "gpcrondump -a -x testdb"
         Then gpcrondump should return a return code of 2
-        And gpcrondump should print Name has an invalid character to stdout
+        And gpcrondump should print Name has an invalid character "\\t" "\\n" "!" "," "." to stdout
         When the user runs command "gpcrondump -a -x testdb -t Schema\\t,1.Table\\n\!1"
         Then gpcrondump should return a return code of 2
-        And gpcrondump should print Name has an invalid character to stdout
+        And gpcrondump should print Name has an invalid character "\\t" "\\n" "!" "," "." to stdout
         When the user runs command "gpcrondump -a -x testdb -T Schema\\t,1.Table\\n\!1"
         Then gpcrondump should return a return code of 2
-        And gpcrondump should print Name has an invalid character to stdout
+        And gpcrondump should print Name has an invalid character "\\t" "\\n" "!" "," "." to stdout
         When the user runs command "gpcrondump -a -x testdb -s Schema\\t,1"
         Then gpcrondump should return a return code of 2
-        And gpcrondump should print Name has an invalid character to stdout
+        And gpcrondump should print Name has an invalid character "\\t" "\\n" "!" "," "." to stdout
         When the user runs command "gpcrondump -a -x testdb -S Schema\\t,1"
         Then gpcrondump should return a return code of 2
-        And gpcrondump should print Name has an invalid character to stdout
+        And gpcrondump should print Name has an invalid character "\\t" "\\n" "!" "," "." to stdout
         When the user runs command "gpcrondump -a -x testdb --table-file gppylib/test/behave/mgmt_utils/steps/data/special_chars/funny_char_table.txt"
         Then gpcrondump should return a return code of 2
-        And gpcrondump should print Name has an invalid character to stdout
+        And gpcrondump should print Name has an invalid character "\\t" "\\n" "!" "," "." to stdout
         When the user runs command "gpcrondump -a -x testdb --exclude-table-file gppylib/test/behave/mgmt_utils/steps/data/special_chars/funny_char_table.txt"
         Then gpcrondump should return a return code of 2
-        And gpcrondump should print Name has an invalid character to stdout
+        And gpcrondump should print Name has an invalid character "\\t" "\\n" "!" "," "." to stdout
         When the user runs command "gpcrondump -a -x testdb --schema-file gppylib/test/behave/mgmt_utils/steps/data/special_chars/funny_char_schema.txt"
         Then gpcrondump should return a return code of 2
-        And gpcrondump should print Name has an invalid character to stdout
+        And gpcrondump should print Name has an invalid character "\\t" "\\n" "!" "," "." to stdout
         When the user runs command "gpcrondump -a -x testdb --exclude-schema-file gppylib/test/behave/mgmt_utils/steps/data/special_chars/funny_char_schema.txt"
         Then gpcrondump should return a return code of 2
-        And gpcrondump should print Name has an invalid character to stdout
+        And gpcrondump should print Name has an invalid character "\\t" "\\n" "!" "," "." to stdout
 
     @spl_char
     @spl_char_3
