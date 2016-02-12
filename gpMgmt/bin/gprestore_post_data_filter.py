@@ -58,8 +58,10 @@ def process_schema(dump_schemas, dump_tables, fdin, fdout, change_schema_name=No
     schema = None
     schema_wo_escaping = None
     type = None
+    schema_buff = ''
     output = False
     further_investigation_required = False
+    search_path = False
     line_buf = None
     for line in fdin:
         if (line[0] == set_start) and line.startswith(search_path_expr):
@@ -78,7 +80,8 @@ def process_schema(dump_schemas, dump_tables, fdin, fdout, change_schema_name=No
                         line = line.replace(quoted_schema, escapeDoubleQuoteInSQLString(change_schema_name))
                     else:
                         line = line.replace(schema, escapeDoubleQuoteInSQLString(change_schema_name))
-                output = True
+                search_path = True
+                schema_buff = line
         elif (line[0] == set_start) and line.startswith(set_expr):
             output = True
         elif line[:2] == comment_start_expr:
@@ -106,6 +109,10 @@ def process_schema(dump_schemas, dump_tables, fdin, fdout, change_schema_name=No
                 further_investigation_required = False
 
         if output:
+            if search_path:
+                fdout.write(schema_buff)
+                schema_buff = None
+                search_path = False
             if line_buf:
                 fdout.write(line_buf)
                 line_buf = None

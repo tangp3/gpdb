@@ -139,6 +139,7 @@ def process_schema(dump_schemas, dump_tables, fdin, fdout, change_schema=None, s
                 search_path = False
             else:
                 output = False
+        # set_assignment must be in the line to filter out dump line: SET SUBPARTITION TEMPLATE
         elif (line[0] == set_start) and line.startswith(set_expr) and set_assignment in line and not function_ddl:
             output = True
         elif (line[0] == drop_start) and line.startswith(drop_expr):
