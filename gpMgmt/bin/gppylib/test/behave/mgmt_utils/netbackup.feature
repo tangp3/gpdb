@@ -18,7 +18,7 @@ Feature: NetBackup Integration with GPDB
         And database "nbutestdb" exists
         And there is a "heap" table "public.heap_table" with compression "None" in "nbutestdb" with data
         And there is a "ao" partition table "public.ao_part_table" with compression "quicklz" in "nbutestdb" with data
-        And there is a backupfile of tables "heap_table, ao_part_table" in "nbutestdb" exists for validation
+        And there is a backupfile of tables "public.heap_table, public.ao_part_table" in "nbutestdb" exists for validation
         When the user runs valgrind with "gp_dump --gp-d=db_dumps --gp-s=p --gp-c nbutestdb" and options " " and suppressions file "netbackup_suppressions.txt" using netbackup
 
     @nbuall
@@ -30,7 +30,7 @@ Feature: NetBackup Integration with GPDB
         And database "nbutestdb" exists
         And there is a "heap" table "public.heap_table" with compression "None" in "nbutestdb" with data
         And there is a "ao" partition table "public.ao_part_table" with compression "quicklz" in "nbutestdb" with data
-        And there is a backupfile of tables "heap_table, ao_part_table" in "nbutestdb" exists for validation
+        And there is a backupfile of tables "public.heap_table, public.ao_part_table" in "nbutestdb" exists for validation
         And the tables "public.heap_table" are in dirty hack file "/tmp/dirty_hack.txt"
         When the user runs valgrind with "gp_dump --gp-d=db_dumps --gp-s=p --gp-c --table-file=/tmp/dirty_hack.txt nbutestdb" and options " " and suppressions file "netbackup_suppressions.txt" using netbackup
 
@@ -44,7 +44,7 @@ Feature: NetBackup Integration with GPDB
         And there are no backup files
         And there is a "heap" table "public.heap_table" with compression "None" in "nbutestdb" with data
         And there is a "ao" table "public.ao_table" with compression "quicklz" in "nbutestdb" with data
-        And there is a backupfile of tables "heap_table, ao_table" in "nbutestdb" exists for validation
+        And there is a backupfile of tables "public.heap_table, public.ao_table" in "nbutestdb" exists for validation
         When the user runs "gpcrondump -a -x nbutestdb" using netbackup
         And gpcrondump should return a return code of 0
         And the timestamp from gpcrondump is stored
@@ -60,7 +60,7 @@ Feature: NetBackup Integration with GPDB
         And there are no backup files
         And there is a "heap" table "public.heap_table" with compression "None" in "nbutestdb" with data
         And there is a "ao" table "public.ao_table" with compression "quicklz" in "nbutestdb" with data
-        And there is a backupfile of tables "heap_table, ao_table" in "nbutestdb" exists for validation
+        And there is a backupfile of tables "public.heap_table, public.ao_table" in "nbutestdb" exists for validation
         When the user runs "gpcrondump -a -x nbutestdb" using netbackup
         And gpcrondump should return a return code of 0
         And the timestamp from gpcrondump is stored
@@ -415,7 +415,7 @@ Feature: NetBackup Integration with GPDB
         And there is a "heap" table "public.heap_table" with compression "None" in "fullbkdb" with data
         And there is a "ao" partition table "public.ao_part_table" with compression "quicklz" in "fullbkdb" with data
         And there is a "co" partition table "public.co_part_table" with compression "None" in "fullbkdb" with data
-        And there is a backupfile of tables "ao_part_table,heap_table" in "fullbkdb" exists for validation
+        And there is a backupfile of tables "public.ao_part_table, public.heap_table" in "fullbkdb" exists for validation
         And there is a file "include_file" with tables "public.heap_table,public.ao_part_table"
         When the user runs "gpcrondump -a -x fullbkdb --table-file include_file --netbackup-block-size 2048" using netbackup
         Then gpcrondump should return a return code of 0
@@ -836,7 +836,7 @@ Feature: NetBackup Integration with GPDB
         And there are no backup files
         And there is a "heap" table "public.heap_table" with compression "None" in "fullbkdb" with data
         And there is a "ao" partition table "public.ao_part_table" with compression "quicklz" in "fullbkdb" with data
-        And there is a backupfile of tables "heap_table, ao_part_table" in "fullbkdb" exists for validation
+        And there is a backupfile of tables "public.heap_table, public.ao_part_table" in "fullbkdb" exists for validation
         When the user runs "gpcrondump -a -x fullbkdb -g --netbackup-block-size 2048" using netbackup
         Then gpcrondump should return a return code of 0
         And the timestamp from gpcrondump is stored
@@ -883,7 +883,7 @@ Feature: NetBackup Integration with GPDB
         And the netbackup params have been parsed
         And there is a "heap" table "public.heap_table" with compression "None" in "fullbkdb" with data
         And there is a "ao" partition table "public.ao_part_table" with compression "quicklz" in "fullbkdb" with data
-        And there is a backupfile of tables "heap_table, ao_part_table" in "fullbkdb" exists for validation
+        And there is a backupfile of tables "public.heap_table, public.ao_part_table" in "fullbkdb" exists for validation
         When the user runs "gpcrondump -a -x fullbkdb -t cool.dude -t public.heap_table" using netbackup
         Then gpcrondump should return a return code of 2
         And gpcrondump should print does not exist in to stdout
@@ -895,7 +895,7 @@ Feature: NetBackup Integration with GPDB
         And the netbackup params have been parsed
         And there is a "heap" table "public.heap_table" with compression "None" in "fullbkdb" with data
         And there is a "ao" partition table "public.ao_part_table" with compression "quicklz" in "fullbkdb" with data
-        And there is a backupfile of tables "heap_table, ao_part_table" in "fullbkdb" exists for validation
+        And there is a backupfile of tables "public.heap_table, public.ao_part_table" in "fullbkdb" exists for validation
         When the user runs "gpcrondump -a -x fullbkdb -T public.heap_table -T cool.dude --netbackup-block-size 2048" using netbackup
         Then gpcrondump should return a return code of 0
         And gpcrondump should print does not exist in to stdout
@@ -916,7 +916,7 @@ Feature: NetBackup Integration with GPDB
         And there is a "heap" table "public.heap_table" with compression "None" in "fullbkdb" with data
         And there is a "ao" partition table "public.ao_part_table" with compression "quicklz" in "fullbkdb" with data
         And there is a "co" partition table "public.co_part_table" with compression "quicklz" in "fullbkdb" with data
-        And there is a backupfile of tables "heap_table, ao_part_table, co_part_table" in "fullbkdb" exists for validation
+        And there is a backupfile of tables "public.heap_table, public.ao_part_table, public.co_part_table" in "fullbkdb" exists for validation
         When the user runs "gpcrondump -a -x fullbkdb --netbackup-block-size 2048" using netbackup
         Then gpcrondump should return a return code of 0
         When the user runs "gp_dump --gp-d=db_dumps --gp-s=p --gp-c fullbkdb --netbackup-block-size 2048" using netbackup
@@ -1031,7 +1031,7 @@ Feature: NetBackup Integration with GPDB
         And database "testdb" exists
         And there is a "heap" table "public.heap_table" with compression "None" in "testdb" with data
         And there is a "ao" partition table "public.ao_part_table" with compression "quicklz" in "testdb" with data
-        And there is a backupfile of tables "heap_table, ao_part_table" in "testdb" exists for validation
+        And there is a backupfile of tables "public.heap_table, public.ao_part_table" in "testdb" exists for validation
         When the user runs "gpcrondump -a -x testdb --prefix=foo --netbackup-block-size 2048" using netbackup
         Then gpcrondump should return a return code of 0
         And the timestamp from gpcrondump is stored
@@ -1056,9 +1056,9 @@ Feature: NetBackup Integration with GPDB
         And database "testdb2" exists
         And there is a "heap" table "public.heap_table1" with compression "None" in "testdb1" with data
         And there is a "ao" partition table "public.ao_part_table" with compression "quicklz" in "testdb1" with data
-        And there is a backupfile of tables "heap_table1, ao_part_table" in "testdb1" exists for validation
+        And there is a backupfile of tables "public.heap_table1, public.ao_part_table" in "testdb1" exists for validation
         And there is a "heap" table "public.heap_table2" with compression "None" in "testdb2" with data
-        And there is a backupfile of tables "heap_table2" in "testdb2" exists for validation
+        And there is a backupfile of tables "public.heap_table2" in "testdb2" exists for validation
         When the user runs "gpcrondump -a -x testdb1 -x testdb2 --prefix=foo --netbackup-block-size 2048" using netbackup
         Then gpcrondump should return a return code of 0
         And the timestamp from gpcrondump is stored
@@ -1082,7 +1082,7 @@ Feature: NetBackup Integration with GPDB
         And database "testdb" exists
         And there is a "heap" table "public.heap_table" with compression "None" in "testdb" with data
         And there is a "ao" partition table "public.ao_part_table" with compression "quicklz" in "testdb" with data
-        And there is a backupfile of tables "heap_table, ao_part_table" in "testdb" exists for validation
+        And there is a backupfile of tables "public.heap_table, public.ao_part_table" in "testdb" exists for validation
         When the user runs "gpcrondump -a -x testdb --prefix=foo -g --netbackup-block-size 2048" using netbackup
         Then gpcrondump should return a return code of 0
         And the timestamp from gpcrondump is stored
@@ -1107,7 +1107,7 @@ Feature: NetBackup Integration with GPDB
         And database "testdb" exists
         And there is a "heap" table "public.heap_table" with compression "None" in "testdb" with data
         And there is a "ao" partition table "public.ao_part_table" with compression "quicklz" in "testdb" with data
-        And there is a backupfile of tables "heap_table, ao_part_table" in "testdb" exists for validation
+        And there is a backupfile of tables "public.heap_table, public.ao_part_table" in "testdb" exists for validation
         When the user runs "gpcrondump -a -x testdb --prefix=foo -G --netbackup-block-size 2048" using netbackup
         Then gpcrondump should return a return code of 0
         And the timestamp from gpcrondump is stored
@@ -1132,7 +1132,7 @@ Feature: NetBackup Integration with GPDB
         And database "testdb" exists
         And there is a "heap" table "public.heap_table" with compression "None" in "testdb" with data
         And there is a "ao" partition table "public.ao_part_table" with compression "quicklz" in "testdb" with data
-        And there is a backupfile of tables "heap_table, ao_part_table" in "testdb" exists for validation
+        And there is a backupfile of tables "public.heap_table, public.ao_part_table" in "testdb" exists for validation
         When the user runs "gpcrondump -a -x testdb --prefix=foo -u /tmp --netbackup-block-size 2048" using netbackup
         Then gpcrondump should return a return code of 0
         And the subdir from gpcrondump is stored
@@ -1388,7 +1388,7 @@ Feature: NetBackup Integration with GPDB
         And the netbackup params have been parsed
         And there is a "heap" table "public.heap_table" with compression "None" in "fullbkdb" with data
         And there is a "ao" partition table "public.ao_part_table" with compression "quicklz" in "fullbkdb" with data
-        And there is a backupfile of tables "heap_table, ao_part_table" in "fullbkdb" exists for validation
+        And there is a backupfile of tables "public.heap_table, public.ao_part_table" in "fullbkdb" exists for validation
         And the environment variable "PGPORT" is not set
         When the user runs "gpcrondump -G -a -x fullbkdb --netbackup-block-size 2048" using netbackup
         Then gpcrondump should return a return code of 0
@@ -1823,7 +1823,7 @@ Feature: NetBackup Integration with GPDB
         And the netbackup params have been parsed
         And there is a "heap" table "public.heap_table" with compression "None" in "fullbkdb" with data and 1000000 rows
         And there is a "ao" partition table "public.ao_part_table" with compression "quicklz" in "fullbkdb" with data
-        And there is a backupfile of tables "heap_table, ao_part_table" in "fullbkdb" exists for validation
+        And there is a backupfile of tables "public.heap_table, public.ao_part_table" in "fullbkdb" exists for validation
         When the user runs the "gpcrondump -a -x fullbkdb" in a worker pool "w1" using netbackup
         And this test sleeps for "2" seconds
         And the "gpcrondump" has a lock on the pg_class table in "fullbkdb"
@@ -1843,7 +1843,7 @@ Feature: NetBackup Integration with GPDB
         And the netbackup params have been parsed
         And there is a "heap" table "public.heap_table" with compression "None" in "fullbkdb" with data and 1000000 rows
         And there is a "ao" partition table "public.ao_part_table" with compression "quicklz" in "fullbkdb" with data
-        And there is a backupfile of tables "heap_table, ao_part_table" in "fullbkdb" exists for validation
+        And there is a backupfile of tables "public.heap_table, public.ao_part_table" in "fullbkdb" exists for validation
         When the user runs the "gp_dump --gp-d=db_dumps --gp-s=p --gp-c fullbkdb --netbackup-block-size 4096" in a worker pool "w1" using netbackup
         And this test sleeps for "1" seconds
         And the "gp_dump" has a lock on the pg_class table in "fullbkdb"
@@ -1877,7 +1877,7 @@ Feature: NetBackup Integration with GPDB
         And the timestamp from gpcrondump is stored
         And the user runs "psql -f gppylib/test/behave/mgmt_utils/steps/data/describe_multi_byte_char.sql testdb > /tmp/describe_multi_byte_char_before"
         And the user runs "psql -c '\d public.ao_index_table' testdb > /tmp/describe_ao_index_table_before"
-        When there is a backupfile of tables "ao_index_table, co_index_table, heap_index_table" in "testdb" exists for validation
+        When there is a backupfile of tables "public.ao_index_table, public.co_index_table, public.heap_index_table" in "testdb" exists for validation
         And table "public.ao_index_table" is dropped in "testdb"
         And the user runs "psql -f gppylib/test/behave/mgmt_utils/steps/data/drop_table_with_multi_byte_char.sql testdb"
         When the user runs gpdbrestore with the stored timestamp and options "--table-file gppylib/test/behave/mgmt_utils/steps/data/include_tables_with_metadata_postdata --netbackup-block-size 4096" without -e option using netbackup
@@ -2045,7 +2045,7 @@ Feature: NetBackup Integration with GPDB
         And the database "testdb1" does not exist
         And there is a "heap" table "public.heap_table" with compression "None" in "testdb" with data
         And there is a "ao" partition table "public.ao_part_table" with compression "quicklz" in "testdb" with data
-        And there is a backupfile of tables "heap_table, ao_part_table" in "testdb" exists for validation
+        And there is a backupfile of tables "public.heap_table, public.ao_part_table" in "testdb" exists for validation
         When the user runs "gpcrondump -a -x testdb --prefix=foo --netbackup-block-size 4096" using netbackup
         Then gpcrondump should return a return code of 0
         And the timestamp from gpcrondump is stored
@@ -2070,9 +2070,9 @@ Feature: NetBackup Integration with GPDB
         And database "testdb2" exists
         And there is a "heap" table "public.heap_table1" with compression "None" in "testdb1" with data
         And there is a "ao" partition table "public.ao_part_table" with compression "quicklz" in "testdb1" with data
-        And there is a backupfile of tables "heap_table1, ao_part_table" in "testdb1" exists for validation
+        And there is a backupfile of tables "public.heap_table1, public.ao_part_table" in "testdb1" exists for validation
         And there is a "heap" table "public.heap_table2" with compression "None" in "testdb2" with data
-        And there is a backupfile of tables "heap_table2" in "testdb2" exists for validation
+        And there is a backupfile of tables "public.heap_table2" in "testdb2" exists for validation
         When the user runs "gpcrondump -a -x testdb1 -x testdb2 --prefix=foo --netbackup-block-size 4096" using netbackup
         Then gpcrondump should return a return code of 0
         And the timestamp from gpcrondump is stored
@@ -2169,7 +2169,7 @@ Feature: NetBackup Integration with GPDB
         And database "TESTING" exists
         And there is a "heap" table "public.heap_table" with compression "None" in "TESTING" with data
         And there is a "ao" partition table "public.ao_part_table" with compression "quicklz" in "TESTING" with data
-        And there is a backupfile of tables "heap_table, ao_part_table" in "TESTING" exists for validation
+        And there is a backupfile of tables "public.heap_table, public.ao_part_table" in "TESTING" exists for validation
         When the user runs "gpcrondump -a -x TESTING --prefix=foo --netbackup-block-size 1024" using netbackup
         Then gpcrondump should return a return code of 0
         And the timestamp from gpcrondump is stored
@@ -4349,7 +4349,7 @@ Feature: NetBackup Integration with GPDB
         And the timestamp from gpcrondump is stored
         And the user runs "psql -f gppylib/test/behave/mgmt_utils/steps/data/describe_multi_byte_char.sql testdb > /tmp/describe_multi_byte_char_before"
         And the user runs "psql -c '\d public.ao_index_table' testdb > /tmp/describe_ao_index_table_before"
-        When there is a backupfile of tables "ao_index_table, co_index_table, heap_index_table" in "testdb" exists for validation
+        When there is a backupfile of tables "public.ao_index_table, public.co_index_table, public.heap_index_table" in "testdb" exists for validation
         And table "public.ao_index_table" is dropped in "testdb"
         And the user runs "psql -f gppylib/test/behave/mgmt_utils/steps/data/drop_table_with_multi_byte_char.sql testdb"
         When the user runs gpdbrestore with the stored timestamp and options "--table-file gppylib/test/behave/mgmt_utils/steps/data/include_tables_with_metadata_postdata --netbackup-block-size 4096" without -e option using netbackup
@@ -4712,7 +4712,7 @@ Feature: NetBackup Integration with GPDB
         And database "testdb" exists
         And there is a "heap" table "public.heap_table" with compression "None" in "testdb" with data
         And there is a "ao" partition table "public.ao_part_table" with compression "quicklz" in "testdb" with data
-        And there is a backupfile of tables "heap_table, ao_part_table" in "testdb" exists for validation
+        And there is a backupfile of tables "public.heap_table, public.ao_part_table" in "testdb" exists for validation
         When the user runs "gpcrondump -a -x testdb --prefix=foo --netbackup-block-size 4096" using netbackup
         Then gpcrondump should return a return code of 0
         And the timestamp from gpcrondump is stored 
@@ -4977,3 +4977,4 @@ Feature: NetBackup Integration with GPDB
         And the directory "/tmp/special_ao_table_data.ans" is removed or does not exist
         And the user runs command "dropdb " DB\`~@#\$%^&*()_-+[{]}|\\;: \\'/?><;1 ""
         And the user runs command "dropdb " DB\`~@#\$%^&*()_-+[{]}|\\;: \\'/?><;2 ""
+
