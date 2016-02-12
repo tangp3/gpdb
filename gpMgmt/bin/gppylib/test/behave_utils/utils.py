@@ -939,7 +939,14 @@ def create_large_num_partitions(table_type, table_name, db_name, num_partitions=
                                       """ % (table_name, condition, num_partitions)
     execute_sql(db_name, create_large_partitions_sql)
 
-    verify_table_exists_sql = """select count(*) from pg_class where relname = '%s'""" % table_name
+    if '.' in table_name:
+        schema, table = table_name.split('.')
+        verify_table_exists_sql = """select count(*) from pg_class c, pg_namespace n
+                                     where c.relname = E'%s' and n.nspname = E'%s' and c.relnamespace = n.oid;
+                                  """ % (table, schema)
+    else:
+        verify_table_exists_sql = """select count(*) from pg_class where relname = E'%s'""" % table_name
+
     num_rows = getRows(db_name, verify_table_exists_sql)[0][0] 
     if num_rows != 1:
         raise Exception('Creation of table "%s:%s" failed. Num rows in pg_class = %s' % (db_name, table_name, num_rows))
