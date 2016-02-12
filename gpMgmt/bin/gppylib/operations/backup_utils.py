@@ -3,7 +3,6 @@ import glob
 import os
 import re
 import tempfile
-import shutil
 from gppylib import gplog
 from gppylib.commands.base import WorkerPool, Command, REMOTE
 from gppylib.commands.unix import Scp
@@ -771,7 +770,7 @@ def formatSQLString(rel_file, isTableName=False):
                     relnames.append(schema)
         if len(relnames) > 0:
             tmp_file = create_temp_file_from_list(relnames, os.path.basename(rel_file))
-            shutil.move(tmp_file, rel_file)
+            return tmp_file
 
 def smart_split(string):
     """
@@ -819,3 +818,13 @@ def validate_relname(relname):
         return True
     else:
         return False
+
+
+def remove_file_on_segments(master_port, batch_default, filename):
+    addresses = get_all_segment_addresses(master_port)
+
+    try:
+        cmd = 'rm -f %s' % filename
+        run_pool_command(addresses, cmd, batch_default, check_results=False)
+    except Exception as e:
+        logger.info("cleaning up file failed: %s" % e.__str__())

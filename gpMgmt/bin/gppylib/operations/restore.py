@@ -26,7 +26,7 @@ from gppylib.operations.backup_utils import check_backup_type, check_dir_writabl
                                             get_full_timestamp_for_incremental_with_nbu, get_lines_from_file, restore_file_with_nbu, run_pool_command, scp_file_to_hosts, \
                                             verify_lines_in_file, write_lines_to_file, smart_split, escapeDoubleQuoteInSQLString, get_dbname_from_cdatabaseline, \
                                             checkAndRemoveEnclosingDoubleQuote, checkAndAddEnclosingDoubleQuote, removeEscapingDoubleQuoteInSQLString, \
-                                            create_temp_file_with_schemas, check_funny_chars_in_names
+                                            create_temp_file_with_schemas, check_funny_chars_in_names, remove_file_on_segments
 from gppylib.operations.unix import CheckFile, CheckRemoteDir, MakeRemoteDir, CheckRemotePath
 from re import compile, search, sub
 
@@ -571,14 +571,6 @@ class RestoreDatabase(Operation):
                 logger.info('gp_restore commandline: %s: ' % restore_line)
                 Command('Invoking gp_restore', restore_line).run(validateAfter=True)
 
-
-            if table_filter_file:
-                self.remove_filter_file(table_filter_file)
-            if change_schema_file:
-                self.remove_filter_file(change_schema_file)
-            if schema_level_restore_file:
-                self.remove_filter_file(schema_level_restore_file)
-
         if not self.metadata_only:
             if (not self.no_analyze) and (len(self.restore_tables) == 0):
                 self._analyze(restore_db, self.master_port)
@@ -586,6 +578,14 @@ class RestoreDatabase(Operation):
                 self._analyze_restore_tables(restore_db, self.restore_tables, self.change_schema)
         if self.restore_stats:
             self._restore_stats(restore_timestamp, self.master_datadir, self.backup_dir, self.master_port, restore_db, self.restore_tables)
+
+        self.tmp_files = [table_filter_file, change_schema_file, schema_level_restore_file]
+        self.cleanup_files_on_segments()
+
+    def cleanup_files_on_segments(self):
+        for tmp_file in self.tmp_files:
+            if tmp_file:
+                remove_file_on_segments(self.master_port, self.batch_default, tmp_file)
 
     def _analyze(self, restore_db, master_port):
         conn = None
@@ -700,14 +700,6 @@ class RestoreDatabase(Operation):
 
         return table_filter_file
 
-    def remove_filter_file(self, filename):
-        addresses = get_all_segment_addresses(self.master_port)
-
-        try:
-            cmd = 'rm -f %s' % filename
-            run_pool_command(addresses, cmd, self.batch_default, check_results=False)
-        except Exception as e:
-            logger.info("cleaning up filter table list file failed: %s" % e.__str__())
 
     def restore_incremental_data_only(self, restore_db):
         restore_data = False
@@ -767,7 +759,7 @@ class RestoreDatabase(Operation):
 
         # We need to replace existing starelid's in file to match starelid of tables in database in case they're different
         # First, map each schemaname.tablename to its corresponding starelid
-        query = """SELECT '"' || t.schemaname || '"' || '.' || '"' || t.tablename || '"', c.oid FROM pg_class c join pg_tables t ON c.relname = t.tablename
+        query = """SELECT t.schemaname || '.' || t.tablename, c.oid FROM pg_class c join pg_tables t ON c.relname = t.tablename
                          WHERE t.schemaname NOT IN ('pg_toast', 'pg_bitmapindex', 'pg_temp_1', 'pg_catalog', 'information_schema', 'gp_toolkit')"""
         relids = {}
         rows = execute_sql(query, master_port, restore_db)
@@ -788,7 +780,7 @@ class RestoreDatabase(Operation):
                 for line in infile:
                     matches = search(table_pattern, line)
                     if matches:
-                        tablename = '"%s"."%s"' % (matches.group(1), matches.group(2))
+                        tablename = '%s.%s' % (matches.group(1), matches.group(2))
                         if len(restore_tables) == 0 or tablename in restore_tables:
                             try:
                                 new_oid = relids[tablename]

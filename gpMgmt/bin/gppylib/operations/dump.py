@@ -26,7 +26,8 @@ from gppylib.operations.backup_utils import backup_file_with_nbu, check_file_dum
                                             generate_pgstatlastoperation_filename, generate_report_filename, generate_schema_filename, generate_seg_dbdump_prefix, \
                                             generate_seg_status_prefix, generate_segment_config_filename, get_incremental_ts_from_report_file, \
                                             get_latest_full_dump_timestamp, get_latest_full_ts_with_nbu, get_latest_report_timestamp, get_lines_from_file, \
-                                            restore_file_with_nbu, validate_timestamp, verify_lines_in_file, write_lines_to_file, isDoubleQuoted, formatSQLString, checkAndAddEnclosingDoubleQuote, smart_split
+                                            restore_file_with_nbu, validate_timestamp, verify_lines_in_file, write_lines_to_file, isDoubleQuoted, formatSQLString, \
+                                            checkAndAddEnclosingDoubleQuote, smart_split, remove_file_on_segments
 
 logger = gplog.get_default_logger()
 
@@ -745,10 +746,9 @@ class DumpDatabase(Operation):
             self.create_filter_file()
 
         # Format sql strings for all schema and table names
-        for table_file in [self.include_dump_tables_file, self.exclude_dump_tables_file]:
-            formatSQLString(rel_file=table_file, isTableName=True)
-        # format include schema names
-        formatSQLString(rel_file=self.include_schema_file, isTableName=False)
+        self.include_dump_tables_file = formatSQLString(rel_file=self.include_dump_tables_file, isTableName=True)
+        self.exclude_dump_tables_file = formatSQLString(rel_file=self.exclude_dump_tables_file, isTableName=True)
+        self.include_schema_file = formatSQLString(rel_file=self.include_schema_file, isTableName=False)
 
         if (self.incremental and self.dump_prefix and
             get_filter_file(self.dump_database, self.master_datadir, self.backup_dir, self.dump_dir,
@@ -756,12 +756,17 @@ class DumpDatabase(Operation):
 
             filtered_dump_line = self.create_filtered_dump_string(getUserName(), DUMP_DATE, TIMESTAMP_KEY)
             (start, end, rc) = self.perform_dump('Dump process', filtered_dump_line)
-            return self.create_dump_outcome(start, end, rc)
+        else:
+            dump_line = self.create_dump_string(getUserName(), DUMP_DATE, TIMESTAMP_KEY)
+            (start, end, rc) = self.perform_dump('Dump process', dump_line)
 
-        dump_line = self.create_dump_string(getUserName(), DUMP_DATE, TIMESTAMP_KEY)
-        (start, end, rc) = self.perform_dump('Dump process', dump_line)
-
+        self.cleanup_files_on_segments()
         return self.create_dump_outcome(start, end, rc)
+
+    def cleanup_files_on_segments(self):
+        for tmp_file in [self.include_dump_tables_file, self.exclude_dump_tables_file, self.include_schema_file]:
+            if tmp_file:
+                remove_file_on_segments(self.master_port, self.batch_default, tmp_file)
 
     def perform_dump(self, title, dump_line):
         logger.info("%s command line %s" % (title, dump_line))
@@ -1906,17 +1911,19 @@ set allow_system_table_mods="DML";
         tuples_query = """SELECT pgc.relname, pgn.nspname, pgc.relpages, pgc.reltuples
                           FROM pg_class pgc, pg_namespace pgn
                           WHERE pgc.relnamespace = pgn.oid
-                              and pgn.nspname = '%s'
-                              and pgc.relname = '%s'""" % (schemaname, tablename)
+                              and pgn.nspname = E'%s'
+                              and pgc.relname = E'%s'""" % (schemaname, tablename)
         stats_query = """SELECT pgc.relname, pgn.nspname, pga.attname, pgt.typname, pgs.*
                          FROM pg_class pgc, pg_statistic pgs, pg_namespace pgn, pg_attribute pga, pg_type pgt
                          WHERE pgc.relnamespace = pgn.oid
-                             and pgn.nspname = '%s'
-                             and pgc.relname = '%s'
+                             and pgn.nspname = E'%s'
+                             and pgc.relname = E'%s'
                              and pgc.oid = pgs.starelid
                              and pga.attrelid = pgc.oid
                              and pga.attnum = pgs.staattnum
                              and pga.atttypid = pgt.oid""" % (schemaname, tablename)
+
+
         self.dump_tuples(tuples_query)
         self.dump_stats(stats_query)
 
