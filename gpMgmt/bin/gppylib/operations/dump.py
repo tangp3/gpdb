@@ -741,7 +741,7 @@ class DumpDatabase(Operation):
                                                         include_schema_file = self.include_schema_file).run()
 
         # create filter file based on the include_dump_tables_file before we do formating of contents
-        if self.dump_prefix and self.include_dump_tables_file and not self.incremental:
+        if self.dump_prefix and not self.incremental:
             self.create_filter_file()
 
         # Format sql strings for all schema and table names
@@ -750,7 +750,7 @@ class DumpDatabase(Operation):
         # format include schema names
         formatSQLString(rel_file=self.include_schema_file, isTableName=False)
 
-        if (self.incremental and self.dump_prefix and 
+        if (self.incremental and self.dump_prefix and
             get_filter_file(self.dump_database, self.master_datadir, self.backup_dir, self.dump_dir,
                             self.dump_prefix, self.ddboost, self.netbackup_service_host)):
 
@@ -793,8 +793,8 @@ class DumpDatabase(Operation):
             verify_lines_in_file(filter_name, get_lines_from_file(self.include_dump_tables_file))
             if self.netbackup_service_host:
                 backup_file_with_nbu(self.netbackup_service_host, self.netbackup_policy, self.netbackup_schedule, self.netbackup_block_size, self.netbackup_keyword, filter_name)
-        elif self.exclude_dump_tables_file[0]:
-            filters = get_lines_from_file(self.exclude_dump_tables_file[0])
+        elif self.exclude_dump_tables_file:
+            filters = get_lines_from_file(self.exclude_dump_tables_file)
             partitions = get_user_table_list(self.master_port, self.dump_database)
             tables = []
             for p in partitions:

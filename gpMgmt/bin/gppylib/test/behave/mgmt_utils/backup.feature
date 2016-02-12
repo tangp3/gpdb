@@ -3202,7 +3202,7 @@ Feature: Validate command line arguments
         And there is a backupfile of tables "public.heap_table1, public.ao_part_table" in "testdb1" exists for validation
         And there is a "heap" table "public.heap_table2" with compression "None" in "testdb2" with data
         And there is a backupfile of tables "public.heap_table2" in "testdb2" exists for validation
-        When the user runs "gpcrondump -a -x testdb1,testdb2 --prefix=foo"
+        When the user runs "gpcrondump -a -x testdb1 -x testdb2 --prefix=foo"
         Then gpcrondump should return a return code of 0
         And the timestamp from gpcrondump is stored 
         And the user runs gpdbrestore with the stored timestamp and options "--prefix=foo"
@@ -5129,7 +5129,7 @@ Feature: Validate command line arguments
         And there is a backupfile of tables "public.heap_table1, public.ao_part_table" in "testdb1" exists for validation
         And there is a "heap" table "public.heap_table2" with compression "None" in "testdb2" with data
         And there is a backupfile of tables "public.heap_table2" in "testdb2" exists for validation
-        When the user runs "gpcrondump -a -x testdb1,testdb2 --prefix=foo"
+        When the user runs "gpcrondump -a -x testdb1 -x testdb2 --prefix=foo"
         Then gpcrondump should return a return code of 0
         And the timestamp from gpcrondump is stored 
         And the user runs gpdbrestore with the stored timestamp and options "--prefix=foo --redirect=testdb"
@@ -5705,7 +5705,7 @@ Feature: Validate command line arguments
         And the mail_contacts file does not exist
         And the mail_contacts file exists
         And the yaml file "gppylib/test/behave/mgmt_utils/steps/data/test_email_details.yaml" stores email details is in proper format
-        When the user runs "gpcrondump -a -x testdb1,testdb2 --email-file gppylib/test/behave/mgmt_utils/steps/data/test_email_details.yaml --verbose"
+        When the user runs "gpcrondump -a -x testdb1 -x testdb2 --email-file gppylib/test/behave/mgmt_utils/steps/data/test_email_details.yaml --verbose"
         Then gpcrondump should return a return code of 0
         And verify that emails are sent to the given contacts with appropriate messages after backup of "testdb1,testdb2"
         And the mail_contacts file does not exist
