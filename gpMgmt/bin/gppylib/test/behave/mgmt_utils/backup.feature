@@ -559,6 +559,8 @@ Feature: Validate command line arguments
     @backupfire
     Scenario: Full Backup and Restore with -y
         Given the database is running
+        And the database "fullbkdb" does not exist
+        And database "fullbkdb" exists
         And there is a "heap" table "public.heap_table" with compression "None" in "fullbkdb" with data
         And there is a "ao" partition table "public.ao_part_table" with compression "quicklz" in "fullbkdb" with data
         And there is a backupfile of tables "public.heap_table, public.ao_part_table" in "fullbkdb" exists for validation
@@ -884,6 +886,8 @@ Feature: Validate command line arguments
     @backupfire
     Scenario: Full Backup with option -s and Restore
         Given the database is running
+        And the database "fullbkdb" does not exist
+        And database "fullbkdb" exists
         And there is schema "schema_heap, schema_ao" exists in "fullbkdb"
         And there is a "heap" table "schema_heap.heap_table" with compression "None" in "fullbkdb" with data
         And there is a "ao" partition table "schema_ao.ao_part_table" with compression "quicklz" in "fullbkdb" with data
