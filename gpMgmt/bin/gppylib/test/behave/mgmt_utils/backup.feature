@@ -5267,7 +5267,7 @@ Feature: Validate command line arguments
         When the user runs "gpcrondump -x TESTING -a"
         Then gpcrondump should return a return code of 0
         And the timestamp from gpcrondump is stored
-        And the user runs "gpdbrestore -s \"TESTING\" -e -a"
+        And the user runs "gpdbrestore -s TESTING -e -a"
         Then gpdbrestore should return a return code of 0
         And gpdbestore should not print Issue with analyze of to stdout
         And verify that there is a "heap" table "public.heap_table" in "TESTING" with data
