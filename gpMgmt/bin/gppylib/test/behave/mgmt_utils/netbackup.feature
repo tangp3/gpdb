@@ -902,7 +902,7 @@ Feature: NetBackup Integration with GPDB
         And the timestamp from gpcrondump is stored
         When the user runs gpdbrestore with the stored timestamp using netbackup
         Then gpdbrestore should return a return code of 0
-        And verify that there is a "ao" table "ao_part_table" in "fullbkdb" with data
+        And verify that there is a "ao" table "public.ao_part_table" in "fullbkdb" with data
         And verify that there is no table "public.heap_table" in "fullbkdb"
 
     @nbusmoke
@@ -927,7 +927,7 @@ Feature: NetBackup Integration with GPDB
         When the user runs gp_restore with the the stored timestamp and subdir in "fullbkdb" and bypasses ao stats using netbackup
         Then gp_restore should return a return code of 0
         And verify that there is a "heap" table "public.heap_table" in "fullbkdb" with data
-        And verify that there is a "ao" table "ao_part_table" in "fullbkdb" with data
+        And verify that there is a "ao" table "public.ao_part_table" in "fullbkdb" with data
         And verify that there is a "co" table "public.co_part_table" in "fullbkdb" with data
         And verify that there are no aoco stats in "fullbkdb" for table "ao_part_table_1_prt_p1_2_prt_1, ao_part_table_1_prt_p1_2_prt_2, ao_part_table_1_prt_p1_2_prt_3"
         And verify that there are no aoco stats in "fullbkdb" for table "ao_part_table_1_prt_p2_2_prt_1, ao_part_table_1_prt_p2_2_prt_2, ao_part_table_1_prt_p2_2_prt_3"
@@ -4951,7 +4951,7 @@ Feature: NetBackup Integration with GPDB
         And the user runs "psql -f gppylib/test/behave/mgmt_utils/steps/data/special_chars/insert_into_special_table.sql template1"
 
         # gpcrondump -s option
-        When the user runs "gpcrondump -a -x " DB\`~@#\$%^&*()_-+[{]}|\\;: \\'/?><;1 " --netbackup-block-size 4096 -s " S\`~@#\$%^&*()_-+[{]}|\\;: \\'\"/?><1 " " using netbackup
+        When the user runs "gpcrondump -a -x " DB\`~@#\$%^&*()_-+[{]}|\\;: \\'/?><;1 " --netbackup-block-size 4096 -s " S\`~@#\$%^&*()-+[{]}|\\;: \\'\"/?><1 " " using netbackup
         Then gpcrondump should return a return code of 0 
         And the timestamp from gpcrondump is stored
 
@@ -4962,12 +4962,12 @@ Feature: NetBackup Integration with GPDB
         Then verify that the contents of the files "/tmp/special_ao_table_data.out" and "/tmp/special_ao_table_data.ans" are identical
 
         # gpcrondump -t option
-        When the user runs "gpcrondump -a -x " DB\`~@#\$%^&*()_-+[{]}|\\;: \\'/?><;1 " --netbackup-block-size 4096 -t " S\`~@#\$%^&*()_-+[{]}|\\;: \\'\"/?><1 "." ao_T\`~@#\$%^&*()-+[{]}|\\;: \\'\"/?><1 " " using netbackup
+        When the user runs "gpcrondump -a -x " DB\`~@#\$%^&*()_-+[{]}|\\;: \\'/?><;1 " --netbackup-block-size 4096 -t " S\`~@#\$%^&*()-+[{]}|\\;: \\'\"/?><1 "." ao_T\`~@#\$%^&*()-+[{]}|\\;: \\'\"/?><1 " " using netbackup
         Then gpcrondump should return a return code of 0 
         And the timestamp from gpcrondump is stored
 
         # gpdbrestore -T and --redirect option
-        When the user runs gpdbrestore with the stored timestamp and options "-T " S\`~@#\$%^&*()_-+[{]}|\\;: \\'\"/?><1 "." ao_T\`~@#\$%^&*()-+[{]}|\\;: \\'\"/?><1 " --redirect " DB\`~@#\$%^&*()_-+[{]}|\\;: \\'/?><;2 " " using netbackup
+        When the user runs gpdbrestore with the stored timestamp and options "-T " S\`~@#\$%^&*()-+[{]}|\\;: \\'\"/?><1 "." ao_T\`~@#\$%^&*()-+[{]}|\\;: \\'\"/?><1 " --redirect " DB\`~@#\$%^&*()_-+[{]}|\\;: \\'/?><;2 " " using netbackup
         And the user runs command "psql -f gppylib/test/behave/mgmt_utils/steps/data/special_chars/select_from_special_ao_table.sql " DB\`~@#\$%^&*()_-+[{]}|\\;: \\'/?><;1 " > /tmp/special_ao_table_data.ans"
         And the user runs command "psql -f gppylib/test/behave/mgmt_utils/steps/data/special_chars/select_from_special_ao_table.sql " DB\`~@#\$%^&*()_-+[{]}|\\;: \\'/?><;2 " > /tmp/special_ao_table_data.out"
 
@@ -4977,4 +4977,3 @@ Feature: NetBackup Integration with GPDB
         And the directory "/tmp/special_ao_table_data.ans" is removed or does not exist
         And the user runs command "dropdb " DB\`~@#\$%^&*()_-+[{]}|\\;: \\'/?><;1 ""
         And the user runs command "dropdb " DB\`~@#\$%^&*()_-+[{]}|\\;: \\'/?><;2 ""
-
