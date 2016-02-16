@@ -24,7 +24,7 @@ from gppylib.operations.backup_utils import check_backup_type, check_dir_writabl
                                             generate_partition_list_filename, generate_pgstatlastoperation_filename, generate_plan_filename, generate_report_filename, \
                                             generate_segment_config_filename, get_all_segment_addresses, get_backup_directory, get_full_timestamp_for_incremental, \
                                             get_full_timestamp_for_incremental_with_nbu, get_lines_from_file, restore_file_with_nbu, run_pool_command, scp_file_to_hosts, \
-                                            verify_lines_in_file, write_lines_to_file, smart_split, escapeDoubleQuoteInSQLString, get_dbname_from_cdatabaseline, \
+                                            verify_lines_in_file, write_lines_to_file, split_fqn, escapeDoubleQuoteInSQLString, get_dbname_from_cdatabaseline, \
                                             checkAndRemoveEnclosingDoubleQuote, checkAndAddEnclosingDoubleQuote, removeEscapingDoubleQuoteInSQLString, \
                                             create_temp_file_with_schemas, check_funny_chars_in_names, remove_file_on_segments
 from gppylib.operations.unix import CheckFile, CheckRemoteDir, MakeRemoteDir, CheckRemotePath
@@ -105,7 +105,7 @@ def get_incremental_restore_timestamps(master_datadir, backup_dir, dump_dir, dum
 def get_partition_list(master_datadir, backup_dir, dump_dir, dump_prefix, timestamp_key):
     partition_list_file = generate_partition_list_filename(master_datadir, backup_dir, dump_dir, dump_prefix, timestamp_key)
     partition_list = get_lines_from_file(partition_list_file)
-    partition_list = [smart_split(p) for p in partition_list]
+    partition_list = [split_fqn(p) for p in partition_list]
     return partition_list
 
 def get_dirty_table_file_contents(master_datadir, backup_dir, dump_dir, dump_prefix, timestamp_key):
@@ -228,10 +228,10 @@ def get_restore_table_list(table_list, restore_tables):
         restore_list = table_list
     else:
         for restore_table in restore_tables:
-            schema, table = smart_split(restore_table)
+            schema, table = split_fqn(restore_table)
             restore_table_set.add((schema, table))
         for tbl in table_list:
-            schema, table = smart_split(tbl)
+            schema, table = split_fqn(tbl)
             if (schema, table) in restore_table_set:
                 restore_list.append(tbl)
 
@@ -259,7 +259,7 @@ def validate_restore_tables_list(plan_file_contents, restore_tables, schema_leve
 
     invalid_tables = []
     for table in restore_tables:
-        schema_name, table_name = smart_split(table)
+        schema_name, table_name = split_fqn(table)
         if schema_level_restore_list and schema_name in schema_level_restore_list:
             continue
         else:
@@ -432,7 +432,7 @@ def truncate_restore_tables(restore_tables, master_port, dbname, schema_level_re
                 truncate_list.extend(self.get_full_tables_in_schema(conn, schemaname))
         else:
             for restore_table in restore_tables:
-                schemaname, tablename = smart_split(restore_table)
+                schemaname, tablename = split_fqn(restore_table)
                 schema = escapeDoubleQuoteInSQLString(schemaname)
                 table = escapeDoubleQuoteInSQLString(tablename)
                 truncate_table = '%s.%s' % (schema, table)
@@ -619,7 +619,7 @@ class RestoreDatabase(Operation):
                         analyze_list.extend(self.get_full_tables_in_schema(conn, schemaname))
                 else:
                     for restore_table in restore_tables:
-                        schemaname, tablename = smart_split(restore_table)
+                        schemaname, tablename = split_fqn(restore_table)
                         if change_schema:
                             schema = escapeDoubleQuoteInSQLString(change_schema)
                         else:
@@ -1158,7 +1158,7 @@ def validate_tablenames(table_list, schema_level_restore_list=None):
     for restore_table in table_list:
         if '.' not in restore_table:
             raise Exception("No schema name supplied for %s, removing from list of tables to restore" % restore_table)
-        schema, table = smart_split(restore_table)
+        schema, table = split_fqn(restore_table)
         # schema level restore will be handled before specific table restore, treat as duplicate
         if (schema_level_restore_list and schema in schema_level_restore_list) or (schema, table) in table_set:
             continue
@@ -1182,7 +1182,7 @@ class ValidateRestoreTables(Operation):
             dburl = dbconn.DbURL(port=self.master_port, dbname=self.restore_db)
             conn = dbconn.connect(dburl)
             for restore_table in self.restore_tables:
-                schema, table = smart_split(restore_table)
+                schema, table = split_fqn(restore_table)
                 count = execSQLForSingleton(conn, "select count(*) from pg_class, pg_namespace where pg_class.relname = '%s' and pg_class.relnamespace = pg_namespace.oid and pg_namespace.nspname = '%s'" % (table, schema))
                 if count == 0:
                     logger.warn("Table %s does not exist in database %s, removing from list of tables to restore" % (table, self.restore_db))

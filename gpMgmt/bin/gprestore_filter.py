@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
 from gppylib.gpparseopts import OptParser, OptChecker
-from gppylib.operations.backup_utils import smart_split, checkAndRemoveEnclosingDoubleQuote, removeEscapingDoubleQuoteInSQLString,\
+from gppylib.operations.backup_utils import split_fqn, checkAndRemoveEnclosingDoubleQuote, removeEscapingDoubleQuoteInSQLString,\
                                             escapeDoubleQuoteInSQLString 
 import re
 import os
@@ -74,7 +74,7 @@ def get_table_from_alter_table(line, alter_expr):
         line[len(alter_expr):].split()[0]
     elif has_schema_table_fmt and not has_special_chars:
         full_table_name = line[len(alter_expr):].split()[0]
-        _, table = smart_split(full_table_name)
+        _, table = split_fqn(full_table_name)
         return table
     elif not has_schema_table_fmt and has_special_chars:
         return line[len(alter_expr) : last_double_quote_idx + 1]
@@ -86,7 +86,7 @@ def get_table_from_alter_table(line, alter_expr):
             # only schema name double quoted
             ending_space_idx = line.find(' ', dot_separator_idx)
             full_table_name = line[len(alter_expr) : ending_space_idx]
-        _, table = smart_split(full_table_name)
+        _, table = split_fqn(full_table_name)
         return table
 
 def find_all_expr_start(line, expr):
@@ -243,7 +243,7 @@ def get_table_schema_set(filename):
         contents = fd.read()
         tables = contents.splitlines()
         for t in tables:
-            schema, table = smart_split(t)
+            schema, table = split_fqn(t)
             dump_tables.add((schema, table))
             dump_schemas.add(schema)
     return (dump_schemas, dump_tables)
@@ -283,7 +283,7 @@ def check_dropped_table(line, dump_tables, schema_level_restore_list, drop_table
     check if table to drop is valid (can be dropped from schema level restore)
     """
     temp = line[len(drop_table_expr):].strip()[:-1]
-    (schema, table) = smart_split(temp)
+    (schema, table) = split_fqn(temp)
     schema = removeEscapingDoubleQuoteInSQLString(checkAndRemoveEnclosingDoubleQuote(schema), False) 
     table = removeEscapingDoubleQuoteInSQLString(checkAndRemoveEnclosingDoubleQuote(table), False) 
     if (schema_level_restore_list and schema in schema_level_restore_list) or ((schema, table) in dump_tables):

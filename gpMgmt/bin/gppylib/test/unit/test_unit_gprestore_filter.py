@@ -32,7 +32,7 @@ class GpRestoreFilterTestCase(unittest.TestCase):
             fd.write('publicao1\n')
             fd.write(' pepper.ao2   \n')
 
-        with self.assertRaisesRegexp(Exception, "Found no valid split options, publicao1"):
+        with self.assertRaisesRegexp(Exception, "need more than 1 value to unpack"):
             get_table_schema_set(fname)
 
         os.remove(fname)

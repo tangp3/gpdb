@@ -27,7 +27,7 @@ from gppylib.operations.backup_utils import backup_file_with_nbu, check_file_dum
                                             generate_seg_status_prefix, generate_segment_config_filename, get_incremental_ts_from_report_file, \
                                             get_latest_full_dump_timestamp, get_latest_full_ts_with_nbu, get_latest_report_timestamp, get_lines_from_file, \
                                             restore_file_with_nbu, validate_timestamp, verify_lines_in_file, write_lines_to_file, isDoubleQuoted, formatSQLString, \
-                                            checkAndAddEnclosingDoubleQuote, smart_split, remove_file_on_segments
+                                            checkAndAddEnclosingDoubleQuote, split_fqn, remove_file_on_segments
 
 logger = gplog.get_default_logger()
 
@@ -543,7 +543,7 @@ def filter_dirty_tables(dirty_tables, dump_database, master_datadir, backup_dir,
             if table not in tables_to_filter:
                 if os.path.exists(schema_filename):
                     schemas_to_filter = get_lines_from_file(schema_filename)
-                    table_schema = smart_split(table)[0]
+                    table_schema = split_fqn(table)[0]
                     if table_schema not in schemas_to_filter:
                         dirty_tables.remove(table)
                 else:
@@ -873,11 +873,11 @@ class DumpDatabase(Operation):
         dump_line += " %s" % checkAndAddEnclosingDoubleQuote(db_name)
 
         for dump_table in self.include_dump_tables:
-            schema, table = smart_split(dump_table)
+            schema, table = split_fqn(dump_table)
             dump_line += " --table=\"\\\"%s\\\"\".\"\\\"%s\\\"\"" % (schema, table)
             #dump_line += " --table=\"%s\".\"%s\"" % (schema, table)
         for dump_table in self.exclude_dump_tables:
-            schema, table = smart_split(dump_table)
+            schema, table = split_fqn(dump_table)
             dump_line += " --exclude-table=\"\\\"%s\\\"\".\"\\\"%s\\\"\"" % (schema, table)
             #dump_line += " --exclude-table=\"%s\".\"%s\"" % (schema, table)
         if self.include_dump_tables_file is not None:
@@ -1389,7 +1389,7 @@ class ValidateIncludeTargets(Operation):
         for dump_table in dump_tables:
             if '.' not in dump_table:
                 raise ExceptionNoStackTraceNeeded("No schema name supplied for table %s" % dump_table)
-            schema, table = smart_split(dump_table)
+            schema, table = split_fqn(dump_table)
             exists = CheckTableExists(schema = schema,
                                       table = table,
                                       database = self.dump_database,
@@ -1427,7 +1427,7 @@ class ValidateExcludeTargets(Operation):
         for dump_table in dump_tables:
             if '.' not in dump_table:
                 raise ExceptionNoStackTraceNeeded("No schema name supplied for exclude table %s" % dump_table)
-            schema, table = smart_split(dump_table)
+            schema, table = split_fqn(dump_table)
             exists = CheckTableExists(schema = schema,
                                       table = table,
                                       database = self.dump_database,
@@ -1528,7 +1528,7 @@ class UpdateHistoryTable(Operation):
         self.master_port = master_port
 
     def execute(self):
-        schema, table = smart_split(UpdateHistoryTable.HISTORY_TABLE)
+        schema, table = split_fqn(UpdateHistoryTable.HISTORY_TABLE)
         exists = CheckTableExists(database = self.dump_database,
                                   schema = schema,
                                   table = table,

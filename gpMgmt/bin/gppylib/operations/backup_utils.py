@@ -217,7 +217,7 @@ def get_dbname_from_cdatabaseline(line):
     try:
         start = line.index(cdatabase)
     except Exception as e:
-        logger.info('Failed to find substring %s in line %s, error: %s' % (cdatabase, line, str(e)))
+        logger.error('Failed to find substring %s in line %s, error: %s' % (cdatabase, line, str(e)))
         return None
 
     with_template = " WITH TEMPLATE = "
@@ -705,7 +705,6 @@ def getRows(dbname, exec_sql):
 def check_schema_exists(schema_name, dbname):
     schemaname = pg.escape_string(schema_name)
     schema_check_sql = "select * from pg_catalog.pg_namespace where nspname='%s';" % schemaname
-    logger.info('check schema sql is %s' % schema_check_sql)
     if len(getRows(dbname, schema_check_sql)) < 1:
         return False
     return True
@@ -761,7 +760,7 @@ def formatSQLString(rel_file, isTableName=False):
             lines = fr.read().strip('\n').split('\n')
             for line in lines:
                 if isTableName:
-                    schema, table = smart_split(line)
+                    schema, table = split_fqn(line)
                     schema = escapeDoubleQuoteInSQLString(schema)
                     table = escapeDoubleQuoteInSQLString(table)
                     relnames.append(schema + '.' + table)
@@ -772,53 +771,16 @@ def formatSQLString(rel_file, isTableName=False):
             tmp_file = create_temp_file_from_list(relnames, os.path.basename(rel_file))
             return tmp_file
 
-def smart_split(string):
+def split_fqn(fqn_name):
     """
     Split full qualified table name into schema and table by separator '.',
-    figure out the correct split option and return the (schema, table) tuple.
-
-    The right format:                  schema.table = '"A".B"."C"D"'
-                                       schema.table = 'ab.cd'
-    Format with multiple valid split:  schema.table = '"A"."B"."C"'
-    Format with none valid split:      schema.table = '"A".B".C"'
     """
-    valid_cases = 0
-    valid_schema = None
-    valid_table = None
-    for i in range(len(string)):
-        if string[i] == '.':
-            schema, table = string[:i], string[i+1:]
-            if validate_relname(schema) and validate_relname(table):
-                valid_cases += 1
-                if valid_cases == 1:
-                    valid_schema = schema
-                    valid_table = table
-                if valid_cases >= 2:
-                    raise Exception("Found multiple valid split options, %s" % string)
-
-    if valid_cases != 1:
-        raise Exception("Found no valid split options, %s" % string)
-
-    return valid_schema, valid_table
-
-
-def validate_relname(relname):
-    """
-    A schema/table name can only be valid if it is double quoted, or not double quoted. 
-    If a beginning and/or ending double quote is part of schema/table name, the whole
-    string must be double quoted.
-    Beginning or endding with stand alone double quote is treated as invalid relname.
-
-    valid table names:   '"test"': test, 'test': test, '""test"': "test, '"test""': test"
-                         'test"1': test"1
-    invalid table names: '"test', 'test"'
-    """
-
-    if (relname[0] == '"' and relname[-1] == '"') or (relname[0] != '"' and relname[-1] != '"'):
-        return True
-    else:
-        return False
-
+    try:
+        schema, table = fqn_name.split('.')
+    except Exception as e:
+        logger.error("Failed to split name %s into schema and table, please check the format is schema.table" % fqn_name)
+        raise Exception('%s' % str(e))
+    return schema, table
 
 def remove_file_on_segments(master_port, batch_default, filename):
     addresses = get_all_segment_addresses(master_port)
@@ -827,4 +789,4 @@ def remove_file_on_segments(master_port, batch_default, filename):
         cmd = 'rm -f %s' % filename
         run_pool_command(addresses, cmd, batch_default, check_results=False)
     except Exception as e:
-        logger.info("cleaning up file failed: %s" % e.__str__())
+        logger.error("cleaning up file failed: %s" % e.__str__())
