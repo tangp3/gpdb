@@ -753,8 +753,6 @@ class GpCronDump(Operation):
         if self.post_script is not None:
             self._validate_run_program()
 
-        print "Before invoking", self.dump_databases
-
         self._validate_dump_target()
 
         dump_db_info_list = []
@@ -764,7 +762,6 @@ class GpCronDump(Operation):
         final_exit_status = current_exit_status = 0
 
         for dump_database in self.dump_databases:
-            print 'dump_database is', dump_database
             timestamp = self._get_timestamp_object(self.timestamp_key)
             timestamp_str = timestamp.strftime('%Y%m%d%H%M%S')
             generate_dump_timestamp(timestamp)
@@ -1383,7 +1380,6 @@ class GpCronDump(Operation):
             logger.info("Configuring for multiple database dump")
 
         for dump_database in self.dump_databases:
-            print 'before validate the database name is', dump_database
             ValidateDatabaseExists(database=dump_database, master_port=self.master_port).run()
 
         if self.dump_schema:
