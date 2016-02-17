@@ -31,7 +31,7 @@ try:
     from gppylib.operations import Operation
     from gppylib.operations.backup_utils import check_funny_chars_in_names, create_temp_file_from_list, expand_partitions_and_populate_filter_file, \
                                                 generate_files_filename, generate_pipes_filename, generate_schema_filename, get_backup_directory, \
-                                                get_latest_full_dump_timestamp, get_latest_full_ts_with_nbu, get_lines_from_file, remove_file_from_segments, \
+                                                get_latest_full_dump_timestamp, get_latest_full_ts_with_nbu, get_lines_from_file, remove_file_on_segments, \
                                                 validate_timestamp, verify_lines_in_file, write_lines_to_file, formatSQLString
     from gppylib.operations.dump import CreateIncrementsFile, DeleteCurrentDump, DeleteOldestDumps, DumpConfig, DumpDatabase, DumpGlobal, DumpStats, \
                                         MailDumpEvent, PostDumpDatabase, UpdateHistoryTable, VacuumDatabase, ValidateDatabaseExists, ValidateGpToolkit, \
@@ -901,21 +901,21 @@ class GpCronDump(Operation):
                         if self.ddboost:
                             time.sleep(5)
                         os.remove(dirty_file)
-                        remove_file_from_segments(self.master_port, dirty_file)
+                        remove_file_on_segments(self.master_port, dirty_file)
                     write_dirty_file(self.master_datadir, dirty_partitions, self.backup_dir, self.dump_dir, self.dump_prefix, None, self.ddboost)
                     if self.netbackup_service_host:
                         backup_dirty_file_with_nbu(self.master_datadir, self.backup_dir, self.dump_dir, self.dump_prefix, self.netbackup_service_host, self.netbackup_policy, self.netbackup_schedule, self.netbackup_block_size, self.netbackup_keyword)
 
                 if include_file is not None and os.path.exists(include_file):
                     os.remove(include_file)
-                    remove_file_from_segments(self.master_port, include_file)
+                    remove_file_on_segments(self.master_port, include_file)
                 if exclude_file is not None and os.path.exists(exclude_file):
                     os.remove(exclude_file)
-                    remove_file_from_segments(self.master_port, exclude_file)
+                    remove_file_on_segments(self.master_port, exclude_file)
                 if schema_file:
                     schema_filename = generate_schema_filename(self.master_datadir, self.backup_dir, self.dump_dir, self.dump_prefix, timestamp_str, self.ddboost)
                     shutil.copyfile(schema_file, schema_filename)
-                    remove_file_from_segments(self.master_port, schema_file)
+                    remove_file_on_segments(self.master_port, schema_file)
                 if schema_file is not None and os.path.exists(schema_file):
                     os.remove(schema_file)
 
