@@ -1031,7 +1031,7 @@ def impl(context, table_list, dbname, num_parts):
 def impl(context, table_list, dbname):
     tables = [t.strip() for t in table_list.split(',')] 
     for t in tables:
-        backup_data(context, t.strip(), dbname) 
+        backup_data(context, t, dbname) 
 
 @when('verify that there is a table "{tablename}" of "{tabletype}" type in "{dbname}" with same data as table "{backedup_table}"')
 @then('verify that there is a table "{tablename}" of "{tabletype}" type in "{dbname}" with same data as table "{backedup_table}"')
