@@ -600,8 +600,9 @@ class RestoreDatabase(Operation):
 
     def cleanup_files_on_segments(self):
         for tmp_file in self.tmp_files:
-            if tmp_file:
-                remove_file_on_segments(self.master_port, self.batch_default, tmp_file)
+            if tmp_file and os.path.isfile(tmp_file):
+                os.remove(tmp_file)
+                remove_file_on_segments(self.master_port, tmp_file, self.batch_default)
 
     def _analyze(self, restore_db, master_port):
         conn = None

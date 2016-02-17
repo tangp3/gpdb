@@ -777,8 +777,9 @@ class DumpDatabase(Operation):
 
     def cleanup_files_on_segments(self):
         for tmp_file in [self.include_dump_tables_file, self.exclude_dump_tables_file, self.include_schema_file]:
-            if tmp_file:
-                remove_file_on_segments(self.master_port, self.batch_default, tmp_file)
+            if tmp_file and os.path.isfile(tmp_file):
+                os.remove(tmp_file)
+                remove_file_on_segments(self.master_port, tmp_file, self.batch_default)
 
     def perform_dump(self, title, dump_line):
         logger.info("%s command line %s" % (title, dump_line))

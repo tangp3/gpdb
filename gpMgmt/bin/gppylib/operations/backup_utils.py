@@ -10,6 +10,7 @@ from gppylib.db import dbconn
 from gppylib.db.dbconn import execSQL
 from gppylib.gparray import GpArray
 from pygresql import pg
+from gppylib.operations.utils import DEFAULT_NUM_WORKERS
 
 logger = gplog.get_default_logger()
 
@@ -559,12 +560,6 @@ def scp_file_to_hosts(host_list, filename, batch_default):
     pool.haltWork()
     pool.check_results()
 
-def remove_file_from_segments(master_port, filename):
-    hostlist = get_all_segment_addresses(master_port)
-    for hname in hostlist:
-        cmd = Command('Remove tmp files', 'rm -f %s' % filename, ctxt=REMOTE, remoteHost=hname)
-        cmd.run(validateAfter=True)
-
 def run_pool_command(host_list, cmd_str, batch_default, check_results=True):
     pool = WorkerPool(numWorkers=min(len(host_list), batch_default))
 
@@ -782,7 +777,7 @@ def split_fqn(fqn_name):
         raise Exception('%s' % str(e))
     return schema, table
 
-def remove_file_on_segments(master_port, batch_default, filename):
+def remove_file_on_segments(master_port, filename, batch_default=DEFAULT_NUM_WORKERS):
     addresses = get_all_segment_addresses(master_port)
 
     try:
