@@ -433,18 +433,27 @@ def truncate_restore_tables(restore_tables, master_port, dbname, schema_level_re
         else:
             for restore_table in restore_tables:
                 schemaname, tablename = split_fqn(restore_table)
-                schema = escapeDoubleQuoteInSQLString(schemaname)
-                table = escapeDoubleQuoteInSQLString(tablename)
-                truncate_table = '%s.%s' % (schema, table)
-                truncate_list.append(truncate_table)
+                check_table_exists_qry = """SELECT EXISTS (
+                                                   SELECT 1
+                                                   FROM pg_catalog.pg_class c
+                                                   JOIN pg_catalog.pg_namespace n on n.oid = c.relnamespace
+                                                   WHERE n.nspname = E'%s' and c.relname = E'%s')""" % (pg.escape_string(schemaname),
+                                                                                                      pg.escape_string(tablename))
+                exists_result = execSQLForSingleton(conn, check_table_exists_qry)
+                if exists_result:
+                    schema = escapeDoubleQuoteInSQLString(schemaname)
+                    table = escapeDoubleQuoteInSQLString(tablename)
+                    truncate_table = '%s.%s' % (schema, table)
+                    truncate_list.append(truncate_table)
+                else:
+                    logger.warning("Skipping truncate of %s.%s because the relation does not exist." % (dbname, restore_table))
 
         for t in truncate_list:
-            t_schema, t_table = t.split('.')
             try:
-                qry = 'Truncate "%s"."%s"' % (pg.escape_string(t_schema), pg.escape_string(t_table))
+                qry = 'Truncate %s' % t
                 execSQL(conn, qry)
-            except pg.DatabaseError as e:
-                raise e
+            except Exception as e:
+                raise Exception("Could not truncate table %s.%s: %s" % (dbname, t, str(e).replace('\n', '')))
 
         conn.commit()
     except Exception as e:

@@ -910,7 +910,7 @@ Feature: Validate command line arguments
         And there is a "ao" partition table "public.ao_part_table" with compression "quicklz" in "fullbkdb" with data
         And there is a "co" partition table "public.co_part_table" with compression "None" in "fullbkdb" with data
         And there is a backupfile of tables "public.co_part_table" in "fullbkdb" exists for validation
-        And there is a file "exclude_file" with tables "public.heap_table,public.ao_part_table" 
+        And there is a file "exclude_file" with tables "public.heap_table|public.ao_part_table"
         When the user runs "gpcrondump -a -x fullbkdb --exclude-table-file exclude_file"
         Then gpcrondump should return a return code of 0
         And the timestamp from gpcrondump is stored 
@@ -928,7 +928,7 @@ Feature: Validate command line arguments
         And there is a "ao" partition table "public.ao_part_table" with compression "quicklz" in "fullbkdb" with data
         And there is a "co" partition table "co_part_table" with compression "None" in "fullbkdb" with data
         And there is a backupfile of tables "public.heap_table, public.ao_part_table" in "fullbkdb" exists for validation        
-        And there is a file "include_file" with tables "public.heap_table,public.ao_part_table" 
+        And there is a file "include_file" with tables "public.heap_table|public.ao_part_table"
         When the user runs "gpcrondump -a -x fullbkdb --table-file include_file"
         Then gpcrondump should return a return code of 0
         And the timestamp from gpcrondump is stored 
@@ -5144,7 +5144,7 @@ Feature: Validate command line arguments
         And gpdbrestore should print Failure from truncating tables, FATAL:  database "testdb" does not exist to stdout
         And the user runs "gpdbrestore -T public.ao_index_table_1 --truncate -a" with the stored timestamp
         And gpdbrestore should return a return code of 2
-        And gpdbrestore should print Could not truncate table fullbkdb."public"."ao_index_table_1" to stdout
+        And gpdbrestore should print Skipping truncate of fullbkdb.public.ao_index_table_1 to stdout
         And there is a "ao" table "public.ao_index_table" with compression "None" in "testdb" with data
         And the user runs "gpdbrestore -T public.ao_index_table --redirect=testdb --truncate -a" with the stored timestamp
         And gpdbrestore should return a return code of 0
@@ -5902,7 +5902,7 @@ Feature: Validate command line arguments
         And there is a "heap" table "schema_heap1.heap_table1" with compression "None" in "fullbkdb" with data
         And there is a "ao" partition table "schema_ao.ao_part_table" with compression "quicklz" in "fullbkdb" with data
         And there is a backupfile of tables "schema_heap.heap_table,schema_ao.ao_part_table,schema_heap1.heap_table1" in "fullbkdb" exists for validation
-        And there is a file "exclude_file" with tables "schema_heap1,schema_ao" 
+        And there is a file "exclude_file" with tables "schema_heap1|schema_ao"
         When the user runs "gpcrondump -a -x fullbkdb --exclude-schema-file exclude_file"
         Then gpcrondump should return a return code of 0
         And the timestamp from gpcrondump is stored 
@@ -5924,7 +5924,7 @@ Feature: Validate command line arguments
         And there is a "heap" table "schema_heap1.heap_table1" with compression "None" in "fullbkdb" with data
         And there is a "ao" partition table "schema_ao.ao_part_table" with compression "quicklz" in "fullbkdb" with data
         And there is a backupfile of tables "schema_heap.heap_table,schema_ao.ao_part_table,schema_heap1.heap_table1" in "fullbkdb" exists for validation
-        And there is a file "include_file" with tables "schema_heap,schema_ao" 
+        And there is a file "include_file" with tables "schema_heap|schema_ao"
         When the user runs "gpcrondump -a -x fullbkdb --schema-file include_file"
         Then gpcrondump should return a return code of 0
         And the timestamp from gpcrondump is stored 
@@ -6157,7 +6157,7 @@ Feature: Validate command line arguments
         And there is a "heap" table "schema_heap.heap_table" with compression "None" in "fullbkdb" with data
         And there is a "ao" partition table "schema_ao.ao_part_table" with compression "quicklz" in "fullbkdb" with data
         And there is a backupfile of tables "schema_heap.heap_table,schema_ao.ao_part_table" in "fullbkdb" exists for validation
-        And there is a file "include_file" with tables "schema_heap.heap_table,schema_ao.ao_part_table"
+        And there is a file "include_file" with tables "schema_heap.heap_table|schema_ao.ao_part_table"
         When the user runs "gpcrondump -a -x fullbkdb --table-file include_file"
         Then gpcrondump should return a return code of 0
         And the timestamp from gpcrondump is stored
@@ -6176,7 +6176,7 @@ Feature: Validate command line arguments
         And there is a "heap" table "schema_heap.heap_table" with compression "None" in "fullbkdb" with data
         And there is a "ao" partition table "schema_ao.ao_part_table" with compression "quicklz" in "fullbkdb" with data
         And there is a backupfile of tables "schema_heap.heap_table,schema_ao.ao_part_table" in "fullbkdb" exists for validation
-        And there is a file "include_file" with tables "schema_heap.heap_table,schema_ao.ao_part_table"
+        And there is a file "include_file" with tables "schema_heap.heap_table|schema_ao.ao_part_table"
         When the user runs "gpcrondump -a -x fullbkdb --table-file include_file"
         Then gpcrondump should return a return code of 0
         And the timestamp from gpcrondump is stored
