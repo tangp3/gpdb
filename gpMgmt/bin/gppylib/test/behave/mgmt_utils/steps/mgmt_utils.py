@@ -237,12 +237,6 @@ def impl(context, tablename, dbname, filename, port):
     drop_table_if_exists(context, table_name=tablename, dbname=dbname)
     create_external_partition(context, tablename, dbname, port, filename)
  
-@given('there is {table_type} table {table_name} in "{dbname}" with data')
-def impl(context, table_type, table_name, dbname):
-    create_database_if_not_exists(context, dbname)
-    drop_table_if_exists(context, table_name=table_name, dbname=dbname)
-    create_int_table(context, table_type=table_type, table_name=table_name, dbname=dbname)
-
 @given('"{dbname}" does not exist')
 def impl(context, dbname):
     drop_database(context, dbname)
