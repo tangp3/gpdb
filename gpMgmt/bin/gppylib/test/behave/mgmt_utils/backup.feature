@@ -292,7 +292,7 @@ Feature: Validate command line arguments
         And gpdbrestore should print Table public.part_mixed_1 to stdout
         And database "bkdb" is dropped and recreated
         And the user runs gp_restore with the the stored timestamp and subdir in "bkdb"
-        And gp_restore should return a return code of 2
+        And gp_restore should return a return code of 0
         And verify that partitioned tables "ao_part_table, co_part_table, heap_part_table" in "bkdb" have 6 partitions
         And verify that partitioned tables "ao_part_table_comp, co_part_table_comp" in "bkdb" have 6 partitions
         And verify that partitioned tables "part_external" in "bkdb" have 5 partitions in partition level "0"
@@ -371,7 +371,7 @@ Feature: Validate command line arguments
         And all the data from "bkdb" is saved for verification
         And database "bkdb" is dropped and recreated
         And the user runs gp_restore with the stored timestamp and subdir in "bkdb" and backup_dir "/tmp"
-        And gp_restore should return a return code of 2
+        And gp_restore should return a return code of 0
         And verify that there is a "heap" table "public.heap_table" in "bkdb"
         And verify that there is a "ao" table "public.ao_table" in "bkdb"
         And verify that the data of the dirty tables under "/tmp" in "bkdb" is validated after restore
@@ -1073,7 +1073,7 @@ Feature: Validate command line arguments
         And the row "1, 0, 999999999999998, 999999999999998, 0, 0" is inserted into "public.tuple_count_table" in "bkdb"
         And the row "2, 0, 1, 1, 0, 0" is inserted into "public.tuple_count_table" in "bkdb"
         When the method get_partition_state is executed on table "public.tuple_count_table" in "bkdb" for ao table "testschema.t1"
-        Then the get_partition_state result should contain "testschema, t1, 999999999999999"
+        Then the get_partition_state result should contain "testschema,t1,999999999999999"
 
     Scenario: Test gpcrondump dump deletion only (-o option)
         Given the test is initialized
@@ -2430,7 +2430,7 @@ Feature: Validate command line arguments
         And gpdbestore should not print Issue with analyze of to stdout
         And verify that there is a "heap" table "public.heap_table" in "TESTING" with data
         And verify that there is a "ao" table "public.ao_part_table" in "TESTING" with data
-        And the user runs "gpdbrestore -s \"TESTING\" -e -a"
+        And the user runs "gpdbrestore -s "TESTING" -e -a"
         Then gpdbrestore should return a return code of 0
         And gpdbestore should not print Issue with analyze of to stdout
         And verify that there is a "heap" table "public.heap_table" in "TESTING" with data
