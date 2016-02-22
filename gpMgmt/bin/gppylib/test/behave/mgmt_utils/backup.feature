@@ -1449,7 +1449,7 @@ Feature: Validate command line arguments
         And gpcrondump should return a return code of 0
         And the timestamp from gpcrondump is stored
         And all the data from "bkdb" is saved for verification
-        And the user runs gpdbrestore with the stored timestamp and options "-T public.ao_table,public.co_table"
+        And the user runs gpdbrestore with the stored timestamp and options "-T public.ao_table -T public.co_table"
         Then gpdbrestore should return a return code of 0
         And verify that exactly "2" tables in "bkdb" have been restored
 
@@ -2337,7 +2337,7 @@ Feature: Validate command line arguments
         And gpcrondump should return a return code of 0
         And the timestamp from gpcrondump is stored
         And all the data from "bkdb" is saved for verification
-        And the user runs gpdbrestore with the stored timestamp and options "-T public.ao_table,public.co_table --redirect=bkdb2"
+        And the user runs gpdbrestore with the stored timestamp and options "-T public.ao_table -T public.co_table --redirect=bkdb2"
         Then gpdbrestore should return a return code of 0
         And verify that exactly "2" tables in "bkdb2" have been restored
 
@@ -2366,7 +2366,7 @@ Feature: Validate command line arguments
         And there is a backupfile of tables "public.heap_table, public.ao_part_table" in "bkdb" exists for validation
         And there is a "heap" table "public.heap_table" in "bkdb2" with data
         And there is a backupfile of tables "public.heap_table" in "bkdb2" exists for validation
-        When the user runs "gpcrondump -a -x bkdb,bkdb2 --prefix=foo"
+        When the user runs "gpcrondump -a -x bkdb -x bkdb2 --prefix=foo"
         Then gpcrondump should return a return code of 0
         And the timestamp from gpcrondump is stored
         And the user runs gpdbrestore with the stored timestamp and options "--prefix=foo --redirect=bkdb3"
