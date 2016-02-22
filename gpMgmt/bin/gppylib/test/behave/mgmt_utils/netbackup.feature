@@ -269,7 +269,7 @@ Feature: NetBackup Integration with GPDB
         And the timestamp from gpcrondump is stored
         When the user runs gpdbrestore with the stored timestamp using netbackup
         Then gpdbrestore should return a return code of 0
-        And verify that there is a "co" table "co_table" in "bkdb" with data
+        And verify that there is a "co" table "public.co_table" in "bkdb" with data
         And verify that there is no table "public.ao_table" in "bkdb"
 
     @nbusmoke
@@ -287,8 +287,8 @@ Feature: NetBackup Integration with GPDB
         And the timestamp from gpcrondump is stored
         When the user runs gpdbrestore with the stored timestamp using netbackup
         Then gpdbrestore should return a return code of 0
-        And verify that there is a "heap" table "heap_table" in "bkdb" with data
-        And verify that there is a "ao" table "ao_table" in "bkdb" with data
+        And verify that there is a "heap" table "public.heap_table" in "bkdb" with data
+        And verify that there is a "ao" table "public.ao_table" in "bkdb" with data
         And verify that there is no table "public.co_table" in "bkdb"
 
     @nbupartI
@@ -560,8 +560,8 @@ Feature: NetBackup Integration with GPDB
         And verify that report file with prefix "foo" under subdir " " has been backed up using netbackup
         And verify that cdatabase file with prefix "foo" under subdir " " has been backed up using netbackup
         And verify that state file with prefix "foo" under subdir " " has been backed up using netbackup
-        And verify that there is a "heap" table "heap_table" in "bkdb" with data
-        And verify that there is a "ao" table "ao_part_table" in "bkdb" with data
+        And verify that there is a "heap" table "public.heap_table" in "bkdb" with data
+        And verify that there is a "ao" table "public.ao_part_table" in "bkdb" with data
 
     @nbupartI
     Scenario: Full Backup and Restore with -u and --prefix option
@@ -580,8 +580,8 @@ Feature: NetBackup Integration with GPDB
         And verify that state file with prefix "foo" under subdir "/tmp" has been backed up using netbackup
         When the user runs gpdbrestore with the stored timestamp and options "-u /tmp --prefix=foo --netbackup-block-size 2048" using netbackup
         Then gpdbrestore should return a return code of 0
-        And verify that there is a "heap" table "heap_table" in "bkdb" with data
-        And verify that there is a "ao" table "ao_table" in "bkdb" with data
+        And verify that there is a "heap" table "public.heap_table" in "bkdb" with data
+        And verify that there is a "ao" table "public.ao_table" in "bkdb" with data
 
     @nbupartI
     Scenario: Restore database without prefix for a dump with prefix
@@ -789,8 +789,8 @@ Feature: NetBackup Integration with GPDB
         And all the data from "bkdb" is saved for verification
         When the user runs gpdbrestore with the stored timestamp using netbackup
         Then gpdbrestore should return a return code of 0
-        And verify that there is a "heap" table "heap_table" in "bkdb" with data
-        And verify that there is a "ao" table "ao_part_table" in "bkdb" with data
+        And verify that there is a "heap" table "public.heap_table" in "bkdb" with data
+        And verify that there is a "ao" table "public.ao_part_table" in "bkdb" with data
 
     @nbupartI
     Scenario: Restore -T for full dump should restore metadata/postdata objects for tablenames with English and multibyte (chinese) characters
