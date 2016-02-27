@@ -75,6 +75,7 @@ static ddp_conn_desc_t ddp_conn = DDP_INVALID_DESCRIPTOR;
 static char *DDP_SU_NAME = NULL;
 static int dd_boost_buf_size = 512*1024;
 static char *DEFAULT_BACKUP_DIRECTORY = NULL;
+static char *DEFAULT_STORAGE_UNIT = "delete";
 
 struct schemaTableList
 {
@@ -921,7 +922,7 @@ readFromDDFile(FILE *fp, char *ddBoostFileName)
 		mpp_err_msg(logError, progname, "Memory allocation failed\n");
 		return -1;
 	}
-    snprintf(storage_unit_name, MAX_PATH_NAME, "%s", "GPDB");
+    snprintf(storage_unit_name, MAX_PATH_NAME, "%s", DEFAULT_STORAGE_UNIT);
 
 	full_path = (char*)malloc(MAX_PATH_NAME);
 	if (full_path == NULL)
@@ -1128,7 +1129,7 @@ deleteDir(struct ddboost_options *dd_options, ddp_conn_desc_t ddp_conn)
         mpp_err_msg(logError, progname, "Memory allocation failed\n");
 		goto cleanup;
 	}
-    snprintf(storage_unit_name, MAX_PATH_NAME, "%s", "GPDB");
+    snprintf(storage_unit_name, MAX_PATH_NAME, "%s", DEFAULT_STORAGE_UNIT);
 	
 	full_path = (char*)malloc(MAX_PATH_NAME);
 	if (full_path == NULL)
@@ -1175,7 +1176,7 @@ ddBoostRmdir(char *dir_path, ddp_conn_desc_t ddp_conn, char *parent_dir)
 		return 0;
 
 	temp_path.path_name = dir_path;
-	temp_path.su_name = "GPDB";
+	temp_path.su_name = DEFAULT_STORAGE_UNIT;
 
 	err = ddp_open_dir(ddp_conn, &temp_path, &dird);
 	if (err)
@@ -1336,7 +1337,7 @@ static int writeToDDFile(FILE *fp, char *ddBoostFileName)
         err = -1;
 		goto cleanup; 
 	}
-    snprintf(storage_unit_name, MAX_PATH_NAME, "%s", "GPDB");
+    snprintf(storage_unit_name, MAX_PATH_NAME, "%s", DEFAULT_STORAGE_UNIT);
 
 	full_path = (char*)malloc(MAX_PATH_NAME);
 	if (full_path == NULL)
@@ -1470,7 +1471,7 @@ deleteFile(struct ddboost_options *dd_options, ddp_conn_desc_t ddp_conn)
 	strcat(temp, dd_options->deleteFile);
 
 	temp_path.path_name = temp;
-	temp_path.su_name = "GPDB";
+	temp_path.su_name = DEFAULT_STORAGE_UNIT;
 	
 	err = ddp_unlink(ddp_conn, &temp_path);		
 	if (err)
@@ -1504,7 +1505,7 @@ readFromDDFileToOutput(char *ddBoostFileName)
         err = -1;
         goto cleanup;
 	}	
-	snprintf(storage_unit_name, MAX_PATH_NAME, "%s", "GPDB");
+	snprintf(storage_unit_name, MAX_PATH_NAME, "%s", DEFAULT_STORAGE_UNIT);
 
 	full_path = (char*)malloc(MAX_PATH_NAME);
 	if (full_path == NULL)
@@ -1663,7 +1664,7 @@ int listDirectory(struct ddboost_options *dd_options, ddp_conn_desc_t ddp_conn)
         mpp_err_msg(logError, progname, "Memory allocation failed\n");
         goto cleanup;
     }
-    snprintf(storage_unit_name, MAX_PATH_NAME, "%s", "GPDB");
+    snprintf(storage_unit_name, MAX_PATH_NAME, "%s", DEFAULT_STORAGE_UNIT);
 
     full_path = (char*)malloc(MAX_PATH_NAME);
     if (!full_path)
@@ -1775,7 +1776,7 @@ createFakeRestoreFile(struct ddboost_options *dd_options, ddp_conn_desc_t ddp_co
         err = -1;
         goto cleanup;
     }
-    snprintf(storage_unit_name, MAX_PATH_NAME, "%s", "GPDB");
+    snprintf(storage_unit_name, MAX_PATH_NAME, "%s", DEFAULT_STORAGE_UNIT);
 
 	full_path = (char*)malloc(MAX_PATH_NAME);
     if (!full_path)
@@ -2060,7 +2061,7 @@ getLatestTimestamp(struct ddboost_options *dd_options, ddp_conn_desc_t ddp_conn,
         err = -1;
         goto cleanup;
     }
-    snprintf(storage_unit_name, MAX_PATH_NAME, "%s", "GPDB");
+    snprintf(storage_unit_name, MAX_PATH_NAME, "%s", DEFAULT_STORAGE_UNIT);
 
     full_path = (char*)malloc(MAX_PATH_NAME);
     if (!full_path)
@@ -2201,7 +2202,7 @@ dumpFileHasDatabaseName(struct ddboost_options *dd_options, ddp_conn_desc_t ddp_
 		ret = 0;
 		goto cleanup;
 	}
-    snprintf(storage_unit_name, MAX_PATH_NAME, "%s", "GPDB");
+    snprintf(storage_unit_name, MAX_PATH_NAME, "%s", DEFAULT_STORAGE_UNIT);
 	
 	full_path = (char*)malloc(MAX_PATH_NAME);
 	if (full_path == NULL)
@@ -2309,7 +2310,7 @@ syncFilesFromDDBoost(struct ddboost_options *dd_options, ddp_conn_desc_t ddp_con
         err = -1;
         goto cleanup;
     }	
-    snprintf(storage_unit_name, MAX_PATH_NAME, "%s", "GPDB");
+    snprintf(storage_unit_name, MAX_PATH_NAME, "%s", DEFAULT_STORAGE_UNIT);
 
     full_path = (char*)malloc(MAX_PATH_NAME);
 	if (full_path == NULL)
@@ -2443,7 +2444,7 @@ copyFilesFromDir(const char *fromDir, char *toDir, ddp_conn_desc_t ddp_conn)
 		err = -1;
 		goto cleanup;
 	}
-    snprintf(storage_unit_name, MAX_PATH_NAME, "%s", "GPDB");
+    snprintf(storage_unit_name, MAX_PATH_NAME, "%s", DEFAULT_STORAGE_UNIT);
 
     full_path = (char*)malloc(MAX_PATH_NAME);
 	if (full_path == NULL)
@@ -2632,7 +2633,7 @@ static int writeToDDFileFromInput(char *ddBoostFileName)
 		mpp_err_msg(logError, progname, "Memory allocation failed\n");
 		return -1;
 	}
-	snprintf(storage_unit_name, MAX_PATH_NAME, "%s", "GPDB");
+	snprintf(storage_unit_name, MAX_PATH_NAME, "%s", DEFAULT_STORAGE_UNIT);
 
 	full_path = (char*)malloc(MAX_PATH_NAME);
 	if (full_path == NULL)
@@ -2859,7 +2860,7 @@ int listDirectoryFull(struct ddboost_options *dd_options, ddp_conn_desc_t ddp_co
         err = -1;
         goto cleanup;
     }
-    snprintf(storage_unit_name, MAX_PATH_NAME, "%s", "GPDB");
+    snprintf(storage_unit_name, MAX_PATH_NAME, "%s", DEFAULT_STORAGE_UNIT);
 
     full_path = (char*)malloc(MAX_PATH_NAME);
     if (!full_path)
@@ -3006,7 +3007,7 @@ syncFilesFromDDBoostTimestamp(struct ddboost_options *dd_options, ddp_conn_desc_
         err = -1;
         goto cleanup;
     }	
-    snprintf(storage_unit_name, MAX_PATH_NAME, "%s", "GPDB");
+    snprintf(storage_unit_name, MAX_PATH_NAME, "%s", DEFAULT_STORAGE_UNIT);
 
     ddboostPath = (char*)malloc(MAX_PATH_NAME);
     if (ddboostPath == NULL)
@@ -3173,7 +3174,7 @@ renameFile(struct ddboost_options *dd_options, ddp_conn_desc_t ddp_conn)
         err = -1;
         goto cleanup; 
     }
-    snprintf(storage_unit_name, MAX_PATH_NAME, "%s", "GPDB");
+    snprintf(storage_unit_name, MAX_PATH_NAME, "%s", DEFAULT_STORAGE_UNIT);
 
     full_path_source = (char*)malloc(MAX_PATH_NAME);
     if (full_path_source == NULL)
@@ -3307,7 +3308,7 @@ copyWithinDDboost(struct ddboost_options *dd_options, ddp_conn_desc_t ddp_conn, 
         err = -1;
         goto cleanup; 
     }
-    snprintf(storage_unit_name, MAX_PATH_NAME, "%s", "GPDB");
+    snprintf(storage_unit_name, MAX_PATH_NAME, "%s", DEFAULT_STORAGE_UNIT);
 
     full_path_source = (char*)malloc(MAX_PATH_NAME);
     if (full_path_source == NULL)

@@ -1716,7 +1716,7 @@ initDDSystem(ddp_inst_desc_t *ddp_inst, ddp_conn_desc_t *ddp_conn, ddp_client_in
 		mpp_err_msg("ERROR", "ddboost", "Memory allocation failed during DDBoost initialization\n");
 		return -1;
 	}
-	sprintf(storage_unit_name, "%s", "GPDB");	
+	sprintf(storage_unit_name, "%s", "delete");
 	*ddp_su_name = storage_unit_name;
 	
 	if (*ddp_inst == DDP_INVALID_DESCRIPTOR)
