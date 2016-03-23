@@ -316,7 +316,10 @@ def create_partition_dict(partition_list):
             raise Exception('Invalid state file format %s' % partition)
         # retain the space in schema name: filed[0] and table name: filed[1]
         key = '%s.%s' % (fields[0], fields[1])
-        table_dict[key] = fields[2].strip()
+        if fileds[2].startswith(' '):
+            raise Exception('Must make a full dump before the incremental dump!')
+        else:
+            table_dict[key] = fields[2].strip()
 
     return table_dict
 
