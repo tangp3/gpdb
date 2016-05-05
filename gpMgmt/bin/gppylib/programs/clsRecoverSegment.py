@@ -274,11 +274,29 @@ class GpRecoverSegmentProgram:
 
         peersForFailedSegments = self.findAndValidatePeersForFailedSegments(gpArray, failedSegments)
 
+        segmentStates = self.check_segment_state(gpArray.getSegDbList(), gpArray.getSegDbMap())
+
         segs = []
+        segs_in_change_tracking_disabled = []
         for i in range(len(failedSegments)):
-            segs.append( GpMirrorToBuild(failedSegments[i], peersForFailedSegments[i], failoverSegments[i], \
-                                self.__options.forceFullResynchronization))
-        return GpMirrorListToBuild(segs, self.__pool, self.__options.quiet, self.__options.parallelDegree)
+
+            self.logger.info('failed segment dbid %s' % failedSegments[i].getSegmentDbId())
+            self.logger.info('peersegment dbid %s' % peersForFailedSegments[i].getSegmentDbId())
+
+
+
+            if (not self.__options.forceFullResynchronization and
+                peersForFailedSegments[i].getSegmentDbId() in segmentStates and
+                self.check_segment_change_tracking_disabled_state(segmentStates[peersForFailedSegments.getSegmentDbId()])):
+
+                 segs_in_change_tracking_disabled.append(peersForFailedSegments.getSegmentDbId())
+            else:
+                segs.append( GpMirrorToBuild(failedSegments[i], peersForFailedSegments[i], failoverSegments[i], \
+                             self.__options.forceFullResynchronization))
+
+        self._output_segments_in_change_tracking_disabled(segs_in_change_tracking_disabled)
+
+        return segs_in_change_tracking_disabled, GpMirrorListToBuild(segs, self.__pool, self.__options.quiet, self.__options.parallelDegree)
 
     def findAndValidatePeersForFailedSegments(self, gpArray, failedSegments):
         dbIdToPeerMap = gpArray.getDbIdToPeerMap()
@@ -444,7 +462,11 @@ class GpRecoverSegmentProgram:
         portAssigner = PortAssigner(gpArray)
 
         forceFull = self.__options.forceFullResynchronization
+
+        segmentStates = self.check_segment_state(gpArray.getSegDbList(), gpArray.getSegDbMap())
+
         segs = []
+        segs_in_change_tracking_disabled = []
         for i in range(len(failedSegments)):
 
             failoverSegment = None
@@ -471,9 +493,29 @@ class GpRecoverSegmentProgram:
                 self.__applySpareDirectoryMapToSegment( gpEnv, gpArray, spareDirectoryMap, failoverSegment)
                 # we're failing over to different location on same host so we don't need to assign new ports
 
-            segs.append( GpMirrorToBuild(failedSegment, liveSegment, failoverSegment, forceFull ))
-        
-        return GpMirrorListToBuild(segs, self.__pool, self.__options.quiet, self.__options.parallelDegree, interfaceHostnameWarnings)
+            if (not forceFull and liveSegment.getSegmentDbId() in segmentStates and
+                self.check_segment_change_tracking_disabled_state(segmentStates[liveSegment.getSegmentDbId()])):
+
+                segs_in_change_tracking_disabled.append(liveSegment.getSegmentDbId())
+
+            else:
+                segs.append(GpMirrorToBuild(failedSegment, liveSegment, failoverSegment, forceFull))
+
+        self._output_segments_in_change_tracking_disabled(segs_in_change_tracking_disabled)
+
+        return segs_in_change_tracking_disabled, GpMirrorListToBuild(segs, self.__pool, self.__options.quiet, self.__options.parallelDegree, interfaceHostnameWarnings)
+
+
+    def _output_segments_in_change_tracking_disabled(self, segs_in_change_tracking_disabled=None):
+        if segs_in_change_tracking_disabled:
+            self.logger.warn('Segments with dbid %s in change tracking disabled state, need to run recoverseg with -F option.' %
+                            (' ,'.join(str(id) for id in segs_in_change_tracking_disabled)))
+
+
+    def check_segment_change_tracking_disabled_state(self, segmentState):
+        if segmentState == gparray.SEGMENT_STATE_CHANGE_TRACKING_DISABLED:
+            return True
+        return False
 
     # San-failback is handled separately from the Filerep-recovery operations.
     # 
@@ -700,7 +742,7 @@ class GpRecoverSegmentProgram:
 
     def getRecoveryActionsBasedOnOptions(self, gpEnv, gpArray):
         if self.__options.rebalanceSegments:
-            return GpSegmentRebalanceOperation(gpEnv, gpArray)
+            return None, GpSegmentRebalanceOperation(gpEnv, gpArray)
         elif self.__options.recoveryConfigFile is not None:
             return self.getRecoveryActionsFromConfigFile(gpArray)
         else:
@@ -1167,7 +1209,7 @@ class GpRecoverSegmentProgram:
   
         for item in self.__pool.getCompletedItems():
             result = item.get_results()
-            if 'segmentState: Ready' not in result.stderr:
+            if 'segmentState: Ready' not in result.stderr and 'segmentState: ChangeTrackingDisabled' not in result.stderr:
                 raise Exception('Not ready to connect to database %s' % result.stderr)
 
     """
@@ -1191,6 +1233,59 @@ class GpRecoverSegmentProgram:
             retry += 1
             time.sleep(5)
         return False
+
+
+    def check_segment_state(self, segmentList, dbsMap):
+        # Make sure gpArray and segments are in agreement on current state of system.
+        getVersionCmds = {}
+        for seg in segmentList:
+            if seg.isSegmentQD() == True:
+                continue
+            if seg.isSegmentModeInChangeLogging() == False:
+                continue
+            cmd = gp.SendFilerepTransitionStatusMessage( name = "Get segment status information"
+                                                         , msg = gp.SEGMENT_STATUS_GET_STATUS
+                                                         , dataDir = seg.getSegmentDataDirectory()
+                                                         , port = seg.getSegmentPort()
+                                                         , ctxt = gp.REMOTE
+                                                         , remoteHost = seg.getSegmentHostName()
+                                                        )
+            getVersionCmds[seg.getSegmentDbId()] = cmd
+            self.__pool.addCommand(cmd)
+        self.__pool.join()
+
+        # We can not check to see if the command was successful or not, because gp_primarymirror always returns a non-zero result.
+        # That is just the way gp_primarymirror was designed.
+
+        segmentStates = {}
+        for dbid in getVersionCmds:
+            cmd = getVersionCmds[dbid]
+            mode         = None
+            segmentState = None
+            dataState    = None
+            try:
+                lines = str(cmd.get_results().stderr).split("\n")
+                mode         = lines[0].split(": ")[1].strip()
+                segmentState = lines[1].split(": ")[1].strip()
+                dataState    = lines[2].split(": ")[1].strip()
+            except Exception, e:
+                self.logger.warning("Problem getting Segment state dbid = %s, results = %s." % (str(dbid), str(cmd.get_results().stderr)))
+                continue
+
+            db = dbsMap[dbid]
+            if gparray.ROLE_TO_MODE_MAP[db.getSegmentRole()] != mode:
+                raise Exception("Inconsistency in catalog and segment Role/Mode. Catalog Role = %s. Segment Mode = %s." % (db.getSegmentRole(), mode))
+            if gparray.MODE_TO_DATA_STATE_MAP[db.getSegmentMode()] != dataState:
+                raise Exception("Inconsistency in catalog and segment Mode/DataState. Catalog Mode = %s. Segment DataState = %s." % (db.getSegmentMode(), dataState))
+            if segmentState != gparray.SEGMENT_STATE_READY and segmentState != gparray.SEGMENT_STATE_CHANGE_TRACKING_DISABLED:
+                if segmentState == gparray.SEGMENT_STATE_INITIALIZATION or segmentState == gparray.SEGMENT_STATE_IN_CHANGE_TRACKING_TRANSITION:
+                    raise Exception("Segment is not ready for recovery dbid = %s, segmentState = %s. Retry recovery in a few moments" % (str(db.getSegmentDbId()), segmentState))
+                else:
+                    raise Exception("Segment is in unexpected state. dbid = %s, segmentState = %s." % (str(db.getSegmentDbId()), segmentState))
+
+            segmentStates[dbid] = segmentState
+        return segmentStates
+
 
     def run(self):
         if self.__options.parallelDegree < 1 or self.__options.parallelDegree > 64:
@@ -1222,55 +1317,9 @@ class GpRecoverSegmentProgram:
         if not self._check_database_connection(confProvider):
             raise Exception('Unable to connect to database and start transaction')
 
-        gpArray = confProvider.loadSystemConfig(useUtilityMode=False) 
+        gpArray = confProvider.loadSystemConfig(useUtilityMode=False)
 
-        # Make sure gpArray and segments are in agreement on current state of system.
-        segmentList = gpArray.getSegDbList()
-        getVersionCmds = {}
-        for seg in segmentList:
-            if seg.isSegmentQD() == True:
-                continue
-            if seg.isSegmentModeInChangeLogging() == False:
-                continue
-            cmd = gp.SendFilerepTransitionStatusMessage( name = "Get segment status information"
-                                                         , msg = gp.SEGMENT_STATUS_GET_STATUS
-                                                         , dataDir = seg.getSegmentDataDirectory()
-                                                         , port = seg.getSegmentPort()
-                                                         , ctxt = gp.REMOTE
-                                                         , remoteHost = seg.getSegmentHostName()
-                                                        )
-            getVersionCmds[seg.getSegmentDbId()] = cmd
-            self.__pool.addCommand(cmd)
-        self.__pool.join()
-
-        # We can not check to see if the command was successful or not, because gp_primarymirror always returns a non-zero result.
-        # That is just the way gp_primarymirror was designed.
-
-        dbsMap = gpArray.getSegDbMap()
-        for dbid in getVersionCmds:
-            cmd = getVersionCmds[dbid]
-            mode         = None
-            segmentState = None
-            dataState    = None
-            try:
-                lines = str(cmd.get_results().stderr).split("\n")
-                mode         = lines[0].split(": ")[1].strip()
-                segmentState = lines[1].split(": ")[1].strip()
-                dataState    = lines[2].split(": ")[1].strip()
-            except Exception, e:
-                self.logger.warning("Problem getting Segment state dbid = %s, results = %s." % (str(dbid), str(cmd.get_results().stderr)))
-                continue
-
-            db = dbsMap[dbid]
-            if gparray.ROLE_TO_MODE_MAP[db.getSegmentRole()] != mode:
-                raise Exception("Inconsistency in catalog and segment Role/Mode. Catalog Role = %s. Segment Mode = %s." % (db.getSegmentRole(), mode))
-            if gparray.MODE_TO_DATA_STATE_MAP[db.getSegmentMode()] != dataState:
-                raise Exception("Inconsistency in catalog and segment Mode/DataState. Catalog Mode = %s. Segment DataState = %s." % (db.getSegmentMode(), dataState))
-            if segmentState != gparray.SEGMENT_STATE_READY and segmentState != gparray.SEGMENT_STATE_CHANGE_TRACKING_DISABLED:
-                if segmentState == gparray.SEGMENT_STATE_INITIALIZATION or segmentState == gparray.SEGMENT_STATE_IN_CHANGE_TRACKING_TRANSITION:
-                    raise Exception("Segment is not ready for recovery dbid = %s, segmentState = %s. Retry recovery in a few moments" % (str(db.getSegmentDbId()), segmentState))
-                else:
-                    raise Exception("Segment is in unexpected state. dbid = %s, segmentState = %s." % (str(db.getSegmentDbId()), segmentState))
+        self.check_segment_state(gpArray.getSegDbList(), gpArray.getSegDbMap())
 
         # check that we actually have mirrors
         if gpArray.getFaultStrategy() == gparray.FAULT_STRATEGY_SAN:
@@ -1313,7 +1362,7 @@ class GpRecoverSegmentProgram:
         existing_hosts = set(gpArray.getHostList())
 
         # figure out what needs to be done
-        mirrorBuilder = self.getRecoveryActionsBasedOnOptions(gpEnv, gpArray)
+        mirrorsUnableToBuild, mirrorBuilder = self.getRecoveryActionsBasedOnOptions(gpEnv, gpArray)
 
 
         if self.__options.persistent_check:
@@ -1351,7 +1400,7 @@ class GpRecoverSegmentProgram:
                 self.logger.info("Use gpstate -e to check the resynchronization progress.")
                 self.logger.info("******************************************************************")
             
-        elif len(mirrorBuilder.getMirrorsToBuild()) == 0:
+        elif len(mirrorBuilder.getMirrorsToBuild()) == 0 and not mirrorsUnableToBuild:
             self.logger.info('No segments to recover')
         else:
             mirrorBuilder.checkForPortAndDirectoryConflicts(gpArray)
