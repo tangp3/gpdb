@@ -4328,6 +4328,113 @@ class CatMissingIssue:
                     % (self.type.capitalize(), self.catname[3:], str(self.pkeys), idstr))
 
 
+    def resync_script(self):
+        # get all segment ids
+        all_segment_ids = []
+        # all erroring segment ids
+        ids = [int(i) for i in self.segids[1:-1].split(',')]
+
+        # if all segments have missing or extra, (maybe query cannot discover this case?) return
+        if len(ids) == len(GV.report_cfg):
+            return
+        else:
+            self.source_repair_file = self.fetch_data_to_resync()
+            for i in ids:
+
+                # missing some entry in catalog table from segments, but can resync from others
+                # cause less than half get corruted
+                segname = GV.report_cfg[i]['segname']
+                hostname = GV.report_cfg[i]['hostname']
+                port = GV.report_cfg[i]['port']
+
+                if self.type == 'missing' and len(ids) >= len(GV.report_cfg)/2:
+                    repair_missing_entry_file = self.create_missing_entry_target_repair_file(segname,
+                                                                                             hostname,
+                                                                                             port)
+
+                    repair_psql_cmd = 'psql -h %s -p %s -f %s' % (host, port, repair_missing_entry_file)
+
+                    # must create a dic for GV
+                    # must run the repair only after scp-ed the repair file to remote segments
+                    # this is to save information for generating repair script for missing in the end.
+                    GV.repair[hostname][port].append(repair_psql_cmd)
+
+    def create_missing_entry_target_repair_file(self, segname, host, port):
+        set_guc = 'set allow_system_table_mods = \'DML\';'
+        resync_into_statement = 'COPY {catalog_table} FROM \'%s\'' % (
+                                 os.path.join(self.missing_repair_folder, self.source_repair_file))
+        if with_oids:
+            resync_into_statement += 'with oids'
+
+        repair_file = self.get_missing_entry_repair_target_file(segname, host, port)
+        with open(repair_file, 'w') as fw:
+            fw.write(set_guc)
+            fw.write(resync_into_statement)
+
+    # find the source data to local file and later scp to missing entry segments
+    def fetch_data_to_resync(self):
+        hostname, port = self.find_source_segment()
+        src_resync_data_file = self.get_missing_entry_repair_source_file()
+        self.make_resync_from_statement()
+
+        resync_from_statement = 'COPY (SELECT {columns} FROM {catalog_table} WHERE {pklist}) TO stdout;'
+        resync_from_statement.format()
+
+        fetch_cmdStr = 'psql -h %s -p %s -c \'%s\' > %s' (host, port, resync_from_statement, src_resync_data_file)
+        fetch_cmd = Command('fetch source data', cmdStr = fetch_cmdStr)
+        fetch_cmd.run(validateAfter=True)
+
+    # create query to resync data from a good segment based on the missing type, and catalog table
+    # to do: 
+    #         does select also should contain oid ?
+    #         is the where condition correct for copy? eg, primary key, oid
+    def make_resync_from_statement(self):
+        # {columns} can also contain oids
+        resync_from_statement = 'COPY (SELECT {columns} FROM {catalog_table} WHERE {joins}) TO stdout;'
+
+        if self.catname == 'pg_attribute':
+            resync_from_statement.format(columns='*',
+                                         catalog_table ='pg_attribute', 
+                                         joins = 'attrelid = %s and attname = \'%s\'' % (self.oid, self.pkeys['attname']))
+        elif self.catname == 'pg_class':
+            resync_from_statement.format(columns='oid, *',
+                                         catalog_table ='pg_class',
+                                         joins = 'oid in ( %s ) and attname = \'%s\'' % (self.pkeys, self.pkeys['attname']))
+        else:
+            resync_from_statement.format(columns='*',
+                                         catalog_table = self.catname[3:],
+                                         joins = 'primary_key in (  %s )' % (self.pkeys))
+
+    # return the hostname, port of the good segment to copy data from
+    def find_source_segment(self):
+        pass
+
+    def get_missing_entry_repair_source_file(self, segname, host, port):
+        filename = '%s_%s_%d_%s_missing.repair.source' % (segname, host, port, self.catname)
+        return filename
+
+    def get_missing_entry_repair_target_file(self, segname, host, port):
+        filename = '%s_%s_%d_%s_missing.repair.target' % (segname, host, port, self.catname)
+        return filename
+
+    # Maybe save repair source file afterwards ?
+    def cleanup_repair_file(self):
+        pass
+
+    # once copied data into source file on master, send to remote segment which will be 
+    # consumed by copy from command to execute on the segment only.
+    def scp_copy_from_repair_to_remote(self):
+        pass
+
+    # generate the shell repair script, run this only after all repair file scp-ed to remote
+    # this can be by saving repair file information into a global object so as to generate it at last.
+    def gen_repair_script_for_missing_extra(self):
+        pass
+
+# create a folder to save all repair script and data source file?
+global_missing_extra_fix_dir = os.path.expanduse('~')
+
+
 # -------------------------------------------------------------------------------
 class CatDuplicateIssue:
     def __init__(self, catname, pkeys, segids, enum):
